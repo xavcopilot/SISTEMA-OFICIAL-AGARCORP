@@ -62,7 +62,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make()
-                    ->navigationGroup(null) // <--- ESTO lo saca de la carpeta "Filament Shield"
+                    ->navigationGroup('Administracion')
                     ->sectionColumnSpan(1)
                     ->checkboxListColumns([
                         'default' => 1,
