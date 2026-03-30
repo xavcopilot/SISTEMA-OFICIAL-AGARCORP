@@ -29,6 +29,9 @@ use Illuminate\Validation\ValidationException;
 
 class ListInventoryMovements extends ListRecords
 {
+    private const MAX_ENTRADA_ITEMS = 12;
+    private const MAX_SALIDA_ITEMS = 13;
+
     protected static string $resource = InventoryMovementResource::class;
 
     protected function getHeaderActions(): array
@@ -125,7 +128,9 @@ class ListInventoryMovements extends ListRecords
                         ->label('Detalle de articulos')
                         ->required()
                         ->minItems(1)
+                        ->maxItems(self::MAX_ENTRADA_ITEMS)
                         ->addActionLabel('Agregar')
+                        ->helperText('Maximo ' . self::MAX_ENTRADA_ITEMS . ' articulos por entrada.')
                         ->collapsible()
                         ->collapsed()
                         ->itemLabel(function (array $state): ?string {
@@ -319,7 +324,10 @@ class ListInventoryMovements extends ListRecords
                         ->label('Detalle de articulos')
                         ->required()
                         ->minItems(1)
+                        ->maxItems(self::MAX_ENTRADA_ITEMS)
+                        ->addable(fn (callable $get): bool => count($get('items') ?? []) < self::MAX_ENTRADA_ITEMS)
                         ->addActionLabel('Agregar')
+                        ->helperText('Maximo ' . self::MAX_ENTRADA_ITEMS . ' articulos por entrada.')
                         ->collapsible()
                         ->collapsed()
                         ->itemLabel(function (array $state): ?string {
@@ -334,6 +342,41 @@ class ListInventoryMovements extends ListRecords
                             return "SKU: {$sku} | {$descripcion} | Cant: {$cantidad}";
                         })
                         ->schema([
+                            Select::make('product_id_by_description')
+                                ->label('Buscar por descripcion')
+                                ->options(fn (): array => Product::query()
+                                    ->where('is_archived', false)
+                                    ->orderBy('descripcion')
+                                    ->get(['id', 'descripcion', 'sku', 'stock_actual'])
+                                    ->mapWithKeys(fn (Product $product): array => [
+                                        $product->id => (string) ($product->descripcion ?? '-')
+                                            . ' | SKU: ' . (string) ($product->sku ?? '-')
+                                            . ' | Disp: ' . (int) ($product->stock_actual ?? 0),
+                                    ])
+                                    ->toArray())
+                                ->searchable()
+                                ->dehydrated(false)
+                                ->live()
+                                ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                    $set('product_id_by_description', $get('product_id'));
+                                })
+                                ->afterStateUpdated(function ($state, callable $set): void {
+                                    $set('product_id', $state ? (int) $state : null);
+                                    $product = Product::query()->with('subcategory.category')->find($state);
+
+                                    $set('sku_text', $product?->sku);
+                                    $set('descripcion', $product?->descripcion);
+                                    $set('marca', $product?->marca);
+                                    $set('categoria', $product?->subcategory?->category?->name);
+                                    $set('subcategoria', $product?->subcategory?->name);
+                                    $set('serial', $product?->serial);
+                                    $set('estado', $product?->estado);
+                                    $set('medida', $product?->medida);
+                                    $set('ubicacion', $product?->ubicacion);
+                                    $set('responsable', $product?->dpto_responsable);
+                                })
+                                ->helperText('Busca por descripcion y veras SKU + unidades disponibles antes de seleccionar.'),
+
                             Select::make('product_id')
                                 ->label('SKU')
                                 ->options(fn (): array => Product::query()->where('is_archived', false)->orderBy('sku')->pluck('sku', 'id')->toArray())
@@ -344,6 +387,8 @@ class ListInventoryMovements extends ListRecords
                                 ->live()
                                 ->afterStateUpdated(function ($state, callable $set): void {
                                     $product = Product::query()->with('subcategory.category')->find($state);
+
+                                    $set('product_id_by_description', $state ? (int) $state : null);
 
                                     $set('sku_text', $product?->sku);
                                     $set('descripcion', $product?->descripcion);
@@ -479,7 +524,10 @@ class ListInventoryMovements extends ListRecords
                         ->label('Detalle')
                         ->required()
                         ->minItems(1)
+                        ->maxItems(self::MAX_SALIDA_ITEMS)
+                        ->addable(fn (callable $get): bool => count($get('items') ?? []) < self::MAX_SALIDA_ITEMS)
                         ->addActionLabel('Agregar')
+                        ->helperText('Maximo ' . self::MAX_SALIDA_ITEMS . ' articulos por salida.')
                         ->collapsible()
                         ->collapsed()
                         ->itemLabel(function (array $state): ?string {
@@ -495,6 +543,40 @@ class ListInventoryMovements extends ListRecords
                             return "SKU: {$sku} | {$descripcion} | Cant: {$cantidad} | Retorna: {$retorna}";
                         })
                         ->schema([
+                            Select::make('product_id_by_description')
+                                ->label('Buscar por descripcion')
+                                ->options(fn (): array => Product::query()
+                                    ->where('is_archived', false)
+                                    ->orderBy('descripcion')
+                                    ->get(['id', 'descripcion', 'sku', 'stock_actual'])
+                                    ->mapWithKeys(fn (Product $product): array => [
+                                        $product->id => (string) ($product->descripcion ?? '-')
+                                            . ' | SKU: ' . (string) ($product->sku ?? '-')
+                                            . ' | Disp: ' . (int) ($product->stock_actual ?? 0),
+                                    ])
+                                    ->toArray())
+                                ->searchable()
+                                ->dehydrated(false)
+                                ->live()
+                                ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                    $set('product_id_by_description', $get('product_id'));
+                                })
+                                ->afterStateUpdated(function ($state, callable $set): void {
+                                    $set('product_id', $state ? (int) $state : null);
+                                    $product = Product::query()->with('subcategory.category')->find($state);
+
+                                    $set('descripcion', $product?->descripcion);
+                                    $set('marca', $product?->marca);
+                                    $set('categoria', $product?->subcategory?->category?->name);
+                                    $set('subcategoria', $product?->subcategory?->name);
+                                    $set('serial', $product?->serial);
+                                    $set('estado', $product?->estado);
+                                    $set('medida', $product?->medida);
+                                    $set('ubicacion', $product?->ubicacion);
+                                    $set('stock_disponible', $product?->stock_actual);
+                                })
+                                ->helperText('Busca por descripcion y veras SKU + unidades disponibles antes de seleccionar.'),
+
                             Select::make('product_id')
                                 ->label('SKU')
                                 ->options(fn (): array => Product::query()->where('is_archived', false)->orderBy('sku')->pluck('sku', 'id')->toArray())
@@ -503,7 +585,9 @@ class ListInventoryMovements extends ListRecords
                                 ->required()
                                 ->live()
                                 ->afterStateUpdated(function ($state, callable $set): void {
-                                    $product = Product::find($state);
+                                    $product = Product::query()->with('subcategory.category')->find($state);
+
+                                    $set('product_id_by_description', $state ? (int) $state : null);
 
                                     $set('descripcion', $product?->descripcion);
                                     $set('marca', $product?->marca);
@@ -683,6 +767,7 @@ class ListInventoryMovements extends ListRecords
             ]);
 
             $items = $data['items'] ?? [];
+            $this->assertItemsLimit($items, self::MAX_ENTRADA_ITEMS, 'entrada');
             $this->assertNoDuplicateProductsInItems($items, 'entrada');
 
             foreach ($items as $item) {
@@ -741,6 +826,7 @@ class ListInventoryMovements extends ListRecords
             ]);
 
             $items = $data['items'] ?? [];
+            $this->assertItemsLimit($items, self::MAX_SALIDA_ITEMS, 'salida');
             $this->assertNoDuplicateProductsInItems($items, 'salida');
 
             foreach ($items as $item) {
@@ -842,6 +928,15 @@ class ListInventoryMovements extends ListRecords
             }
 
             $seen[$productId] = true;
+        }
+    }
+
+    private function assertItemsLimit(array $items, int $maxItems, string $tipo): void
+    {
+        if (count($items) > $maxItems) {
+            throw ValidationException::withMessages([
+                'items' => 'Solo se permiten ' . $maxItems . ' articulos por ' . $tipo . '.',
+            ]);
         }
     }
 }

@@ -14,6 +14,9 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryMovementLineEditor
 {
+    private const MAX_ENTRADA_ITEMS = 12;
+    private const MAX_SALIDA_ITEMS = 13;
+
     public const REMOVAL_REASONS = [
         'falta_informacion' => 'Falta de información',
         'error_escritura' => 'Error de escritura',
@@ -36,7 +39,7 @@ class InventoryMovementLineEditor
             ]);
         }
 
-        self::apply($movement, $movementData, $itemsData, +1);
+        self::apply($movement, $movementData, $itemsData, +1, self::MAX_ENTRADA_ITEMS, 'entrada');
     }
 
     public static function updateIngreso(InventoryMovement $movement, array $movementData, array $itemsData): void
@@ -58,10 +61,17 @@ class InventoryMovementLineEditor
             ]);
         }
 
-        self::apply($movement, $movementData, $itemsData, -1);
+        self::apply($movement, $movementData, $itemsData, -1, self::MAX_SALIDA_ITEMS, 'salida');
     }
 
-    private static function apply(InventoryMovement $movement, array $movementData, array $itemsData, int $movementSign): void
+    private static function apply(
+        InventoryMovement $movement,
+        array $movementData,
+        array $itemsData,
+        int $movementSign,
+        int $maxItems,
+        string $tipo
+    ): void
     {
         $criticalSkus = [];
 
@@ -75,6 +85,12 @@ class InventoryMovementLineEditor
             if ($finalRows === []) {
                 throw ValidationException::withMessages([
                     'items' => 'Debe quedar al menos una linea activa en el movimiento.',
+                ]);
+            }
+
+            if (count($finalRows) > $maxItems) {
+                throw ValidationException::withMessages([
+                    'items' => 'Solo se permiten ' . $maxItems . ' articulos por ' . $tipo . '.',
                 ]);
             }
 

@@ -4,18 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryMovement;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 class InventorySalidaFormatoController extends Controller
 {
     private const EXCEL_TEMPLATE_FILE = 'FORMATO SALIDA MATERIAL.xlsx';
     private const PDF_PRINT_AREA_START = 'A1';
-    private const PDF_MAX_END_COLUMN = 'I';
-    private const PDF_MIN_END_ROW = 40;
+    private const PDF_MAX_END_COLUMN = 'N';
+    private const PDF_MIN_END_ROW = 30;
+    private const LIBREOFFICE_TIMEOUT_SECONDS = 120;
 
     private const ITEM_TOKENS = [
         'item',
@@ -34,6 +39,8 @@ class InventorySalidaFormatoController extends Controller
         'subtotal',
         'ubicacion',
         'dpto_responsable',
+        'estado_nuevo_x',
+        'estado_usado_x',
         'retorna',
         'observaciones_item',
     ];
@@ -54,7 +61,7 @@ class InventorySalidaFormatoController extends Controller
             abort(Response::HTTP_NOT_FOUND, 'Este formato solo aplica para movimientos de salida.');
         }
 
-        $inventoryMovement->loadMissing(['items.product', 'createdBy']);
+        $inventoryMovement->loadMissing(['items.product.subcategory.category', 'createdBy']);
 
         $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
 
@@ -92,8 +99,11 @@ class InventorySalidaFormatoController extends Controller
                 return response()->download($xlsxPath, $fileName)->deleteFileAfterSend(true);
             }
 
-            $pdfWriter = new PdfDompdfWriter($spreadsheet);
-            $pdfWriter->save($pdfPath);
+            $wasConvertedByLibreOffice = $this->convertExcelToPdfWithLibreOffice($xlsxPath, $pdfPath, $tmpDir);
+            if (! $wasConvertedByLibreOffice) {
+                $pdfWriter = new PdfDompdfWriter($spreadsheet);
+                $pdfWriter->save($pdfPath);
+            }
 
             if (file_exists($xlsxPath)) {
                 @unlink($xlsxPath);
@@ -166,11 +176,22 @@ class InventorySalidaFormatoController extends Controller
                 $cell = $sheet->getCellByColumnAndRow($col, $rowIndex);
                 $value = $cell->getValue();
 
-                if (! is_string($value) || $value === '') {
+                if ($value instanceof RichText) {
+                    $textValue = $value->getPlainText();
+                } elseif (is_string($value)) {
+                    $textValue = $value;
+                } else {
                     continue;
                 }
 
-                $cell->setValue($this->replaceTokenVariants($value, $tokens));
+                if ($textValue === '') {
+                    continue;
+                }
+
+                $newValue = $this->replaceTokenVariants($textValue, $tokens);
+                if ($newValue !== $textValue) {
+                    $cell->setValue($newValue);
+                }
             }
         }
     }
@@ -184,6 +205,7 @@ class InventorySalidaFormatoController extends Controller
         $product = $item->product;
         $cantidad = (int) ($item->cantidad ?? 0);
         $precio = (float) ($item->precio_momento ?? 0);
+        $estado = strtoupper(trim((string) ($product?->estado ?? '')));
 
         return [
             'item'              => (string) ($offset + 1),
@@ -202,6 +224,8 @@ class InventorySalidaFormatoController extends Controller
             'subtotal'          => number_format($cantidad * $precio, 2, '.', ''),
             'ubicacion'         => (string) ($product?->ubicacion ?? ''),
             'dpto_responsable'  => (string) ($product?->dpto_responsable ?? ''),
+            'estado_nuevo_x'    => $estado === 'NUEVO' ? 'X' : '',
+            'estado_usado_x'    => $estado === 'USADO' ? 'X' : '',
             'retorna'           => $item->retorna ? 'SI' : 'NO',
             'observaciones_item' => (string) ($item->observaciones_item ?? ''),
         ];
@@ -215,14 +239,23 @@ class InventorySalidaFormatoController extends Controller
 
         for ($row = 1; $row <= $highestRow; $row++) {
             for ($col = 1; $col <= $highestColumnIndex; $col++) {
-                $value = $sheet->getCellByColumnAndRow($col, $row)->getValue();
+                $cell = $sheet->getCellByColumnAndRow($col, $row);
+                $value = $cell->getValue();
 
-                if (! is_string($value) || $value === '') {
+                if ($value instanceof RichText) {
+                    $textValue = $value->getPlainText();
+                } elseif (is_string($value)) {
+                    $textValue = $value;
+                } else {
+                    continue;
+                }
+
+                if ($textValue === '') {
                     continue;
                 }
 
                 foreach (self::ITEM_TOKENS as $token) {
-                    if ($this->containsTokenVariant($value, $token)) {
+                    if ($this->containsTokenVariant($textValue, $token)) {
                         $rows[$row] = $row;
                         break 2;
                     }
@@ -243,11 +276,22 @@ class InventorySalidaFormatoController extends Controller
                 $cell = $sheet->getCellByColumnAndRow($col, $row);
                 $value = $cell->getValue();
 
-                if (! is_string($value) || $value === '') {
+                if ($value instanceof RichText) {
+                    $textValue = $value->getPlainText();
+                } elseif (is_string($value)) {
+                    $textValue = $value;
+                } else {
                     continue;
                 }
 
-                $cell->setValue($this->replaceTokenVariants($value, $tokens));
+                if ($textValue === '') {
+                    continue;
+                }
+
+                $newValue = $this->replaceTokenVariants($textValue, $tokens);
+                if ($newValue !== $textValue) {
+                    $cell->setValue($newValue);
+                }
             }
         }
     }
@@ -255,13 +299,16 @@ class InventorySalidaFormatoController extends Controller
     private function replaceTokenVariants(string $text, array $tokens): string
     {
         foreach ($tokens as $token => $value) {
-            $text = str_replace([
-                '{{' . $token . '}}',
-                '[[' . $token . ']]',
-                '{' . $token . '}',
-                '%' . $token . '%',
-                '__' . $token . '__',
-            ], (string) $value, $text);
+            $quotedToken = preg_quote($token, '/');
+            $patterns = [
+                '/\{\{\s*' . $quotedToken . '\s*\}\}/u',
+                '/\[\[\s*' . $quotedToken . '\s*\]\]/u',
+                '/\{\s*' . $quotedToken . '\s*\}/u',
+                '/%\s*' . $quotedToken . '\s*%/u',
+                '/__\s*' . $quotedToken . '\s*__/u',
+            ];
+
+            $text = preg_replace($patterns, (string) $value, $text) ?? $text;
         }
 
         return $text;
@@ -269,11 +316,10 @@ class InventorySalidaFormatoController extends Controller
 
     private function containsTokenVariant(string $text, string $token): bool
     {
-        return str_contains($text, '{{' . $token . '}}')
-            || str_contains($text, '[[' . $token . ']]')
-            || str_contains($text, '{' . $token . '}')
-            || str_contains($text, '%' . $token . '%')
-            || str_contains($text, '__' . $token . '__');
+        $quotedToken = preg_quote($token, '/');
+        $pattern = '/(\{\{\s*' . $quotedToken . '\s*\}\}|\[\[\s*' . $quotedToken . '\s*\]\]|\{\s*' . $quotedToken . '\s*\}|%\s*' . $quotedToken . '\s*%|__\s*' . $quotedToken . '\s*__)/u';
+
+        return (bool) preg_match($pattern, $text);
     }
 
     private function normalizeSheetForPdf(Worksheet $sheet): void
@@ -288,11 +334,11 @@ class InventorySalidaFormatoController extends Controller
             $highestDataRow = $sheet->getHighestRow();
         }
 
-        $endColumnIndex = min(
+        $endColumnIndex = max(
             Coordinate::columnIndexFromString($highestDataColumn),
             Coordinate::columnIndexFromString(self::PDF_MAX_END_COLUMN)
         );
-        $endColumn = Coordinate::stringFromColumnIndex(max($endColumnIndex, 1));
+        $endColumn = Coordinate::stringFromColumnIndex($endColumnIndex);
         $endRow = max((int) $highestDataRow, self::PDF_MIN_END_ROW);
 
         $pageSetup->setPrintArea(
@@ -303,15 +349,99 @@ class InventorySalidaFormatoController extends Controller
         );
 
         $pageMargins = $sheet->getPageMargins();
-        $pageMargins->setTop(0.25);
-        $pageMargins->setBottom(0.25);
-        $pageMargins->setLeft(0.2);
-        $pageMargins->setRight(0.2);
+        $pageMargins->setTop(0.2);
+        $pageMargins->setBottom(0.2);
+        $pageMargins->setLeft(0.35);
+        $pageMargins->setRight(0.35);
 
-        $pageSetup->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
+        $pageSetup->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
-        $pageSetup->setFitToPage(true);
-        $pageSetup->setFitToWidth(1);
+        $pageSetup->setFitToPage(false);
         $pageSetup->setFitToHeight(0);
+        $pageSetup->setFitToWidth(0);
+        $pageSetup->setScale(95);
+        $pageSetup->setHorizontalCentered(true);
+        $pageSetup->setVerticalCentered(true);
+    }
+
+    private function convertExcelToPdfWithLibreOffice(string $xlsxPath, string $pdfPath, string $outputDir): bool
+    {
+        $binary = $this->resolveLibreOfficeBinary();
+        if ($binary === null) {
+            return false;
+        }
+
+        $process = new Process([
+            $binary,
+            '--headless',
+            '--nologo',
+            '--nofirststartwizard',
+            '--convert-to',
+            'pdf:calc_pdf_Export',
+            '--outdir',
+            $outputDir,
+            $xlsxPath,
+        ]);
+        $process->setTimeout(self::LIBREOFFICE_TIMEOUT_SECONDS);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            Log::warning('Fallo conversion LibreOffice para formato salida, se usara fallback Dompdf.', [
+                'error' => $process->getErrorOutput(),
+                'output' => $process->getOutput(),
+                'xlsx' => $xlsxPath,
+            ]);
+
+            return false;
+        }
+
+        $generatedPdfPath = $outputDir
+            . DIRECTORY_SEPARATOR
+            . pathinfo($xlsxPath, PATHINFO_FILENAME)
+            . '.pdf';
+
+        if (! file_exists($generatedPdfPath)) {
+            Log::warning('LibreOffice no genero el PDF esperado para formato salida, se usara fallback Dompdf.', [
+                'expected_pdf' => $generatedPdfPath,
+                'xlsx' => $xlsxPath,
+            ]);
+
+            return false;
+        }
+
+        if (realpath($generatedPdfPath) !== realpath($pdfPath)) {
+            if (file_exists($pdfPath)) {
+                @unlink($pdfPath);
+            }
+
+            rename($generatedPdfPath, $pdfPath);
+        }
+
+        return true;
+    }
+
+    private function resolveLibreOfficeBinary(): ?string
+    {
+        $envPath = trim((string) env('LIBREOFFICE_PATH', ''));
+        $candidates = array_filter([
+            $envPath ?: null,
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/usr/local/bin/soffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+            'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+            'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+        ]);
+
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        $finder = new ExecutableFinder();
+
+        return $finder->find('libreoffice') ?? $finder->find('soffice');
     }
 }

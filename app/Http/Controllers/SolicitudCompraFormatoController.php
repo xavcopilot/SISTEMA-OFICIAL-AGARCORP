@@ -20,9 +20,9 @@ use Symfony\Component\Process\Process;
 class SolicitudCompraFormatoController extends Controller
 {
     private const EXCEL_TEMPLATE_FILE = 'PLANILLA DE FORMATO DE COMPRA.xlsx';
-    private const PDF_PRINT_AREA_START = 'B3';
-    private const PDF_MIN_END_COLUMN = 'N';
-    private const PDF_MIN_END_ROW = 47;
+    private const PDF_PRINT_AREA_START = 'C3';
+    private const PDF_MAX_END_COLUMN = 'L';
+    private const PDF_MAX_END_ROW = 48;
     private const USO_LINE_MAX = 80;
     private const MAX_ITEMS = 15;
     private const USAR_CODIGOS_PREDEFINIDOS = true;
@@ -514,21 +514,8 @@ class SolicitudCompraFormatoController extends Controller
     private function normalizeSheetForPdf(Worksheet $sheet): void
     {
         $pageSetup = $sheet->getPageSetup();
-
-        $highestDataColumn = $sheet->getHighestDataColumn();
-        $highestDataRow = $sheet->getHighestDataRow();
-
-        if ($highestDataColumn === 'A' && $highestDataRow <= 1) {
-            $highestDataColumn = $sheet->getHighestColumn();
-            $highestDataRow = $sheet->getHighestRow();
-        }
-
-        $endColumnIndex = max(
-            Coordinate::columnIndexFromString($highestDataColumn),
-            Coordinate::columnIndexFromString(self::PDF_MIN_END_COLUMN)
-        );
-        $endColumn = Coordinate::stringFromColumnIndex($endColumnIndex);
-        $endRow = max((int) $highestDataRow, self::PDF_MIN_END_ROW);
+        $endColumn = self::PDF_MAX_END_COLUMN;
+        $endRow = self::PDF_MAX_END_ROW;
 
         $pageSetup->setPrintArea(
             self::PDF_PRINT_AREA_START
@@ -538,16 +525,18 @@ class SolicitudCompraFormatoController extends Controller
         );
 
         $pageMargins = $sheet->getPageMargins();
-        $pageMargins->setTop(0.25);
-        $pageMargins->setBottom(0.25);
-        $pageMargins->setLeft(0.2);
-        $pageMargins->setRight(0.2);
+        $pageMargins->setTop(0.5);
+        $pageMargins->setBottom(0.5);
+        $pageMargins->setLeft(0.5);
+        $pageMargins->setRight(0.5);
 
         $pageSetup->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
         $pageSetup->setFitToPage(true);
         $pageSetup->setFitToWidth(1);
-        $pageSetup->setFitToHeight(0);
+        $pageSetup->setFitToHeight(1);
+        $pageSetup->setHorizontalCentered(true);
+        $pageSetup->setVerticalCentered(true);
     }
 
     private function convertExcelToPdfWithLibreOffice(string $xlsxPath, string $pdfPath, string $outputDir): bool

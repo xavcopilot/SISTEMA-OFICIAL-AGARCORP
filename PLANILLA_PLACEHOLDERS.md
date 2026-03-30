@@ -213,3 +213,105 @@ Este bloque es solo para copiar y pegar directamente en la plantilla.
 - {{subtotal}}
 - {{ubicacion}}
 - {{dpto_responsable}}
+
+## Placeholders oficiales - Formato Salida Material
+
+Este bloque aplica al archivo:
+
+- `storage/app/templates/FORMATO SALIDA MATERIAL.xlsx`
+
+### Placeholders globales (encabezado / resumen)
+
+- `movimiento_id`
+- `nro_control`
+- `tipo`
+- `fecha` (formato `d/m/Y`)
+- `almacenista` (quien entrega)
+- `creado_por` (usuario que registro el movimiento)
+- `responsable_destino`
+- `dpto_destino`
+- `comentarios`
+- `total_items`
+- `total_cantidad`
+- `total_monto`
+
+### Placeholders de detalle (items)
+
+Coloca estos placeholders en las filas de detalle del formato. Cada fila con placeholders de item sera llenada en orden con los productos de la salida.
+
+- `item`
+- `item_n` (alias de `item`)
+- `sku`
+- `codigo` (usa `cod_ingreso` del producto)
+- `descripcion`
+- `marca`
+- `categoria`
+- `subcategoria`
+- `serial`
+- `estado`
+- `medida`
+- `cantidad`
+- `precio`
+- `subtotal`
+- `ubicacion`
+- `dpto_responsable`
+- `estado_nuevo_x` (coloca `X` si el estado del producto es `NUEVO`)
+- `estado_usado_x` (coloca `X` si el estado del producto es `USADO`)
+- `retorna`
+- `observaciones_item`
+
+## Bloque copiable - Formato Salida Material (con llaves)
+
+Este bloque es solo para copiar y pegar directamente en la plantilla.
+
+### Globales
+
+- {{movimiento_id}}
+- {{nro_control}}
+- {{tipo}}
+- {{fecha}}
+- {{almacenista}}
+- {{creado_por}}
+- {{responsable_destino}}
+- {{dpto_destino}}
+- {{comentarios}}
+- {{total_items}}
+- {{total_cantidad}}
+- {{total_monto}}
+
+### Detalle
+
+- {{item}}
+- {{item_n}}
+- {{sku}}
+- {{codigo}}
+- {{descripcion}}
+- {{marca}}
+- {{categoria}}
+- {{subcategoria}}
+- {{serial}}
+- {{estado}}
+- {{medida}}
+- {{cantidad}}
+- {{precio}}
+- {{subtotal}}
+- {{ubicacion}}
+- {{dpto_responsable}}
+- {{estado_nuevo_x}}
+- {{estado_usado_x}}
+- {{retorna}}
+- {{observaciones_item}}
+
+## Nota para Formato Salida Material
+
+Estos campos no existen hoy como datos propios del movimiento de salida, por lo que no tienen placeholder oficial mientras no se agreguen al formulario o al modelo:
+
+- `frente`
+- `proyecto`
+- `contrato`
+- `placa`
+- `conductor`
+- `autorizado_por`
+- `despachado_por`
+
+Si alguno de esos campos debe salir en la plantilla, primero hay que incorporarlo al flujo de captura o definir una regla de negocio para derivarlo.

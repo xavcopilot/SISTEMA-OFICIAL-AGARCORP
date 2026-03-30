@@ -213,10 +213,37 @@ class ConsultarSalidasTable
                         ->label('Lineas de materiales')
                         ->defaultItems(0)
                         ->minItems(1)
+                        ->maxItems(13)
+                        ->addable(fn (callable $get): bool => count($get('items') ?? []) < 13)
                         ->addActionLabel('Agregar linea')
                         ->deletable(false)
+                        ->helperText('Maximo 13 articulos por salida.')
                         ->schema([
                             Hidden::make('movement_item_id'),
+
+                            Select::make('product_id_by_description')
+                                ->label('Buscar por descripcion')
+                                ->options(fn (): array => Product::query()
+                                    ->where('is_archived', false)
+                                    ->orderBy('descripcion')
+                                    ->get(['id', 'descripcion', 'sku', 'stock_actual'])
+                                    ->mapWithKeys(fn (Product $product): array => [
+                                        $product->id => (string) ($product->descripcion ?? '-')
+                                            . ' | SKU: ' . (string) ($product->sku ?? '-')
+                                            . ' | Disp: ' . (int) ($product->stock_actual ?? 0),
+                                    ])
+                                    ->toArray())
+                                ->searchable()
+                                ->dehydrated(false)
+                                ->live()
+                                ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                    $set('product_id_by_description', $get('product_id'));
+                                })
+                                ->afterStateUpdated(function ($state, callable $set): void {
+                                    $set('product_id', $state ? (int) $state : null);
+                                    $set('precio_momento', (float) (Product::query()->whereKey($state)->value('precio_unitario') ?? 0));
+                                })
+                                ->helperText('Busca por descripcion y veras SKU + unidades disponibles antes de seleccionar.'),
 
                             Select::make('product_id')
                                 ->label('SKU')
@@ -225,7 +252,17 @@ class ConsultarSalidasTable
                                 ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                 ->live()
                                 ->afterStateUpdated(function ($state, callable $set): void {
+                                    $set('product_id_by_description', $state ? (int) $state : null);
                                     $set('precio_momento', (float) (Product::query()->whereKey($state)->value('precio_unitario') ?? 0));
+                                })
+                                ->helperText(function (callable $get): ?string {
+                                    $product = Product::query()->find((int) ($get('product_id') ?? 0));
+
+                                    if (! $product) {
+                                        return null;
+                                    }
+
+                                    return 'Disponible: ' . (int) ($product->stock_actual ?? 0) . ' | SKU: ' . (string) ($product->sku ?? '-');
                                 })
                                 ->required(fn (callable $get): bool => ! (bool) $get('eliminar_linea')),
 
