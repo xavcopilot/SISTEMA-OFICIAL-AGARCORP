@@ -1,0 +1,255 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+:root {
+    --ag-login-bg: #eef3fb;
+    --ag-login-bg-soft: #f8fbff;
+    --ag-login-panel: rgba(255, 255, 255, 0.9);
+    --ag-login-panel-border: rgba(15, 35, 73, 0.08);
+    --ag-login-text: #0f2349;
+    --ag-login-muted: #66748d;
+    --ag-login-primary: #2563eb;
+    --ag-login-primary-strong: #1d4ed8;
+}
+
+.fi-body {
+    background:
+        /* Cuadriculado visible en modo claro */
+        linear-gradient(rgba(37,99,235,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37,99,235,0.04) 1px, transparent 1px),
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.09), transparent 28%),
+        radial-gradient(circle at 85% 12%, rgba(14, 165, 233, 0.08), transparent 22%),
+        linear-gradient(180deg, var(--ag-login-bg) 0%, var(--ag-login-bg-soft) 100%);
+    background-size: 38px 38px, 38px 38px, auto, auto, auto;
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+}
+
+.fi-simple-layout {
+    position: relative;
+    isolation: isolate;
+}
+
+.fi-simple-layout::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    content: '';
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+    background-size: 34px 34px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 80%);
+}
+
+.fi-simple-main-ctn {
+    padding: 2rem 1.25rem;
+}
+
+.fi-simple-main {
+    width: min(100%, 690px);
+    margin-block: clamp(2rem, 7vh, 4.5rem);
+    padding: clamp(1.25rem, 2vw, 1.9rem);
+    border: 1px solid var(--ag-login-panel-border);
+    border-radius: 1.5rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--ag-login-panel));
+    box-shadow: 0 24px 60px rgba(15, 35, 73, 0.1);
+    backdrop-filter: blur(14px);
+}
+
+.fi-simple-page-content {
+    gap: 1.2rem;
+}
+
+.fi-simple-header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+    text-align: center;
+}
+
+.fi-simple-header .fi-logo {
+    width: auto !important;
+    height: 6.6rem !important;
+    max-width: 100%;
+    margin-inline: auto;
+    display: block !important;
+    color: var(--ag-login-text);
+    filter: drop-shadow(0 8px 18px rgba(15, 35, 73, 0.08));
+}
+
+.fi-simple-header-heading {
+    display: none;
+}
+
+.fi-simple-header-subheading {
+    display: none;
+}
+
+.ag-login-title {
+    font-size: clamp(1.65rem, 2.8vw, 2.55rem);
+    line-height: 1.08;
+    font-weight: 850;
+    letter-spacing: -0.045em;
+}
+
+.ag-login-subtitle {
+    font-size: clamp(0.72rem, 0.92vw, 0.86rem);
+    margin-top: 0.45rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+}
+
+.fi-simple-main .fi-fo-field-wrp {
+    gap: 0.55rem;
+}
+
+.fi-simple-main .fi-fo-field-label-content {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ag-login-text);
+}
+
+.fi-simple-main .fi-fo-field-label {
+    color: var(--ag-login-text);
+}
+
+
+.fi-simple-main .fi-btn {
+    min-height: 3.2rem;
+    border: 0;
+    border-radius: 0.95rem;
+    background: linear-gradient(135deg, var(--ag-login-primary), var(--ag-login-primary-strong));
+    box-shadow: 0 16px 30px rgba(37, 99, 235, 0.2);
+}
+
+.fi-simple-main .fi-btn:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+}
+
+.ag-login-signature {
+    width: 100%;
+    margin-inline: auto;
+    padding-top: 0.35rem;
+    text-align: center;
+    font-size: 0.84rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #98a2b3;
+}
+
+.fi-simple-main .fi-form,
+.fi-simple-main .fi-fo-component-ctn,
+.fi-simple-main .fi-fo-field {
+    width: 100%;
+}
+
+.fi-simple-main .fi-form {
+    width: min(100%, 24.5rem);
+    margin-inline: auto;
+}
+
+.fi-simple-main .fi-form > * {
+    width: 100%;
+}
+
+.fi-simple-main .fi-fo-field-content-col,
+.fi-simple-main .fi-fo-field-content,
+.fi-simple-main .fi-fo-field-content-ctn,
+.fi-simple-main .fi-fo-field-label-col {
+    width: 100%;
+}
+
+.fi-simple-main .fi-fo-field-label-col {
+    margin-bottom: 0.1rem;
+}
+
+.fi-simple-main .fi-fo-field-label {
+    display: inline-flex;
+    align-items: center;
+}
+
+.fi-simple-main .fi-fo-field-label-col,
+.fi-simple-main .fi-fo-field-content-col,
+.fi-simple-main .fi-fo-field-content,
+.fi-simple-main .fi-input-wrp,
+.fi-simple-main .fi-ac {
+    margin-inline: 0;
+    width: 100%;
+}
+
+
+.fi-simple-main .fi-fo-checkbox-list,
+.fi-simple-main .fi-checkbox,
+.fi-simple-main .fi-ac,
+.fi-simple-main .fi-btn,
+.ag-login-signature {
+    width: 100%;
+}
+
+.fi-simple-main a {
+    color: var(--ag-login-primary-strong);
+}
+
+.dark .fi-body {
+    background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 28%),
+        linear-gradient(180deg, #091120 0%, #101a2f 100%);
+}
+
+.dark .fi-simple-main {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(11, 18, 32, 0.96), rgba(16, 26, 47, 0.9));
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+}
+
+.dark .fi-simple-header-heading,
+.dark .fi-simple-header .fi-logo,
+.dark .fi-simple-main .fi-fo-field-label-content,
+.dark .fi-simple-main .fi-fo-field-label {
+    color: #f8fbff;
+}
+
+.dark .fi-simple-header-subheading {
+    color: #a9b7cf;
+}
+
+.dark .ag-login-signature {
+    color: #7f8ba3;
+}
+
+@media (max-width: 640px) {
+    .fi-simple-main-ctn {
+        padding-inline: 0.9rem;
+    }
+
+    .fi-simple-main {
+        width: 100%;
+        padding: 1.05rem;
+        border-radius: 1.2rem;
+    }
+
+    .ag-login-title {
+        font-size: clamp(1.5rem, 5vw, 2.9rem);
+    }
+
+    .ag-login-subtitle {
+        font-size: 0.78rem;
+        letter-spacing: 0.22em;
+    }
+}
+
+.ag-desc-suggest-field .ts-dropdown {
+    min-width: 52rem !important;
+    width: max-content !important;
+    max-width: min(92vw, 72rem) !important;
+}
+
+.ag-desc-suggest-field .ts-dropdown .option {
+    white-space: nowrap;
+}
