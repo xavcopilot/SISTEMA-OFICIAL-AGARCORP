@@ -600,6 +600,13 @@ class SolicitudCompraFormatoController extends Controller
         $envPath = trim((string) env('LIBREOFFICE_PATH', ''));
         $candidates = array_filter([
             $envPath !== '' ? $envPath : null,
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/usr/local/bin/soffice',
+            '/snap/bin/libreoffice',
+            '/snap/bin/soffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
             'C:\\Program Files\\LibreOffice\\program\\soffice.com',
             'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
             'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com',
@@ -613,7 +620,9 @@ class SolicitudCompraFormatoController extends Controller
         }
 
         $finder = new ExecutableFinder();
-        $fromPath = $finder->find('soffice.com') ?? $finder->find('soffice');
+        $fromPath = $finder->find('libreoffice')
+            ?? $finder->find('soffice')
+            ?? $finder->find('soffice.com');
 
         if ($fromPath !== null) {
             return $fromPath;
