@@ -66,7 +66,7 @@ class SubcategorySeeder extends Seeder
                 'ANTIHISTAMINICO',
                 'OFTÁLMICO',
             ],
-            'EQUIPO_MEDICO' => [
+            'EQUIPO MEDICO' => [
                 'NEBULIZADOR',
                 'RECOLECTOR',
                 'OXÍGENO',
@@ -87,7 +87,7 @@ class SubcategorySeeder extends Seeder
                 'INSTRUMENTO DE MEDICIÓN Y TRANSFERENCIA DE VOLUMEN',
                 'TOMA DE MUESTRA',
             ],
-            'HERRAMIENTAS_' => [
+            'HERRAMIENTAS' => [
                 'HERRAMIENTA DE MANO',
                 'HERRAMIENTA DE ABRASIÓN',
                 'MATERIAL ELECTRICO',
@@ -103,14 +103,14 @@ class SubcategorySeeder extends Seeder
                 'HERRAMIENTA ELECTRONICA',
                 'HERRAMIENTA MECANICA',
             ],
-            'UTENSILIOS_DE_COCINA' => [
+            'UTENSILIOS DE COCINA' => [
                 'ALMACENAMIENTO TÉRMICO',
                 'PREPARACIÓN DE ALIMENTOS',
                 'COCCIÓN',
                 'ELECTRODOMÉSTICO',
                 'CONTENEDOR DE LÍQUIDOS DE LIMPIEZA',
             ],
-            'PRODUCTOS_QUIMICOS' => [
+            'PRODUCTOS QUIMICOS' => [
                 'DILUYENTES Y SOLVENTES',
                 'GLICERINA',
                 'LUBRICACION',
@@ -119,7 +119,7 @@ class SubcategorySeeder extends Seeder
                 'ILUMINACION FIJA',
                 'ILUMINACION PORTATIL',
             ],
-            'SISTEMA_DE_SEGURIDAD' => [
+            'SISTEMA DE SEGURIDAD' => [
                 'DETECTOR DE INCENDIOS',
                 'ALARMAS',
                 'CONTROL DE ACCESO',
@@ -137,7 +137,7 @@ class SubcategorySeeder extends Seeder
                 'EQUIPO DE PROTECCION ACUATICO',
                 'PROTECCION CORPORAL',
             ],
-            'ELECTRONICA_DE_CONSUMO' => [
+            'ELECTRONICA DE CONSUMO' => [
                 'EQUIPO DE SONIDO',
                 'EQUIPO DE VIDEO',
                 'FUENTE DE PODER',
