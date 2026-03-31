@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
-use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Symfony\Component\Process\ExecutableFinder;
@@ -99,10 +98,8 @@ class InventorySalidaFormatoController extends Controller
                 return response()->download($xlsxPath, $fileName)->deleteFileAfterSend(true);
             }
 
-            $wasConvertedByLibreOffice = $this->convertExcelToPdfWithLibreOffice($xlsxPath, $pdfPath, $tmpDir);
-            if (! $wasConvertedByLibreOffice) {
-                $pdfWriter = new PdfDompdfWriter($spreadsheet);
-                $pdfWriter->save($pdfPath);
+            if (! $this->convertExcelToPdfWithLibreOffice($xlsxPath, $pdfPath, $tmpDir)) {
+                throw new \RuntimeException('LibreOffice no pudo convertir el archivo a PDF.');
             }
 
             if (file_exists($xlsxPath)) {
@@ -371,22 +368,42 @@ class InventorySalidaFormatoController extends Controller
             return false;
         }
 
+        $libreOfficeProfileDir = storage_path('app/libreoffice-profile');
+        if (! is_dir($libreOfficeProfileDir)) {
+            mkdir($libreOfficeProfileDir, 0755, true);
+        }
+
+        $libreOfficeHome = storage_path('app/libreoffice-home');
+        if (! is_dir($libreOfficeHome)) {
+            mkdir($libreOfficeHome, 0755, true);
+        }
+
+        $profileRealPath = realpath($libreOfficeProfileDir) ?: $libreOfficeProfileDir;
+        $profileUri = 'file://' . str_replace(DIRECTORY_SEPARATOR, '/', $profileRealPath);
+
         $process = new Process([
             $binary,
             '--headless',
             '--nologo',
             '--nofirststartwizard',
+            '-env:UserInstallation=' . $profileUri,
             '--convert-to',
             'pdf:calc_pdf_Export',
             '--outdir',
             $outputDir,
             $xlsxPath,
         ]);
+        $process->setEnv([
+            'HOME' => $libreOfficeHome,
+            'XDG_CACHE_HOME' => $libreOfficeHome . DIRECTORY_SEPARATOR . '.cache',
+            'XDG_CONFIG_HOME' => $libreOfficeHome . DIRECTORY_SEPARATOR . '.config',
+            'SAL_USE_VCLPLUGIN' => 'svp',
+        ]);
         $process->setTimeout(self::LIBREOFFICE_TIMEOUT_SECONDS);
         $process->run();
 
         if (! $process->isSuccessful()) {
-            Log::warning('Fallo conversion LibreOffice para formato salida, se usara fallback Dompdf.', [
+            Log::warning('Fallo conversion LibreOffice para formato salida.', [
                 'error' => $process->getErrorOutput(),
                 'output' => $process->getOutput(),
                 'xlsx' => $xlsxPath,
@@ -401,7 +418,7 @@ class InventorySalidaFormatoController extends Controller
             . '.pdf';
 
         if (! file_exists($generatedPdfPath)) {
-            Log::warning('LibreOffice no genero el PDF esperado para formato salida, se usara fallback Dompdf.', [
+            Log::warning('LibreOffice no genero el PDF esperado para formato salida.', [
                 'expected_pdf' => $generatedPdfPath,
                 'xlsx' => $xlsxPath,
             ]);

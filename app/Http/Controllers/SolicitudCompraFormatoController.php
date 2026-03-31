@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
-use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -119,10 +118,8 @@ class SolicitudCompraFormatoController extends Controller
                 return response()->download($xlsxPath, $excelFileName)->deleteFileAfterSend(true);
             }
 
-            $wasConvertedByLibreOffice = $this->convertExcelToPdfWithLibreOffice($xlsxPath, $pdfPath, $tmpDir);
-            if (! $wasConvertedByLibreOffice) {
-                $pdfWriter = new PdfDompdfWriter($spreadsheet);
-                $pdfWriter->save($pdfPath);
+            if (! $this->convertExcelToPdfWithLibreOffice($xlsxPath, $pdfPath, $tmpDir)) {
+                throw new \RuntimeException('LibreOffice no pudo convertir el archivo a PDF.');
             }
 
             if (file_exists($xlsxPath)) {
@@ -546,22 +543,42 @@ class SolicitudCompraFormatoController extends Controller
             return false;
         }
 
+        $libreOfficeProfileDir = storage_path('app/libreoffice-profile');
+        if (! is_dir($libreOfficeProfileDir)) {
+            mkdir($libreOfficeProfileDir, 0755, true);
+        }
+
+        $libreOfficeHome = storage_path('app/libreoffice-home');
+        if (! is_dir($libreOfficeHome)) {
+            mkdir($libreOfficeHome, 0755, true);
+        }
+
+        $profileRealPath = realpath($libreOfficeProfileDir) ?: $libreOfficeProfileDir;
+        $profileUri = 'file://' . str_replace(DIRECTORY_SEPARATOR, '/', $profileRealPath);
+
         $process = new Process([
             $binary,
             '--headless',
             '--nologo',
             '--nofirststartwizard',
+            '-env:UserInstallation=' . $profileUri,
             '--convert-to',
             'pdf:calc_pdf_Export',
             '--outdir',
             $outputDir,
             $xlsxPath,
         ]);
+        $process->setEnv([
+            'HOME' => $libreOfficeHome,
+            'XDG_CACHE_HOME' => $libreOfficeHome . DIRECTORY_SEPARATOR . '.cache',
+            'XDG_CONFIG_HOME' => $libreOfficeHome . DIRECTORY_SEPARATOR . '.config',
+            'SAL_USE_VCLPLUGIN' => 'svp',
+        ]);
         $process->setTimeout(self::LIBREOFFICE_TIMEOUT_SECONDS);
         $process->run();
 
         if (! $process->isSuccessful()) {
-            Log::warning('Fallo conversion LibreOffice, se usara fallback Dompdf.', [
+            Log::warning('Fallo conversion LibreOffice.', [
                 'error' => $process->getErrorOutput(),
                 'output' => $process->getOutput(),
                 'xlsx' => $xlsxPath,
@@ -576,7 +593,7 @@ class SolicitudCompraFormatoController extends Controller
             . '.pdf';
 
         if (! file_exists($generatedPdfPath)) {
-            Log::warning('LibreOffice no genero el PDF esperado, se usara fallback Dompdf.', [
+            Log::warning('LibreOffice no genero el PDF esperado.', [
                 'expected_pdf' => $generatedPdfPath,
                 'xlsx' => $xlsxPath,
             ]);
@@ -600,6 +617,13 @@ class SolicitudCompraFormatoController extends Controller
         $envPath = trim((string) env('LIBREOFFICE_PATH', ''));
         $candidates = array_filter([
             $envPath !== '' ? $envPath : null,
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/usr/local/bin/soffice',
+            '/snap/bin/libreoffice',
+            '/snap/bin/soffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
             'C:\\Program Files\\LibreOffice\\program\\soffice.com',
             'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
             'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com',
@@ -613,7 +637,9 @@ class SolicitudCompraFormatoController extends Controller
         }
 
         $finder = new ExecutableFinder();
-        $fromPath = $finder->find('soffice.com') ?? $finder->find('soffice');
+        $fromPath = $finder->find('libreoffice')
+            ?? $finder->find('soffice')
+            ?? $finder->find('soffice.com');
 
         if ($fromPath !== null) {
             return $fromPath;
