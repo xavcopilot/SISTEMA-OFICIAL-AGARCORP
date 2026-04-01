@@ -131,3 +131,7 @@ Route::get('/inventario/movimientos/{inventoryMovement}/formato-salida', \App\Ht
 Route::get('/inventario/retiros-diarios/control-despacho', \App\Http\Controllers\DailyWithdrawalsDispatchControlController::class)
     ->middleware(['auth'])
     ->name('inventario.retiros-diarios.control-despacho');
+
+Route::get('/inventario/productos/etiquetas-codigos', \App\Http\Controllers\ProductBarcodeLabelsController::class)
+    ->middleware(['auth'])
+    ->name('inventario.productos.etiquetas-codigos');

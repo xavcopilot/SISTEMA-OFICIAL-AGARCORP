@@ -252,6 +252,15 @@ class ProductsTable
             ->recordActions([
                 \Filament\Actions\EditAction::make(),
 
+                Action::make('printBarcodeLabel')
+                    ->label('Etiqueta')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('info')
+                    ->url(fn (\App\Models\Product $record): string => route('inventario.productos.etiquetas-codigos', [
+                        'ids' => $record->id,
+                    ]))
+                    ->openUrlInNewTab(),
+
                 Action::make('toggleArchive')
                     ->label(fn (\App\Models\Product $record): string => $record->is_archived ? 'Reactivar' : 'Archivar')
                     ->icon(fn (\App\Models\Product $record): string => $record->is_archived ? 'heroicon-o-arrow-uturn-up' : 'heroicon-o-archive-box')
@@ -331,6 +340,13 @@ class ProductsTable
                     }),
             ])
             ->toolbarActions([
+                Action::make('printBarcodeLabels')
+                    ->label('Imprimir Etiquetas')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('info')
+                    ->url(fn (): string => route('inventario.productos.etiquetas-codigos'))
+                    ->openUrlInNewTab(),
+
                 Action::make('emptyArchivedBin')
                     ->label('Vaciar archivados')
                     ->icon('heroicon-o-trash')
