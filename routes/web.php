@@ -5,11 +5,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect('/admin/login');
+    return redirect('/agarcorp/login');
 });
 
 Route::get('/login', function () {
-    return redirect('/admin/login');
+    return redirect('/agarcorp/login');
 })->name('login');
 
 Route::get('/recepcion', DailyWithdrawalRecep::class)
@@ -21,7 +21,7 @@ Route::post('/recepcion/logout', function () {
     request()->session()->invalidate();
     request()->session()->regenerateToken();
 
-    return redirect('/admin/login');
+    return redirect('/agarcorp/login');
 })->middleware(['auth'])->name('recepcion.logout');
 
 Route::get('/recepcion/retiros-diarios', function () {

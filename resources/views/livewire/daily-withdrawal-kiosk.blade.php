@@ -36,10 +36,33 @@
         .dw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .dw-col-span-2 { grid-column: span 2; }
         .dw-label { display: block; margin-bottom: 6px; font-weight: 700; color: #273c5c; }
+        .dw-input-wrap { position: relative; }
         .dw-input {
             width: 100%; border: 1px solid #b8c7da; border-radius: 12px; background: #fff; padding: 11px 12px;
             font-size: 15px; color: #0f2138; transition: box-shadow .15s ease, border-color .15s ease;
         }
+        .dw-input.has-clear { padding-right: 40px; }
+        .dw-clear-btn {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            width: 22px;
+            height: 22px;
+            border: 0;
+            border-radius: 999px;
+            background: #d9e2ef;
+            color: #284262;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .dw-clear-btn:hover { background: #c9d6e8; }
         .dw-input:focus { outline: none; border-color: #2e60cc; box-shadow: 0 0 0 3px rgba(46, 96, 204, 0.2); }
         .dw-suggestions { margin-top: 6px; max-height: 220px; overflow-y: auto; border: 1px solid #d5dfec; border-radius: 12px; background: #fff; }
         .dw-suggestion-btn { width: 100%; border: 0; background: #fff; text-align: left; padding: 10px 12px; cursor: pointer; }
@@ -47,6 +70,7 @@
         .dw-inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .dw-stock { font-size: 12px; font-weight: 700; color: #0d7b43; }
         .dw-checkbox-wrap { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #d5dfec; border-radius: 12px; background: #f5f8fd; padding: 10px 12px; font-weight: 600; color: #1f3555; }
+        .dw-return-row { display: grid; grid-template-columns: auto minmax(260px, 1fr); gap: 12px; align-items: end; }
         .dw-submit { width: 100%; border: 0; border-radius: 12px; padding: 13px 14px; color: #fff; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(135deg, #2459d4, #163e99); cursor: pointer; }
         .dw-submit:hover { filter: brightness(1.04); }
         .dw-error { margin-top: 5px; color: #b12626; font-size: 12px; font-weight: 600; }
@@ -73,9 +97,12 @@
             .dw-chip { font-size: 14px; padding: 9px 16px; }
             .dw-label { font-size: 22px; margin-bottom: 8px; }
             .dw-input { font-size: 18px; padding: 14px 16px; border-radius: 14px; }
+            .dw-input.has-clear { padding-right: 50px; }
+            .dw-clear-btn { width: 26px; height: 26px; right: 12px; font-size: 16px; }
             .dw-submit { font-size: 22px; padding: 16px 18px; border-radius: 14px; letter-spacing: .06em; }
             .dw-grid { gap: 18px; }
             .dw-checkbox-wrap { font-size: 20px; padding: 12px 16px; border-radius: 14px; }
+            .dw-return-row { gap: 16px; }
             .dw-error { font-size: 14px; }
         }
         @media (max-width: 900px) {
@@ -87,6 +114,7 @@
             }
             .dw-grid { grid-template-columns: 1fr; }
             .dw-col-span-2 { grid-column: auto; }
+            .dw-return-row { grid-template-columns: 1fr; align-items: stretch; }
             .dw-title { font-size: 25px; }
         }
     </style>
@@ -98,7 +126,7 @@
         <div class="dw-header">
             <div>
                 <h1 class="dw-title">Retiro Diario de Almacen</h1>
-                <p class="dw-subtitle">Registro rapido de retiro con validacion de contrasena por solicitante.</p>
+                <p class="dw-subtitle">Registro rapido de retiro con validacion de contraseña por solicitante.</p>
             </div>
             <span class="dw-chip">Solo materiales con stock disponible</span>
         </div>
@@ -106,16 +134,21 @@
         <form wire:submit="register" class="dw-grid">
             <div class="dw-col-span-2">
                 <label for="productSearch" class="dw-label">Buscador de Materiales</label>
-                <input
-                    id="productSearch"
-                    type="text"
-                    wire:model.live.debounce.250ms="productSearch"
-                    wire:focus="openProductSuggestions"
-                    wire:blur="closeProductSuggestions"
-                    autocomplete="off"
-                    class="dw-input"
-                    placeholder="SKU o descripcion"
-                >
+                <div class="dw-input-wrap">
+                    <input
+                        id="productSearch"
+                        type="text"
+                        wire:model.live.debounce.250ms="productSearch"
+                        wire:focus="openProductSuggestions"
+                        wire:blur="closeProductSuggestions"
+                        autocomplete="off"
+                        class="dw-input has-clear"
+                        placeholder="SKU o descripcion"
+                    >
+                    @if ($productSearch !== '')
+                        <button type="button" class="dw-clear-btn" wire:click="clearField('productSearch')" aria-label="Limpiar material">X</button>
+                    @endif
+                </div>
                 @if ($showProductSuggestions && ! $product_id && $this->productSuggestions->isNotEmpty())
                     <ul class="dw-suggestions">
                         @foreach ($this->productSuggestions as $product)
@@ -140,16 +173,21 @@
 
             <div class="dw-col-span-2">
                 <label for="userSearch" class="dw-label">Buscador de Solicitante</label>
-                <input
-                    id="userSearch"
-                    type="text"
-                    wire:model.live.debounce.250ms="userSearch"
-                    wire:focus="openUserSuggestions"
-                    wire:blur="closeUserSuggestions"
-                    autocomplete="off"
-                    class="dw-input"
-                    placeholder="Nombre o correo"
-                >
+                <div class="dw-input-wrap">
+                    <input
+                        id="userSearch"
+                        type="text"
+                        wire:model.live.debounce.250ms="userSearch"
+                        wire:focus="openUserSuggestions"
+                        wire:blur="closeUserSuggestions"
+                        autocomplete="off"
+                        class="dw-input has-clear"
+                        placeholder="Nombre o correo"
+                    >
+                    @if ($userSearch !== '')
+                        <button type="button" class="dw-clear-btn" wire:click="clearField('userSearch')" aria-label="Limpiar solicitante">X</button>
+                    @endif
+                </div>
                 @if ($showUserSuggestions && $this->userSuggestions->isNotEmpty())
                     <ul class="dw-suggestions">
                         @foreach ($this->userSuggestions as $user)
@@ -172,66 +210,85 @@
 
             @if ($user_id)
                 <div class="dw-col-span-2">
-                    <label for="withdrawalPassword" class="dw-label">Contrasena de Retiro</label>
-                    <input
-                        id="withdrawalPassword"
-                        type="password"
-                        wire:model="withdrawalPassword"
-                        maxlength="6"
-                        class="dw-input"
-                        placeholder="4 a 6 digitos"
-                    >
+                    <label for="withdrawalPassword" class="dw-label">Contraseña de Retiro</label>
+                    <div class="dw-input-wrap">
+                        <input
+                            id="withdrawalPassword"
+                            type="password"
+                            wire:model="withdrawalPassword"
+                            maxlength="6"
+                            class="dw-input has-clear"
+                            placeholder="4 a 6 digitos"
+                        >
+                        @if ($withdrawalPassword !== '')
+                            <button type="button" class="dw-clear-btn" wire:click="clearField('withdrawalPassword')" aria-label="Limpiar contraseña">X</button>
+                        @endif
+                    </div>
                     @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
                 </div>
             @endif
 
             <div>
                 <label for="quantity" class="dw-label">Cantidad</label>
-                <input
-                    id="quantity"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    wire:model="quantity"
-                    class="dw-input"
-                    placeholder="0.00"
-                >
+                <div class="dw-input-wrap">
+                    <input
+                        id="quantity"
+                        type="number"
+                        step="1"
+                        min="1"
+                        wire:model="quantity"
+                        class="dw-input has-clear"
+                        placeholder="1"
+                    >
+                    @if ($quantity !== '')
+                        <button type="button" class="dw-clear-btn" wire:click="clearField('quantity')" aria-label="Limpiar cantidad">X</button>
+                    @endif
+                </div>
                 @error('quantity') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
             <div>
                 <label for="destination" class="dw-label">Destino</label>
-                <input
-                    id="destination"
-                    type="text"
-                    wire:model="destination"
-                    class="dw-input"
-                    placeholder="Area o ubicacion"
-                >
+                <div class="dw-input-wrap">
+                    <input
+                        id="destination"
+                        type="text"
+                        wire:model="destination"
+                        class="dw-input has-clear"
+                        placeholder="Area o ubicacion"
+                    >
+                    @if ($destination !== '')
+                        <button type="button" class="dw-clear-btn" wire:click="clearField('destination')" aria-label="Limpiar destino">X</button>
+                    @endif
+                </div>
                 @error('destination') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
-            <div class="dw-col-span-2">
+            <div class="dw-col-span-2 dw-return-row">
                 <label class="dw-checkbox-wrap">
                     <input type="checkbox" wire:model="requires_return">
                     Requiere retorno
                 </label>
-            </div>
 
-            @if ($requires_return)
-                <div>
-                    <label for="return_date" class="dw-label">Fecha de retorno</label>
-                    <input
-                        id="return_date"
-                        type="date"
-                        wire:model="return_date"
-                        min="{{ now()->toDateString() }}"
-                        class="dw-input"
-                    >
-                    @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
-                </div>
-                <div></div>
-            @endif
+                @if ($requires_return)
+                    <div>
+                        <label for="return_date" class="dw-label">Fecha de retorno</label>
+                        <div class="dw-input-wrap">
+                            <input
+                                id="return_date"
+                                type="date"
+                                wire:model="return_date"
+                                min="{{ now()->toDateString() }}"
+                                class="dw-input has-clear"
+                            >
+                            @if (! empty($return_date))
+                                <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
+                            @endif
+                        </div>
+                        @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
+                    </div>
+                @endif
+            </div>
 
             <div class="dw-col-span-2">
                 <button

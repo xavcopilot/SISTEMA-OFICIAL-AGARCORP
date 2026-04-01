@@ -24,7 +24,6 @@ class DailyWithdrawalsTable
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->with(['user', 'product'])
-                ->where('status', 'pendiente')
                 ->orderByDesc('requested_at')
                 ->orderByDesc('id'))
             ->columns([
@@ -65,9 +64,26 @@ class DailyWithdrawalsTable
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color('warning'),
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'aprobado' => 'aprobado',
+                        'rechazado' => 'rechazado',
+                        default => 'pendiente',
+                    })
+                    ->color(fn (?string $state): string => match ($state) {
+                        'aprobado' => 'success',
+                        'rechazado' => 'danger',
+                        default => 'warning',
+                    }),
             ])
             ->filters([
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'pendiente' => 'Pendiente',
+                        'aprobado' => 'Aprobado',
+                        'rechazado' => 'Rechazado',
+                    ]),
+
                 Filter::make('requested_at')
                     ->label('Fecha')
                     ->schema([
@@ -94,7 +110,7 @@ class DailyWithdrawalsTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar retiro diario')
-                    ->modalDescription('Se validara stock de Almacen ADV y se descontara del inventario.')
+                    ->modalDescription('Se validara stock disponible y se descontara del inventario.')
                     ->action(function (DailyWithdrawal $record): void {
                         DB::transaction(function () use ($record): void {
                             $withdrawal = DailyWithdrawal::query()
@@ -117,17 +133,6 @@ class DailyWithdrawalsTable
                             if (! $product) {
                                 Notification::make()
                                     ->title('No se encontro el material asociado.')
-                                    ->danger()
-                                    ->send();
-
-                                return;
-                            }
-
-                            $department = mb_strtolower((string) ($product->dpto_responsable ?? ''));
-
-                            if (! str_contains($department, 'almacen adv') && ! str_contains($department, 'almacen')) {
-                                Notification::make()
-                                    ->title('El material no pertenece a Almacen ADV.')
                                     ->danger()
                                     ->send();
 

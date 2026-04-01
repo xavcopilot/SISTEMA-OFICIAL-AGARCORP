@@ -5,8 +5,8 @@ Objetivo: ubicar rapido donde tocar el sistema sin revisar todas las carpetas qu
 ## 1) Mapa rapido: donde esta cada cosa importante
 
 ### 1.1 Logica visual del panel (Filament)
-- app/Providers/Filament/AdminPanelProvider.php
-  - Configura panel admin, ruta base /admin, logo, colores, widgets y middlewares.
+- app/Providers/Filament/AgarcorpPanelProvider.php
+  - Configura panel agarcorp, ruta base /agarcorp, logo, colores, widgets y middlewares.
   - Ejemplo real: brandName, brandLogo y hooks visuales del topbar.
 
 - app/Filament/Resources/
@@ -222,7 +222,7 @@ php artisan permission:cache-reset
   - app/Filament/Resources/... (Resource, Form, Table, Pages)
 
 - Si cambia configuracion visual global del panel:
-  - app/Providers/Filament/AdminPanelProvider.php
+  - app/Providers/Filament/AgarcorpPanelProvider.php
 
 - Si cambia estructura de datos:
   - database/migrations + app/Models
@@ -244,6 +244,6 @@ Orden sugerido de lectura para supervisar cambios:
 2. database/migrations (si hubo cambios de tabla)
 3. database/seeders (si hubo cambios de datos base)
 4. app/Policies y config/filament-shield.php (si hubo cambios de permisos)
-5. app/Providers/Filament/AdminPanelProvider.php (si hubo cambios visuales globales)
+5. app/Providers/Filament/AgarcorpPanelProvider.php (si hubo cambios visuales globales)
 
 Con eso se cubre la mayor parte de cambios funcionales del sistema sin entrar a todas las carpetas del framework.

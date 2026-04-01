@@ -94,7 +94,15 @@ class DailyWithdrawalsDispatchControlController extends Controller
 
         try {
             $spreadsheet = IOFactory::load($templatePath);
-            $baseSheet = $spreadsheet->getActiveSheet();
+            // La exportacion debe usar solo la primera planilla del formato base.
+            $baseSheet = $spreadsheet->getSheet(0);
+            $spreadsheet->setActiveSheetIndex(0);
+
+            // Elimina hojas adicionales de la plantilla para evitar paginas ajenas en el PDF.
+            while ($spreadsheet->getSheetCount() > 1) {
+                $spreadsheet->removeSheetByIndex(1);
+            }
+
             $templateSheet = clone $baseSheet;
 
             $chunks = $approvedWithdrawals->chunk(self::ROWS_PER_PAGE)->values();
@@ -124,7 +132,7 @@ class DailyWithdrawalsDispatchControlController extends Controller
                 ];
 
                 $this->replaceTokenVariantsAcrossSheet($sheet, $globalTokens);
-                $this->fillFixedRows($sheet, $itemTemplateRow, $itemColumnMap, $chunk->all());
+                $this->fillFixedRows($sheet, $itemTemplateRow, $itemColumnMap, $chunk->values()->all());
                 $this->normalizeSheetForPdf($sheet);
             }
 
@@ -342,7 +350,7 @@ class DailyWithdrawalsDispatchControlController extends Controller
         }
 
         $pageSetup->setPrintArea('A1:' . $highestColumn . $highestRow);
-        $pageSetup->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
+        $pageSetup->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
         $pageSetup->setFitToPage(true);
         $pageSetup->setFitToWidth(1);

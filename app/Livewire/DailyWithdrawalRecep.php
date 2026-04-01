@@ -53,6 +53,7 @@ class DailyWithdrawalRecep extends Component
         if ($this->selectedUserLabel !== $this->userSearch) {
             $this->user_id = null;
             $this->withdrawalPassword = '';
+            $this->destination = '';
         }
     }
 
@@ -83,6 +84,51 @@ class DailyWithdrawalRecep extends Component
         $this->showUserSuggestions = false;
     }
 
+    public function clearField(string $field): void
+    {
+        if ($field === 'productSearch') {
+            $this->productSearch = '';
+            $this->product_id = null;
+            $this->selectedProductLabel = null;
+            $this->showProductSuggestions = true;
+
+            return;
+        }
+
+        if ($field === 'userSearch') {
+            $this->userSearch = '';
+            $this->user_id = null;
+            $this->selectedUserLabel = null;
+            $this->withdrawalPassword = '';
+            $this->destination = '';
+            $this->showUserSuggestions = true;
+
+            return;
+        }
+
+        if ($field === 'withdrawalPassword') {
+            $this->withdrawalPassword = '';
+
+            return;
+        }
+
+        if ($field === 'quantity') {
+            $this->quantity = '';
+
+            return;
+        }
+
+        if ($field === 'destination') {
+            $this->destination = '';
+
+            return;
+        }
+
+        if ($field === 'return_date') {
+            $this->return_date = null;
+        }
+    }
+
     public function selectProduct(int $productId): void
     {
         $product = Product::query()->find($productId);
@@ -99,7 +145,7 @@ class DailyWithdrawalRecep extends Component
 
     public function selectUser(int $userId): void
     {
-        $user = User::query()->find($userId);
+        $user = User::query()->with('departamento:id,nombre')->find($userId);
 
         if (! $user) {
             return;
@@ -108,6 +154,7 @@ class DailyWithdrawalRecep extends Component
         $this->user_id = $user->id;
         $this->selectedUserLabel = sprintf('%s (%s)', $user->name, $user->email);
         $this->userSearch = $this->selectedUserLabel;
+        $this->destination = (string) ($user->departamento?->nombre ?? '');
         $this->showUserSuggestions = false;
     }
 
@@ -117,7 +164,7 @@ class DailyWithdrawalRecep extends Component
             'product_id' => ['required', 'exists:products,id'],
             'user_id' => ['required', 'exists:users,id'],
             'withdrawalPassword' => ['required', 'string', 'regex:/^\d{4,6}$/'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
+            'quantity' => ['required', 'integer', 'min:1'],
             'destination' => ['required', 'string', 'max:255'],
             'requires_return' => ['boolean'],
             'return_date' => ['nullable', 'required_if:requires_return,true', 'date', 'after_or_equal:today'],
@@ -125,6 +172,8 @@ class DailyWithdrawalRecep extends Component
             'product_id.required' => 'Selecciona un material valido.',
             'user_id.required' => 'Selecciona un solicitante valido.',
             'withdrawalPassword.required' => 'Ingresa la contrasena de retiro.',
+            'quantity.integer' => 'La cantidad debe ser un numero natural sin decimales.',
+            'quantity.min' => 'La cantidad minima es 1.',
             'return_date.required_if' => 'Debes indicar la fecha de retorno.',
             'return_date.after_or_equal' => 'La fecha de retorno no puede ser anterior a hoy.',
         ]);
@@ -175,15 +224,17 @@ class DailyWithdrawalRecep extends Component
             return collect();
         }
 
-        if (mb_strlen(trim($this->productSearch)) < 2) {
-            return collect();
-        }
+        $term = trim($this->productSearch);
 
         return Product::query()
             ->where('stock_actual', '>', 0)
-            ->where(function ($query): void {
-                $query->where('sku', 'like', '%' . trim($this->productSearch) . '%')
-                    ->orWhere('descripcion', 'like', '%' . trim($this->productSearch) . '%');
+            ->when($term !== '', function ($query) use ($term): void {
+                $termLike = '%' . mb_strtolower($term) . '%';
+
+                $query->where(function ($subQuery) use ($termLike): void {
+                    $subQuery->whereRaw('LOWER(sku) LIKE ?', [$termLike])
+                        ->orWhereRaw('LOWER(descripcion) LIKE ?', [$termLike]);
+                });
             })
             ->orderBy('descripcion')
             ->limit(8)

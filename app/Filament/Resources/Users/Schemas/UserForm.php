@@ -31,6 +31,7 @@ class UserForm
                     ->label('Contraseña')
                     ->password() // Oculta los caracteres
                     ->revealable() // Permite verla con el icono del ojo
+                    ->helperText('Se usa para iniciar sesion en el sistema.')
                     // Obligatoria solo al crear, opcional al editar
                     ->required(fn (Page $livewire): bool => $livewire instanceof CreateUser)
                     ->maxLength(255)
@@ -46,6 +47,18 @@ class UserForm
                     ->helperText('Se usa para firmar/enviar solicitudes. Es independiente de la contraseña de inicio de sesión.')
                     ->required(fn (Page $livewire): bool => $livewire instanceof CreateUser)
                     ->maxLength(255)
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->dehydrateStateUsing(fn ($state) => Hash::make($state)),
+
+                TextInput::make('withdrawal_password')
+                    ->label('Contraseña de retiros')
+                    ->password()
+                    ->revealable()
+                    ->helperText('Clave rapida para retiros diarios de almacen. Debe tener entre 4 y 6 digitos.')
+                    ->required(fn (Page $livewire): bool => $livewire instanceof CreateUser)
+                    ->minLength(4)
+                    ->maxLength(6)
+                    ->rule('regex:/^\d{4,6}$/')
                     ->dehydrated(fn ($state) => filled($state))
                     ->dehydrateStateUsing(fn ($state) => Hash::make($state)),
 
