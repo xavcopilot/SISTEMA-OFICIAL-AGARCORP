@@ -15,7 +15,7 @@ class CategorySeeder extends Seeder
             'INFORMATICA',
             'TELECOMUNICACIONES',
             'MEDICAMENTOS',
-            'EQUIPO_MEDICO',
+            'EQUIPO MEDICO',
             'SOLDADURA',
             'LABORATORIO',
             'HERRAMIENTAS',

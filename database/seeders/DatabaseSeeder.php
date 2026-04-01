@@ -70,6 +70,7 @@ class DatabaseSeeder extends Seeder
         $this->call(CategorySeeder::class);
         $this->call(SubcategorySeeder::class);
         $this->call(SkuCodeRuleSeeder::class);
+        $this->call(DailyWithdrawalSetupSeeder::class);
 
         // Genera permisos de Shield para todos los recursos/paginas/widgets
         // antes de asignarlos a roles en una base nueva.

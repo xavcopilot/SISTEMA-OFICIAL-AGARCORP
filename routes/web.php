@@ -1,10 +1,33 @@
 <?php
 
+use App\Livewire\DailyWithdrawalRecep;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect('/admin/login');
 });
+
+Route::get('/login', function () {
+    return redirect('/admin/login');
+})->name('login');
+
+Route::get('/recepcion', DailyWithdrawalRecep::class)
+    ->middleware(['auth', 'role.guard:Almacen Recepcion'])
+    ->name('recepcion');
+
+Route::post('/recepcion/logout', function () {
+    Auth::guard('web')->logout();
+    request()->session()->invalidate();
+    request()->session()->regenerateToken();
+
+    return redirect('/admin/login');
+})->middleware(['auth'])->name('recepcion.logout');
+
+Route::get('/recepcion/retiros-diarios', function () {
+    return redirect()->route('recepcion');
+})->middleware(['auth', 'role.guard:Almacen Recepcion'])
+    ->name('recepcion.retiros-diarios');
 
 // export de tickets a Excel/CSV
 Route::get('/admin/tickets/export', function () {
@@ -104,3 +127,7 @@ Route::get('/inventario/movimientos/{inventoryMovement}/formato-entrada', \App\H
 Route::get('/inventario/movimientos/{inventoryMovement}/formato-salida', \App\Http\Controllers\InventorySalidaFormatoController::class)
     ->middleware(['auth'])
     ->name('inventario.movimientos.formato-salida');
+
+Route::get('/inventario/retiros-diarios/control-despacho', \App\Http\Controllers\DailyWithdrawalsDispatchControlController::class)
+    ->middleware(['auth'])
+    ->name('inventario.retiros-diarios.control-despacho');

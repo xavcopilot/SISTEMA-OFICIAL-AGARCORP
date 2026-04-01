@@ -21,6 +21,7 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'firma_password',
+        'withdrawal_password',
         'departamento_id',
         'cargo_id',
     ];
@@ -28,6 +29,7 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'firma_password',
+        'withdrawal_password',
         'remember_token',
     ];
 
@@ -37,6 +39,7 @@ class User extends Authenticatable implements FilamentUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'firma_password' => 'hashed',
+            'withdrawal_password' => 'hashed',
         ];
     }
 
