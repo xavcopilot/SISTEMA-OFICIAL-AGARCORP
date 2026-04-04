@@ -41,9 +41,10 @@
             margin-bottom: 2mm;
         }
 
-        .barcode svg {
+        .barcode img {
             width: 100%;
             height: 14mm;
+            object-fit: contain;
         }
 
         .desc {
@@ -62,7 +63,9 @@
                     <td class="cell">
                         <div class="label">
                             <div class="sku">{{ $item['sku'] }}</div>
-                            <div class="barcode">{!! $item['barcode_svg'] !!}</div>
+                            <div class="barcode">
+                                <img src="data:image/png;base64,{{ $item['barcode_base64'] }}" alt="Codigo de barras {{ $item['sku'] }}">
+                            </div>
                             <div class="desc">{{ $item['descripcion'] }}</div>
                         </div>
                     </td>

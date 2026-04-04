@@ -8,7 +8,7 @@
         @livewireStyles
         <style>
             :root {
-                --k-content-width: 1120px;
+                --k-screen-margin: 2cm;
                 --k-bg-1: #f3eee0;
                 --k-bg-2: #dde9f5;
                 --k-ink: #122035;
@@ -24,13 +24,13 @@
 
             @media (min-width: 1500px) {
                 :root {
-                    --k-content-width: 1460px;
+                    --k-screen-margin: 2cm;
                 }
             }
 
             @media (min-width: 1800px) {
                 :root {
-                    --k-content-width: 1680px;
+                    --k-screen-margin: 2cm;
                 }
             }
 
@@ -53,13 +53,14 @@
             }
 
             .kiosk-shell {
-                max-width: var(--k-content-width);
+                width: calc(100vw - (var(--k-screen-margin) * 2));
+                max-width: none;
                 margin: 0 auto;
-                padding: 20px 0 30px;
-                min-height: 100vh;
+                padding: 0;
+                min-height: calc(100vh - (var(--k-screen-margin) * 2));
                 display: flex;
                 flex-direction: column;
-                justify-content: center;
+                justify-content: flex-start;
             }
 
             .kiosk-topbar {
@@ -188,9 +189,15 @@
             }
 
             @media (max-width: 900px) {
+                :root {
+                    --k-screen-margin: 12px;
+                }
+
                 .kiosk-shell {
-                    padding: 14px 12px 22px;
-                    min-height: auto;
+                    width: calc(100vw - (var(--k-screen-margin) * 2));
+                    min-height: calc(100vh - (var(--k-screen-margin) * 2));
+                    margin: var(--k-screen-margin) auto;
+                    padding: 0;
                     justify-content: flex-start;
                 }
 
@@ -210,7 +217,7 @@
         </style>
     </head>
     <body class="kiosk-bg min-h-screen text-slate-800 antialiased">
-        <div class="kiosk-shell">
+        <div class="kiosk-shell" style="margin-top: var(--k-screen-margin); margin-bottom: var(--k-screen-margin);">
             <div class="kiosk-topbar">
                 <div class="kiosk-brand">
                     <img src="{{ asset('images/logo-agarcorp.png') }}" alt="AGARCORP">

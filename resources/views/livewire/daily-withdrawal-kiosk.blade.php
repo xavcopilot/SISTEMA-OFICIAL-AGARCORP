@@ -67,10 +67,30 @@
         .dw-suggestions { margin-top: 6px; max-height: 220px; overflow-y: auto; border: 1px solid #d5dfec; border-radius: 12px; background: #fff; }
         .dw-suggestion-btn { width: 100%; border: 0; background: #fff; text-align: left; padding: 10px 12px; cursor: pointer; }
         .dw-suggestion-btn:hover { background: #f1f6ff; }
+        .dw-suggestion-empty {
+            margin-top: 6px;
+            border: 1px dashed #d5dfec;
+            border-radius: 12px;
+            background: #f9fbff;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #4f6885;
+        }
         .dw-inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .dw-stock { font-size: 12px; font-weight: 700; color: #0d7b43; }
         .dw-checkbox-wrap { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #d5dfec; border-radius: 12px; background: #f5f8fd; padding: 10px 12px; font-weight: 600; color: #1f3555; }
         .dw-return-row { display: grid; grid-template-columns: auto minmax(260px, 1fr); gap: 12px; align-items: end; }
+        .dw-label-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .dw-return-note {
+            font-size: 12px;
+            font-weight: 700;
+            color: #12723f;
+            background: #e8f8ef;
+            border: 1px solid #b6e5ca;
+            border-radius: 999px;
+            padding: 3px 9px;
+            line-height: 1.2;
+        }
         .dw-submit { width: 100%; border: 0; border-radius: 12px; padding: 13px 14px; color: #fff; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(135deg, #2459d4, #163e99); cursor: pointer; }
         .dw-submit:hover { filter: brightness(1.04); }
         .dw-error { margin-top: 5px; color: #b12626; font-size: 12px; font-weight: 600; }
@@ -139,34 +159,42 @@
                         id="productSearch"
                         type="text"
                         wire:model.live.debounce.250ms="productSearch"
+                        wire:keydown.enter.prevent="selectSingleProductSuggestion"
                         wire:focus="openProductSuggestions"
                         wire:blur="closeProductSuggestions"
                         autocomplete="off"
                         class="dw-input has-clear"
                         placeholder="SKU o descripcion"
+                        autofocus
                     >
                     @if ($productSearch !== '')
                         <button type="button" class="dw-clear-btn" wire:click="clearField('productSearch')" aria-label="Limpiar material">X</button>
                     @endif
                 </div>
-                @if ($showProductSuggestions && ! $product_id && $this->productSuggestions->isNotEmpty())
-                    <ul class="dw-suggestions">
-                        @foreach ($this->productSuggestions as $product)
-                            <li>
-                                <button
-                                    type="button"
-                                    wire:mousedown.prevent="selectProduct({{ $product->id }})"
-                                    wire:click="selectProduct({{ $product->id }})"
-                                    class="dw-suggestion-btn"
-                                >
-                                    <span class="dw-inline">
-                                        <span>{{ $product->sku }} - {{ $product->descripcion }}</span>
-                                        <span class="dw-stock">Stock: {{ $product->stock_actual }}</span>
-                                    </span>
-                                </button>
-                            </li>
-                        @endforeach
-                    </ul>
+                @if ($showProductSuggestions && ! $product_id)
+                    @if ($this->productSuggestions->isNotEmpty())
+                        <ul class="dw-suggestions">
+                            @foreach ($this->productSuggestions as $product)
+                                <li>
+                                    <button
+                                        type="button"
+                                        wire:mousedown.prevent="selectProduct({{ $product->id }})"
+                                        wire:click="selectProduct({{ $product->id }})"
+                                        class="dw-suggestion-btn"
+                                    >
+                                        <span class="dw-inline">
+                                            <span>{{ $product->sku }} - {{ $product->descripcion }}</span>
+                                            <span class="dw-stock">Stock: {{ $product->stock_actual }}</span>
+                                        </span>
+                                    </button>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @elseif (trim($productSearch) !== '')
+                        <div class="dw-suggestion-empty">
+                            No hay materiales con stock para "{{ $productSearch }}". Puede estar sin stock o no existir.
+                        </div>
+                    @endif
                 @endif
                 @error('product_id') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
@@ -208,25 +236,23 @@
                 @error('user_id') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
-            @if ($user_id)
-                <div class="dw-col-span-2">
-                    <label for="withdrawalPassword" class="dw-label">Contraseña de Retiro</label>
-                    <div class="dw-input-wrap">
-                        <input
-                            id="withdrawalPassword"
-                            type="password"
-                            wire:model="withdrawalPassword"
-                            maxlength="6"
-                            class="dw-input has-clear"
-                            placeholder="4 a 6 digitos"
-                        >
-                        @if ($withdrawalPassword !== '')
-                            <button type="button" class="dw-clear-btn" wire:click="clearField('withdrawalPassword')" aria-label="Limpiar contraseña">X</button>
-                        @endif
-                    </div>
-                    @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
+            <div class="dw-col-span-2">
+                <label for="withdrawalPassword" class="dw-label">Contraseña de Retiro</label>
+                <div class="dw-input-wrap">
+                    <input
+                        id="withdrawalPassword"
+                        type="password"
+                        wire:model="withdrawalPassword"
+                        maxlength="6"
+                        class="dw-input has-clear"
+                        placeholder="4 a 6 digitos"
+                    >
+                    @if ($withdrawalPassword !== '')
+                        <button type="button" class="dw-clear-btn" wire:click="clearField('withdrawalPassword')" aria-label="Limpiar contraseña">X</button>
+                    @endif
                 </div>
-            @endif
+                @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
+            </div>
 
             <div>
                 <label for="quantity" class="dw-label">Cantidad</label>
@@ -270,24 +296,28 @@
                     Requiere retorno
                 </label>
 
-                @if ($requires_return)
-                    <div>
-                        <label for="return_date" class="dw-label">Fecha de retorno</label>
-                        <div class="dw-input-wrap">
-                            <input
-                                id="return_date"
-                                type="date"
-                                wire:model="return_date"
-                                min="{{ now()->toDateString() }}"
-                                class="dw-input has-clear"
-                            >
-                            @if (! empty($return_date))
-                                <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
-                            @endif
-                        </div>
-                        @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
+                <div>
+                    <div class="dw-label-row">
+                        <label for="return_date" class="dw-label" style="margin-bottom: 0;">Fecha de retorno</label>
+                        @if (! $requires_return)
+                            <span class="dw-return-note">No requiere fecha de retorno</span>
+                        @endif
                     </div>
-                @endif
+                    <div class="dw-input-wrap">
+                        <input
+                            id="return_date"
+                            type="date"
+                            wire:model="return_date"
+                            min="{{ now()->toDateString() }}"
+                            class="dw-input has-clear"
+                            @disabled(! $requires_return)
+                        >
+                        @if ($requires_return && ! empty($return_date))
+                            <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
+                        @endif
+                    </div>
+                    @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
+                </div>
             </div>
 
             <div class="dw-col-span-2">
@@ -332,6 +362,31 @@
     <script>
         if (!window.__kioskSuccessBound) {
             window.__kioskSuccessBound = true;
+
+            const focusField = function (fieldId) {
+                if (!fieldId) {
+                    return;
+                }
+
+                setTimeout(function () {
+                    const input = document.getElementById(fieldId);
+
+                    if (!input || input.disabled) {
+                        return;
+                    }
+
+                    input.focus({ preventScroll: true });
+                    if (typeof input.select === 'function') {
+                        input.select();
+                    }
+                }, 60);
+            };
+
+            focusField('productSearch');
+
+            window.addEventListener('kiosk-focus-field', function (event) {
+                focusField(event.detail?.field);
+            });
 
             window.addEventListener('withdrawal-sent', function (event) {
             const box = document.getElementById('kiosk-success');

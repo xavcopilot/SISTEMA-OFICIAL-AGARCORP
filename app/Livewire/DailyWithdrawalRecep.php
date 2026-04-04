@@ -39,7 +39,9 @@ class DailyWithdrawalRecep extends Component
 
     public function updatedProductSearch(): void
     {
-        $this->showProductSuggestions = true;
+        $term = trim($this->productSearch);
+
+        $this->showProductSuggestions = $term !== '';
 
         if ($this->selectedProductLabel !== $this->productSearch) {
             $this->product_id = null;
@@ -48,7 +50,9 @@ class DailyWithdrawalRecep extends Component
 
     public function updatedUserSearch(): void
     {
-        $this->showUserSuggestions = true;
+        $term = trim($this->userSearch);
+
+        $this->showUserSuggestions = $term !== '';
 
         if ($this->selectedUserLabel !== $this->userSearch) {
             $this->user_id = null;
@@ -66,12 +70,12 @@ class DailyWithdrawalRecep extends Component
 
     public function openUserSuggestions(): void
     {
-        $this->showUserSuggestions = true;
+        $this->showUserSuggestions = trim($this->userSearch) !== '';
     }
 
     public function openProductSuggestions(): void
     {
-        $this->showProductSuggestions = true;
+        $this->showProductSuggestions = trim($this->productSearch) !== '';
     }
 
     public function closeProductSuggestions(): void
@@ -141,6 +145,20 @@ class DailyWithdrawalRecep extends Component
         $this->selectedProductLabel = sprintf('%s - %s', $product->sku, $product->descripcion);
         $this->productSearch = $this->selectedProductLabel;
         $this->showProductSuggestions = false;
+        $this->dispatch('kiosk-focus-field', field: 'userSearch');
+    }
+
+    public function selectSingleProductSuggestion(): void
+    {
+        $this->showProductSuggestions = true;
+
+        $suggestions = $this->getProductSuggestionsProperty();
+
+        if ($suggestions->count() !== 1) {
+            return;
+        }
+
+        $this->selectProduct((int) $suggestions->first()->id);
     }
 
     public function selectUser(int $userId): void
@@ -156,6 +174,7 @@ class DailyWithdrawalRecep extends Component
         $this->userSearch = $this->selectedUserLabel;
         $this->destination = (string) ($user->departamento?->nombre ?? '');
         $this->showUserSuggestions = false;
+        $this->dispatch('kiosk-focus-field', field: 'withdrawalPassword');
     }
 
     public function register(): void
@@ -216,6 +235,7 @@ class DailyWithdrawalRecep extends Component
         ]);
 
         $this->dispatch('withdrawal-sent', message: 'Solicitud Enviada');
+        $this->dispatch('kiosk-focus-field', field: 'productSearch');
     }
 
     public function getProductSuggestionsProperty()
@@ -226,17 +246,32 @@ class DailyWithdrawalRecep extends Component
 
         $term = trim($this->productSearch);
 
+        if ($term === '') {
+            return collect();
+        }
+
+        $termLower = mb_strtolower($term);
+        $termPrefix = $termLower . '%';
+        $termContains = '%' . $termLower . '%';
+
         return Product::query()
             ->where('stock_actual', '>', 0)
-            ->when($term !== '', function ($query) use ($term): void {
-                $termLike = '%' . mb_strtolower($term) . '%';
-
-                $query->where(function ($subQuery) use ($termLike): void {
-                    $subQuery->whereRaw('LOWER(sku) LIKE ?', [$termLike])
-                        ->orWhereRaw('LOWER(descripcion) LIKE ?', [$termLike]);
-                });
+            ->where(function ($subQuery) use ($termPrefix, $termContains): void {
+                $subQuery->whereRaw('LOWER(sku) LIKE ?', [$termPrefix])
+                    ->orWhereRaw('LOWER(descripcion) LIKE ?', [$termPrefix])
+                    ->orWhereRaw('LOWER(sku) LIKE ?', [$termContains])
+                    ->orWhereRaw('LOWER(descripcion) LIKE ?', [$termContains]);
             })
-            ->orderBy('descripcion')
+            ->orderByRaw(
+                "CASE
+                    WHEN LOWER(sku) = ? THEN 1
+                    WHEN LOWER(sku) LIKE ? THEN 2
+                    WHEN LOWER(descripcion) LIKE ? THEN 3
+                    ELSE 4
+                END",
+                [$termLower, $termPrefix, $termPrefix]
+            )
+            ->orderBy('sku')
             ->limit(8)
             ->get(['id', 'sku', 'descripcion', 'stock_actual']);
     }
@@ -248,6 +283,10 @@ class DailyWithdrawalRecep extends Component
         }
 
         $term = trim($this->userSearch);
+
+        if ($term === '') {
+            return collect();
+        }
 
         return User::query()
             ->when($term !== '', function ($query) use ($term): void {

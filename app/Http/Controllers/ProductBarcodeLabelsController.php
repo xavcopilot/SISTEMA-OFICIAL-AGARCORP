@@ -31,7 +31,7 @@ class ProductBarcodeLabelsController extends Controller
 
         abort_if($products->isEmpty(), 404, 'No hay productos con SKU para generar etiquetas.');
 
-        $generator = new \Picqer\Barcode\BarcodeGeneratorSVG();
+        $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
 
         $labels = $products->map(function (Product $product) use ($generator): array {
             $sku = trim((string) $product->sku);
@@ -40,7 +40,9 @@ class ProductBarcodeLabelsController extends Controller
             return [
                 'sku' => $sku,
                 'descripcion' => $descripcion,
-                'barcode_svg' => $generator->getBarcode($sku, $generator::TYPE_CODE_128, 1.6, 42),
+                'barcode_base64' => base64_encode(
+                    $generator->getBarcode($sku, $generator::TYPE_CODE_128, 1.6, 42)
+                ),
             ];
         })->all();
 
