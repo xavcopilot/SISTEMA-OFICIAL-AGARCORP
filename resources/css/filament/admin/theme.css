@@ -243,3 +243,51 @@
         letter-spacing: 0.22em;
     }
 }
+
+/* Sombra lateral visible en desktop para la barra izquierda de Filament */
+.fi-body:not(.fi-body-has-top-navigation) .fi-sidebar {
+    background: #ffffff !important;
+    --tw-shadow: 10px 0 30px -14px rgba(15, 23, 42, 0.35);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow) !important;
+    border-inline-end: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.dark .fi-body:not(.fi-body-has-top-navigation) .fi-sidebar {
+    background:
+        radial-gradient(circle at 16% -14%, rgba(37, 99, 235, 0.34), transparent 42%),
+        linear-gradient(180deg, #0f172a 0%, #12203a 56%, #0d172b 100%) !important;
+    --tw-shadow: 10px 0 30px -14px rgba(0, 0, 0, 0.65);
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Mayor contraste en items no seleccionados del sidebar */
+.fi-sidebar-item:not(.fi-active):not(.fi-sidebar-item-has-active-child-items) .fi-sidebar-item-label {
+    color: #374151 !important;
+}
+
+.fi-sidebar-item:not(.fi-active):not(.fi-sidebar-item-has-active-child-items) > .fi-sidebar-item-btn > .fi-icon {
+    color: #6b7280 !important;
+}
+
+.fi-sidebar .fi-sidebar-group-label {
+    color: #4b5563 !important;
+}
+
+.dark .fi-sidebar-item:not(.fi-active):not(.fi-sidebar-item-has-active-child-items) .fi-sidebar-item-label {
+    color: #d1d5db !important;
+}
+
+.dark .fi-sidebar-item:not(.fi-active):not(.fi-sidebar-item-has-active-child-items) > .fi-sidebar-item-btn > .fi-icon {
+    color: #9ca3af !important;
+}
+
+.dark .fi-sidebar .fi-sidebar-group-label {
+    color: #cbd5e1 !important;
+}
+
+/* Oculta la barra de busqueda del topbar */
+.fi-topbar .fi-global-search,
+.fi-topbar .fi-global-search-ctn,
+.fi-topbar .fi-global-search-field {
+    display: none !important;
+}
