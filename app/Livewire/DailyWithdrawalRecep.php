@@ -106,13 +106,6 @@ class DailyWithdrawalRecep extends Component
         }
     }
 
-    public function updatedRequiresReturn(bool $value): void
-    {
-        if (! $value) {
-            $this->return_date = null;
-        }
-    }
-
     public function openUserSuggestions(): void
     {
         $this->showUserSuggestions = trim($this->userSearch) !== '';

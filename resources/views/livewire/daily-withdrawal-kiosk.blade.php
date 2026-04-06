@@ -270,9 +270,7 @@
                 <div>
                     <div class="dw-label-row">
                         <label for="return_date" class="dw-label" style="margin-bottom: 0;">Fecha de retorno</label>
-                        @if (! $requires_return)
-                            <span class="dw-return-note">No requiere fecha de retorno</span>
-                        @endif
+                        <span class="dw-return-note">Dejar en blanco si no requiere retorno</span>
                     </div>
                     <div class="dw-input-wrap">
                         <input
@@ -281,11 +279,10 @@
                             wire:model="return_date"
                             min="{{ now()->toDateString() }}"
                             class="dw-input has-clear"
-                            @disabled(! $requires_return)
-                            onclick="if (!this.disabled && this.showPicker) this.showPicker()"
-                            onfocus="if (!this.disabled && this.showPicker) this.showPicker()"
+                            onclick="if (this.showPicker) this.showPicker()"
+                            onfocus="if (this.showPicker) this.showPicker()"
                         >
-                        @if ($requires_return && ! empty($return_date))
+                        @if (! empty($return_date))
                             <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
                         @endif
                     </div>
