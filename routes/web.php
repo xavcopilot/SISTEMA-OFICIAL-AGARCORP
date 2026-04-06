@@ -135,3 +135,7 @@ Route::get('/inventario/retiros-diarios/control-despacho', \App\Http\Controllers
 Route::get('/inventario/productos/etiquetas-codigos', \App\Http\Controllers\ProductBarcodeLabelsController::class)
     ->middleware(['auth'])
     ->name('inventario.productos.etiquetas-codigos');
+
+Route::get('/inventario/productos/etiquetas-qr', \App\Http\Controllers\ProductQrLabelsController::class)
+    ->middleware(['auth'])
+    ->name('inventario.productos.etiquetas-qr');

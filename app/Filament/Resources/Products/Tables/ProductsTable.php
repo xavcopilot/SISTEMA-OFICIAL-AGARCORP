@@ -253,10 +253,19 @@ class ProductsTable
                 \Filament\Actions\EditAction::make(),
 
                 Action::make('printBarcodeLabel')
-                    ->label('Etiqueta')
-                    ->icon('heroicon-o-qr-code')
+                    ->label('Etiqueta Barra')
+                    ->icon('heroicon-o-tag')
                     ->color('info')
                     ->url(fn (\App\Models\Product $record): string => route('inventario.productos.etiquetas-codigos', [
+                        'ids' => $record->id,
+                    ]))
+                    ->openUrlInNewTab(),
+
+                Action::make('printQrLabel')
+                    ->label('Etiqueta QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('gray')
+                    ->url(fn (\App\Models\Product $record): string => route('inventario.productos.etiquetas-qr', [
                         'ids' => $record->id,
                     ]))
                     ->openUrlInNewTab(),
@@ -341,10 +350,23 @@ class ProductsTable
             ])
             ->toolbarActions([
                 Action::make('printBarcodeLabels')
-                    ->label('Imprimir Etiquetas')
-                    ->icon('heroicon-o-qr-code')
-                    ->color('info')
+                    ->label('Imprimir Etiquetas de Barra')
+                    ->icon('heroicon-o-tag')
+                    ->color('warning')
+                    ->extraAttributes([
+                        'style' => 'color: #5b3a00; font-weight: 700;',
+                    ])
                     ->url(fn (): string => route('inventario.productos.etiquetas-codigos'))
+                    ->openUrlInNewTab(),
+
+                Action::make('printQrLabels')
+                    ->label('Imprimir Etiquetas QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color('warning')
+                    ->extraAttributes([
+                        'style' => 'color: #5b3a00; font-weight: 700;',
+                    ])
+                    ->url(fn (): string => route('inventario.productos.etiquetas-qr'))
                     ->openUrlInNewTab(),
 
                 Action::make('emptyArchivedBin')

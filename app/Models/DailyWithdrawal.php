@@ -12,6 +12,7 @@ class DailyWithdrawal extends Model
     use HasFactory;
 
     protected $fillable = [
+        'daily_withdrawal_request_id',
         'user_id',
         'product_id',
         'quantity',
@@ -34,6 +35,11 @@ class DailyWithdrawal extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function request(): BelongsTo
+    {
+        return $this->belongsTo(DailyWithdrawalRequest::class, 'daily_withdrawal_request_id');
     }
 
     public function product(): BelongsTo

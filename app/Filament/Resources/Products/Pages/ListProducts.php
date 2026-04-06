@@ -22,6 +22,7 @@ class ListProducts extends ListRecords
                 ->label('Exportar Stock (CSV)')
                 ->icon('heroicon-o-document-arrow-down')
                 ->url(route('inventario.export', ['format' => 'csv']))
+                ->visible(false)
                 ->openUrlInNewTab(),
             Action::make('exportInventarioExcel')
                 ->label('Exportar Hoja Inventario (Excel)')
@@ -32,6 +33,7 @@ class ListProducts extends ListRecords
                 ->label('Exportar Hoja Inventario (CSV)')
                 ->icon('heroicon-o-document-arrow-down')
                 ->url(route('inventario.maestro.export', ['format' => 'csv']))
+                ->visible(false)
                 ->openUrlInNewTab(),
         ];
     }

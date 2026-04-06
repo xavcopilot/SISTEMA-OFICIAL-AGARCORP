@@ -3,8 +3,10 @@
 namespace App\Livewire;
 
 use App\Models\DailyWithdrawal;
+use App\Models\DailyWithdrawalRequest;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 use Livewire\Component;
@@ -29,13 +31,56 @@ class DailyWithdrawalRecep extends Component
 
     public ?string $selectedUserLabel = null;
 
-    public string $quantity = '';
+    public string $quantity = '1';
+
+    /**
+     * @var array<int, array{product_id:int, sku:string, descripcion:string, quantity:int, requires_return:bool, return_date:?string}>
+     */
+    public array $items = [];
 
     public string $destination = '';
 
     public bool $requires_return = false;
 
     public ?string $return_date = null;
+
+    private function getRequestedUnitsForProduct(int $productId, ?int $exceptItemIndex = null): int
+    {
+        return (int) collect($this->items)
+            ->reject(fn (array $item, int $index): bool => $exceptItemIndex !== null && $index === $exceptItemIndex)
+            ->filter(fn (array $item): bool => (int) ($item['product_id'] ?? 0) === $productId)
+            ->sum(fn (array $item): int => (int) ($item['quantity'] ?? 0));
+    }
+
+    private function ensureStockAvailableForProduct(int $productId, int $requestedUnits, string $errorField = 'items'): bool
+    {
+        $product = Product::query()->find($productId);
+
+        if (! $product) {
+            $this->addError($errorField, 'Uno de los materiales seleccionados ya no existe en inventario.');
+
+            return false;
+        }
+
+        $availableStock = (int) ($product->stock_actual ?? 0);
+
+        if ($availableStock <= 0) {
+            $this->addError($errorField, 'El material ' . $product->sku . ' - ' . $product->descripcion . ' ya no tiene stock disponible.');
+
+            return false;
+        }
+
+        if ($requestedUnits > $availableStock) {
+            $this->addError(
+                $errorField,
+                'Stock insuficiente para ' . $product->sku . ' - ' . $product->descripcion . '. Disponible: ' . $availableStock . ' / Solicitado: ' . $requestedUnits . '.'
+            );
+
+            return false;
+        }
+
+        return true;
+    }
 
     public function updatedProductSearch(): void
     {
@@ -145,7 +190,7 @@ class DailyWithdrawalRecep extends Component
         $this->selectedProductLabel = sprintf('%s - %s', $product->sku, $product->descripcion);
         $this->productSearch = $this->selectedProductLabel;
         $this->showProductSuggestions = false;
-        $this->dispatch('kiosk-focus-field', field: 'userSearch');
+        $this->dispatch('kiosk-focus-field', field: 'quantity');
     }
 
     public function selectSingleProductSuggestion(): void
@@ -159,6 +204,82 @@ class DailyWithdrawalRecep extends Component
         }
 
         $this->selectProduct((int) $suggestions->first()->id);
+    }
+
+    public function addItem(): void
+    {
+        $this->resetErrorBag('product_id');
+        $this->resetErrorBag('quantity');
+        $this->resetErrorBag('items');
+
+        $validated = $this->validate([
+            'product_id' => ['required', 'exists:products,id'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'requires_return' => ['boolean'],
+            'return_date' => ['nullable', 'required_if:requires_return,true', 'date', 'after_or_equal:today'],
+        ], [
+            'product_id.required' => 'Selecciona un material valido.',
+            'quantity.required' => 'Indica la cantidad del material.',
+            'quantity.integer' => 'La cantidad debe ser un numero natural sin decimales.',
+            'quantity.min' => 'La cantidad minima es 1.',
+            'return_date.required_if' => 'Debes indicar la fecha de retorno para este material.',
+            'return_date.after_or_equal' => 'La fecha de retorno no puede ser anterior a hoy.',
+        ]);
+
+        $product = Product::query()->find((int) $validated['product_id']);
+
+        if (! $product || (int) ($product->stock_actual ?? 0) <= 0) {
+            $this->addError('product_id', 'El material no esta disponible para retiro.');
+
+            return;
+        }
+
+        $quantity = (int) $validated['quantity'];
+        $requestedUnits = $this->getRequestedUnitsForProduct((int) $product->id) + $quantity;
+
+        if (! $this->ensureStockAvailableForProduct((int) $product->id, $requestedUnits, 'quantity')) {
+            return;
+        }
+
+        $itemRequiresReturn = (bool) ($validated['requires_return'] ?? false);
+        $itemReturnDate = $itemRequiresReturn ? (string) ($validated['return_date'] ?? '') : null;
+
+        $existingIndex = collect($this->items)
+            ->search(fn (array $item): bool =>
+                (int) $item['product_id'] === (int) $product->id
+                && (bool) $item['requires_return'] === $itemRequiresReturn
+                && (($item['return_date'] ?? null) === $itemReturnDate)
+            );
+
+        if ($existingIndex !== false) {
+            $this->items[$existingIndex]['quantity'] += $quantity;
+        } else {
+            $this->items[] = [
+                'product_id' => (int) $product->id,
+                'sku' => (string) $product->sku,
+                'descripcion' => (string) $product->descripcion,
+                'quantity' => $quantity,
+                'requires_return' => $itemRequiresReturn,
+                'return_date' => $itemReturnDate,
+            ];
+        }
+
+        $this->clearField('productSearch');
+        $this->clearField('quantity');
+        $this->requires_return = false;
+        $this->return_date = null;
+        $this->quantity = '1';
+        $this->dispatch('kiosk-focus-field', field: 'productSearch');
+    }
+
+    public function removeItem(int $index): void
+    {
+        if (! array_key_exists($index, $this->items)) {
+            return;
+        }
+
+        unset($this->items[$index]);
+        $this->items = array_values($this->items);
     }
 
     public function selectUser(int $userId): void
@@ -179,23 +300,22 @@ class DailyWithdrawalRecep extends Component
 
     public function register(): void
     {
+        $this->resetErrorBag('items');
+
         $validated = $this->validate([
-            'product_id' => ['required', 'exists:products,id'],
             'user_id' => ['required', 'exists:users,id'],
             'withdrawalPassword' => ['required', 'string', 'regex:/^\d{4,6}$/'],
-            'quantity' => ['required', 'integer', 'min:1'],
             'destination' => ['required', 'string', 'max:255'],
-            'requires_return' => ['boolean'],
-            'return_date' => ['nullable', 'required_if:requires_return,true', 'date', 'after_or_equal:today'],
         ], [
-            'product_id.required' => 'Selecciona un material valido.',
             'user_id.required' => 'Selecciona un solicitante valido.',
             'withdrawalPassword.required' => 'Ingresa la contrasena de retiro.',
-            'quantity.integer' => 'La cantidad debe ser un numero natural sin decimales.',
-            'quantity.min' => 'La cantidad minima es 1.',
-            'return_date.required_if' => 'Debes indicar la fecha de retorno.',
-            'return_date.after_or_equal' => 'La fecha de retorno no puede ser anterior a hoy.',
         ]);
+
+        if (count($this->items) === 0) {
+            $this->addError('items', 'Agrega al menos un material para registrar el retiro.');
+
+            return;
+        }
 
         $user = User::query()->find($validated['user_id']);
 
@@ -206,17 +326,54 @@ class DailyWithdrawalRecep extends Component
             return;
         }
 
-        DailyWithdrawal::query()->create([
-            'user_id' => $validated['user_id'],
-            'product_id' => $validated['product_id'],
-            'quantity' => $validated['quantity'],
-            'destination' => trim($validated['destination']),
-            'requires_return' => (bool) $validated['requires_return'],
-            'return_date' => (bool) $validated['requires_return'] ? $validated['return_date'] : null,
-            'status' => 'pendiente',
-            'warehouse_user_id' => null,
-            'requested_at' => now(),
-        ]);
+        $requestedProducts = collect($this->items)
+            ->groupBy(fn (array $item): int => (int) $item['product_id'])
+            ->map(fn ($productItems): int => (int) collect($productItems)->sum(fn (array $item): int => (int) ($item['quantity'] ?? 0)));
+
+        foreach ($requestedProducts as $productId => $requestedUnits) {
+            if (! $this->ensureStockAvailableForProduct((int) $productId, (int) $requestedUnits, 'items')) {
+                return;
+            }
+        }
+
+        DB::transaction(function () use ($validated): void {
+            $itemsCollection = collect($this->items);
+            $hasAnyReturn = $itemsCollection->contains(fn (array $item): bool => (bool) ($item['requires_return'] ?? false));
+            $returnDates = $itemsCollection
+                ->filter(fn (array $item): bool => (bool) ($item['requires_return'] ?? false))
+                ->pluck('return_date')
+                ->filter()
+                ->unique()
+                ->values();
+            $requestReturnDate = $returnDates->count() === 1 ? $returnDates->first() : null;
+
+            $request = DailyWithdrawalRequest::query()->create([
+                'user_id' => $validated['user_id'],
+                'destination' => trim($validated['destination']),
+                'requires_return' => $hasAnyReturn,
+                'return_date' => $requestReturnDate,
+                'status' => 'pendiente',
+                'requested_at' => now(),
+            ]);
+
+            foreach ($this->items as $item) {
+                $itemRequiresReturn = (bool) ($item['requires_return'] ?? false);
+                $itemReturnDate = $itemRequiresReturn ? ($item['return_date'] ?? null) : null;
+
+                DailyWithdrawal::query()->create([
+                    'daily_withdrawal_request_id' => $request->id,
+                    'user_id' => $validated['user_id'],
+                    'product_id' => (int) $item['product_id'],
+                    'quantity' => (int) $item['quantity'],
+                    'destination' => trim($validated['destination']),
+                    'requires_return' => $itemRequiresReturn,
+                    'return_date' => $itemReturnDate,
+                    'status' => 'pendiente',
+                    'warehouse_user_id' => null,
+                    'requested_at' => now(),
+                ]);
+            }
+        });
 
         $this->reset([
             'productSearch',
@@ -229,10 +386,13 @@ class DailyWithdrawalRecep extends Component
             'selectedProductLabel',
             'selectedUserLabel',
             'quantity',
+            'items',
             'destination',
             'requires_return',
             'return_date',
         ]);
+
+        $this->quantity = '1';
 
         $this->dispatch('withdrawal-sent', message: 'Solicitud Enviada');
         $this->dispatch('kiosk-focus-field', field: 'productSearch');

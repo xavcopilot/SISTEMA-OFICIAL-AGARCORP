@@ -80,6 +80,7 @@
         .dw-stock { font-size: 12px; font-weight: 700; color: #0d7b43; }
         .dw-checkbox-wrap { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #d5dfec; border-radius: 12px; background: #f5f8fd; padding: 10px 12px; font-weight: 600; color: #1f3555; }
         .dw-return-row { display: grid; grid-template-columns: auto minmax(260px, 1fr); gap: 12px; align-items: end; }
+        .dw-material-config { display: grid; grid-template-columns: minmax(180px, 1fr) auto minmax(260px, 1fr); gap: 12px; align-items: end; }
         .dw-label-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
         .dw-return-note {
             font-size: 12px;
@@ -93,6 +94,52 @@
         }
         .dw-submit { width: 100%; border: 0; border-radius: 12px; padding: 13px 14px; color: #fff; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(135deg, #2459d4, #163e99); cursor: pointer; }
         .dw-submit:hover { filter: brightness(1.04); }
+        .dw-add-btn {
+            width: 100%;
+            margin-top: 8px;
+            border: 1px solid #1f5bd8;
+            border-radius: 10px;
+            background: #edf3ff;
+            color: #173f95;
+            padding: 9px 12px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            cursor: pointer;
+        }
+        .dw-add-btn:hover { background: #e2edff; }
+        .dw-items-box {
+            border: 1px solid #d5dfec;
+            border-radius: 12px;
+            background: #fbfdff;
+            overflow: hidden;
+        }
+        .dw-items-head,
+        .dw-item-row {
+            display: grid;
+            grid-template-columns: 150px 1fr 90px 120px 130px 90px;
+            gap: 10px;
+            align-items: center;
+            padding: 9px 12px;
+        }
+        .dw-items-head {
+            background: #eef4ff;
+            font-size: 12px;
+            font-weight: 800;
+            color: #1f3555;
+        }
+        .dw-item-row { border-top: 1px solid #e3eaf5; }
+        .dw-item-actions { text-align: right; }
+        .dw-item-remove {
+            border: 0;
+            border-radius: 8px;
+            background: #ffe8e8;
+            color: #8e2323;
+            font-weight: 700;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+        .dw-item-remove:hover { background: #ffd7d7; }
+        .dw-items-empty { padding: 12px; font-size: 13px; color: #5f7693; }
         .dw-error { margin-top: 5px; color: #b12626; font-size: 12px; font-weight: 600; }
         .dw-history-panel {
             position: fixed;
@@ -135,13 +182,14 @@
             .dw-grid { grid-template-columns: 1fr; }
             .dw-col-span-2 { grid-column: auto; }
             .dw-return-row { grid-template-columns: 1fr; align-items: stretch; }
+            .dw-material-config { grid-template-columns: 1fr; align-items: stretch; }
             .dw-title { font-size: 25px; }
         }
     </style>
 
     <div class="dw-grid-layout" wire:poll.10s>
     <div class="dw-card">
-        <div id="kiosk-success" class="kiosk-success hidden"></div>
+        <div id="kiosk-success" class="kiosk-success hidden" wire:ignore></div>
 
         <div class="dw-header">
             <div>
@@ -199,7 +247,62 @@
                 @error('product_id') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
+            <div class="dw-col-span-2 dw-material-config">
+                <div>
+                    <label for="quantity" class="dw-label">Cantidad</label>
+                    <div class="dw-input-wrap">
+                        <input
+                            id="quantity"
+                            type="number"
+                            step="1"
+                            min="1"
+                            wire:model="quantity"
+                            class="dw-input has-clear"
+                            placeholder="1"
+                        >
+                        @if ($quantity !== '')
+                            <button type="button" class="dw-clear-btn" wire:click="clearField('quantity')" aria-label="Limpiar cantidad">X</button>
+                        @endif
+                    </div>
+                    @error('quantity') <p class="dw-error">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    <div class="dw-label-row">
+                        <label for="return_date" class="dw-label" style="margin-bottom: 0;">Fecha de retorno</label>
+                        @if (! $requires_return)
+                            <span class="dw-return-note">No requiere fecha de retorno</span>
+                        @endif
+                    </div>
+                    <div class="dw-input-wrap">
+                        <input
+                            id="return_date"
+                            type="date"
+                            wire:model="return_date"
+                            min="{{ now()->toDateString() }}"
+                            class="dw-input has-clear"
+                            @disabled(! $requires_return)
+                            onclick="if (!this.disabled && this.showPicker) this.showPicker()"
+                            onfocus="if (!this.disabled && this.showPicker) this.showPicker()"
+                        >
+                        @if ($requires_return && ! empty($return_date))
+                            <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
+                        @endif
+                    </div>
+                    @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
+                </div>
+
+                <label class="dw-checkbox-wrap">
+                    <input type="checkbox" wire:model="requires_return">
+                    Requiere retorno
+                </label>
+            </div>
+
             <div class="dw-col-span-2">
+                <button type="button" class="dw-add-btn" wire:click="addItem">Agregar material</button>
+            </div>
+
+            <div>
                 <label for="userSearch" class="dw-label">Buscador de Solicitante</label>
                 <div class="dw-input-wrap">
                     <input
@@ -236,7 +339,7 @@
                 @error('user_id') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
-            <div class="dw-col-span-2">
+            <div>
                 <label for="withdrawalPassword" class="dw-label">Contraseña de Retiro</label>
                 <div class="dw-input-wrap">
                     <input
@@ -254,26 +357,7 @@
                 @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
-            <div>
-                <label for="quantity" class="dw-label">Cantidad</label>
-                <div class="dw-input-wrap">
-                    <input
-                        id="quantity"
-                        type="number"
-                        step="1"
-                        min="1"
-                        wire:model="quantity"
-                        class="dw-input has-clear"
-                        placeholder="1"
-                    >
-                    @if ($quantity !== '')
-                        <button type="button" class="dw-clear-btn" wire:click="clearField('quantity')" aria-label="Limpiar cantidad">X</button>
-                    @endif
-                </div>
-                @error('quantity') <p class="dw-error">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
+            <div class="dw-col-span-2">
                 <label for="destination" class="dw-label">Destino</label>
                 <div class="dw-input-wrap">
                     <input
@@ -290,34 +374,39 @@
                 @error('destination') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
-            <div class="dw-col-span-2 dw-return-row">
-                <label class="dw-checkbox-wrap">
-                    <input type="checkbox" wire:model="requires_return">
-                    Requiere retorno
-                </label>
-
-                <div>
-                    <div class="dw-label-row">
-                        <label for="return_date" class="dw-label" style="margin-bottom: 0;">Fecha de retorno</label>
-                        @if (! $requires_return)
-                            <span class="dw-return-note">No requiere fecha de retorno</span>
-                        @endif
+            <div class="dw-col-span-2">
+                <label class="dw-label">Materiales a retirar ({{ count($items) }})</label>
+                <div class="dw-items-box">
+                    <div class="dw-items-head">
+                        <span>SKU</span>
+                        <span>Descripcion</span>
+                        <span>Cantidad</span>
+                        <span>Retorno</span>
+                        <span>Fecha retorno</span>
+                        <span style="text-align:right;">Accion</span>
                     </div>
-                    <div class="dw-input-wrap">
-                        <input
-                            id="return_date"
-                            type="date"
-                            wire:model="return_date"
-                            min="{{ now()->toDateString() }}"
-                            class="dw-input has-clear"
-                            @disabled(! $requires_return)
-                        >
-                        @if ($requires_return && ! empty($return_date))
-                            <button type="button" class="dw-clear-btn" wire:click="clearField('return_date')" aria-label="Limpiar fecha de retorno">X</button>
-                        @endif
-                    </div>
-                    @error('return_date') <p class="dw-error">{{ $message }}</p> @enderror
+                    @forelse ($items as $index => $item)
+                        <div class="dw-item-row">
+                            <span>{{ $item['sku'] }}</span>
+                            <span>{{ $item['descripcion'] }}</span>
+                            <span>{{ $item['quantity'] }}</span>
+                            <span>{{ $item['requires_return'] ? 'Retorna' : 'No retorna' }}</span>
+                            <span>
+                                @if ($item['requires_return'] && ! empty($item['return_date']))
+                                    {{ \Illuminate\Support\Carbon::parse($item['return_date'])->format('d/m/Y') }}
+                                @else
+                                    No retorna
+                                @endif
+                            </span>
+                            <div class="dw-item-actions">
+                                <button type="button" class="dw-item-remove" wire:click="removeItem({{ $index }})">Quitar</button>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="dw-items-empty">Aun no has agregado materiales al retiro.</div>
+                    @endforelse
                 </div>
+                @error('items') <p class="dw-error">{{ $message }}</p> @enderror
             </div>
 
             <div class="dw-col-span-2">
@@ -389,18 +478,23 @@
             });
 
             window.addEventListener('withdrawal-sent', function (event) {
-            const box = document.getElementById('kiosk-success');
+                const box = document.getElementById('kiosk-success');
 
-            if (!box) {
-                return;
-            }
+                if (!box) {
+                    return;
+                }
 
-            box.textContent = event.detail.message ?? 'Solicitud Enviada';
-            box.classList.remove('hidden');
+                if (window.__kioskSuccessTimeout) {
+                    clearTimeout(window.__kioskSuccessTimeout);
+                }
 
-            setTimeout(function () {
-                box.classList.add('hidden');
-            }, 5000);
+                box.textContent = event.detail.message ?? 'Solicitud Enviada';
+                box.classList.remove('hidden');
+
+                window.__kioskSuccessTimeout = setTimeout(function () {
+                    box.classList.add('hidden');
+                    window.__kioskSuccessTimeout = null;
+                }, 5000);
             });
         }
     </script>
