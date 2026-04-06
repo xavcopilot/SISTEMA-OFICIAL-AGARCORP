@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('cargos')) {
+            return;
+        }
+
         Schema::create('cargos', function (Blueprint $table) {
             $table->id();
             $table->string('nombre')->unique();
@@ -22,23 +26,10 @@ return new class extends Migration
             ['nombre' => 'Vicepresidente'],
             ['nombre' => 'Gerente'],
         ]);
-
-        Schema::table('users', function (Blueprint $table) {
-            if (! Schema::hasColumn('users', 'cargo_id')) {
-                $table->foreignId('cargo_id')->nullable()->after('departamento_id')->constrained('cargos')->nullOnDelete();
-            }
-        });
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            if (Schema::hasColumn('users', 'cargo_id')) {
-                $table->dropForeign(['cargo_id']);
-                $table->dropColumn('cargo_id');
-            }
-        });
-
         Schema::dropIfExists('cargos');
     }
 };
