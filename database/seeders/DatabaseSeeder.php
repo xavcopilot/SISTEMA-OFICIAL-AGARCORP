@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $defaultWithdrawalPassword = '1726';
+
         $executiveUsers = [
             [
                 'name' => 'Wilman Fai',
@@ -286,6 +288,10 @@ class DatabaseSeeder extends Seeder
 
         // Se mantiene como usuario tecnico con permisos de gestion.
         $aitPrimaryUser->syncRoles([$aitPrimaryRole->name]);
+
+        User::query()->update([
+            'withdrawal_password' => Hash::make($defaultWithdrawalPassword),
+        ]);
 
         echo "✅ Base de datos poblada: roles, departamentos, cargos, usuarios ejecutivos y admin A.I.T creados.\n";
     }
