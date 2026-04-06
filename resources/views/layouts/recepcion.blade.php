@@ -267,22 +267,38 @@
 
             (function () {
                 const button = document.getElementById('kiosk-history-toggle');
-                const panel = document.getElementById('kiosk-history-panel');
+                window.__kioskHistoryOpen = window.__kioskHistoryOpen ?? false;
 
-                if (!button || !panel) {
+                const getPanel = () => document.getElementById('kiosk-history-panel');
+
+                const syncPanelState = () => {
+                    const panel = getPanel();
+
+                    if (!panel) {
+                        return;
+                    }
+
+                    panel.classList.toggle('hidden', !window.__kioskHistoryOpen);
+                };
+
+                if (!button || !getPanel()) {
                     return;
                 }
 
                 const closePanel = () => {
-                    panel.classList.add('hidden');
+                    window.__kioskHistoryOpen = false;
+                    syncPanelState();
                 };
 
                 button.addEventListener('click', function () {
-                    panel.classList.toggle('hidden');
+                    window.__kioskHistoryOpen = !window.__kioskHistoryOpen;
+                    syncPanelState();
                 });
 
                 document.addEventListener('click', function (event) {
-                    if (panel.classList.contains('hidden')) {
+                    const panel = getPanel();
+
+                    if (!window.__kioskHistoryOpen || !panel) {
                         return;
                     }
 
@@ -292,6 +308,24 @@
 
                     closePanel();
                 });
+
+                const bindLivewireHook = () => {
+                    if (!window.Livewire || window.__kioskHistoryHookBound) {
+                        return;
+                    }
+
+                    window.__kioskHistoryHookBound = true;
+
+                    window.Livewire.hook('morph.updated', ({ el }) => {
+                        if (el.id === 'kiosk-history-panel' || (typeof el.querySelector === 'function' && el.querySelector('#kiosk-history-panel'))) {
+                            syncPanelState();
+                        }
+                    });
+                };
+
+                bindLivewireHook();
+                document.addEventListener('livewire:init', bindLivewireHook, { once: true });
+                syncPanelState();
             })();
         </script>
     </body>

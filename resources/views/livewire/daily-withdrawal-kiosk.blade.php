@@ -12,6 +12,54 @@
         .dw-side-title { margin: 0 0 2px; font-size: 18px; font-weight: 900; color: #142541; }
         .dw-side-subtitle { margin: 0 0 10px; color: #58708f; font-size: 13px; }
         .dw-side-list { display: grid; gap: 8px; }
+        .dw-side-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 12px;
+        }
+        .dw-side-date-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #29415f;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .dw-side-date-input {
+            width: 100%;
+            border: 1px solid #cddbeb;
+            border-radius: 12px;
+            background: #f9fbff;
+            padding: 10px 12px;
+            color: #13253f;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .dw-side-date-input:focus {
+            outline: none;
+            border-color: #2e60cc;
+            box-shadow: 0 0 0 3px rgba(46, 96, 204, 0.16);
+        }
+        .dw-side-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            border-radius: 999px;
+            background: #eef5ff;
+            color: #22457d;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .dw-side-scroll {
+            max-height: calc(100vh - 320px);
+            overflow-y: auto;
+            padding-right: 4px;
+        }
         .dw-side-item {
             border: 1px solid #d4e0ef;
             border-radius: 12px;
@@ -94,6 +142,72 @@
         }
         .dw-submit { width: 100%; border: 0; border-radius: 12px; padding: 13px 14px; color: #fff; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(135deg, #2459d4, #163e99); cursor: pointer; }
         .dw-submit:hover { filter: brightness(1.04); }
+        .dw-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 22, 39, 0.58);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 140;
+        }
+        .dw-modal {
+            width: min(100%, 480px);
+            border-radius: 24px;
+            background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+            border: 1px solid rgba(116, 142, 181, 0.32);
+            box-shadow: 0 28px 80px rgba(8, 24, 44, 0.28);
+            overflow: hidden;
+        }
+        .dw-modal-head {
+            padding: 22px 24px 12px;
+            background: radial-gradient(circle at top left, rgba(57, 116, 231, 0.18), transparent 52%), linear-gradient(135deg, #eff5ff, #ffffff);
+        }
+        .dw-modal-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #eaf1ff;
+            color: #1a4ba8;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .dw-modal-title {
+            margin: 14px 0 6px;
+            font-size: 28px;
+            font-weight: 900;
+            color: #12203a;
+            letter-spacing: -0.03em;
+        }
+        .dw-modal-text {
+            margin: 0;
+            color: #24364d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .dw-modal-body { padding: 18px 24px 24px; }
+        .dw-modal-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .dw-btn-secondary {
+            border: 1px solid #efb0b0;
+            border-radius: 12px;
+            background: #fff1f1;
+            color: #a12626;
+            font-weight: 800;
+            padding: 12px 14px;
+            cursor: pointer;
+        }
+        .dw-btn-secondary:hover { background: #ffe3e3; }
         .dw-add-btn {
             width: 100%;
             margin-top: 8px;
@@ -144,8 +258,11 @@
         .dw-history-panel {
             position: fixed;
             top: 110px;
-            right: 26px;
-            width: min(420px, calc(100vw - 24px));
+            right: 0;
+            width: min(430px, calc(100vw - 12px));
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            box-shadow: -18px 18px 45px rgba(10, 32, 57, 0.14);
             z-index: 60;
             opacity: 1;
             transform: translateY(0) scale(1);
@@ -178,12 +295,19 @@
                 right: 12px;
                 left: 12px;
                 width: auto;
+                border-top-right-radius: 18px;
+                border-bottom-right-radius: 18px;
+                box-shadow: 0 18px 45px rgba(10, 32, 57, 0.14);
             }
+            .dw-side-scroll { max-height: 320px; }
             .dw-grid { grid-template-columns: 1fr; }
             .dw-col-span-2 { grid-column: auto; }
             .dw-return-row { grid-template-columns: 1fr; align-items: stretch; }
             .dw-material-config { grid-template-columns: 1fr; align-items: stretch; }
             .dw-title { font-size: 25px; }
+            .dw-modal { width: 100%; }
+            .dw-modal-title { font-size: 24px; }
+            .dw-modal-actions { grid-template-columns: 1fr; }
         }
     </style>
 
@@ -194,12 +318,12 @@
         <div class="dw-header">
             <div>
                 <h1 class="dw-title">Retiro Diario de Almacen</h1>
-                <p class="dw-subtitle">Registro rapido de retiro con validacion de contraseña por solicitante.</p>
+                <p class="dw-subtitle">Registro rapido de retiro con validacion de contraseña al momento de solicitar.</p>
             </div>
             <span class="dw-chip">Solo materiales con stock disponible</span>
         </div>
 
-        <form wire:submit="register" class="dw-grid">
+        <form wire:submit="openRegisterModal" class="dw-grid">
             <div class="dw-col-span-2">
                 <label for="productSearch" class="dw-label">Buscador de Materiales</label>
                 <div class="dw-input-wrap">
@@ -300,7 +424,7 @@
             </div>
 
             <div>
-                <label for="userSearch" class="dw-label">Buscador de Solicitante</label>
+                <label for="userSearch" class="dw-label">Nombre de Solicitante</label>
                 <div class="dw-input-wrap">
                     <input
                         id="userSearch"
@@ -337,24 +461,6 @@
             </div>
 
             <div>
-                <label for="withdrawalPassword" class="dw-label">Contraseña de Retiro</label>
-                <div class="dw-input-wrap">
-                    <input
-                        id="withdrawalPassword"
-                        type="password"
-                        wire:model="withdrawalPassword"
-                        maxlength="6"
-                        class="dw-input has-clear"
-                        placeholder="4 a 6 digitos"
-                    >
-                    @if ($withdrawalPassword !== '')
-                        <button type="button" class="dw-clear-btn" wire:click="clearField('withdrawalPassword')" aria-label="Limpiar contraseña">X</button>
-                    @endif
-                </div>
-                @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
-            </div>
-
-            <div class="dw-col-span-2">
                 <label for="destination" class="dw-label">Destino</label>
                 <div class="dw-input-wrap">
                     <input
@@ -418,32 +524,91 @@
     </div>
 
     <aside id="kiosk-history-panel" class="dw-card dw-history-panel hidden">
-        <h2 class="dw-side-title">Ultimos 5 enviados hoy</h2>
-        <p class="dw-side-subtitle">Se actualiza automaticamente para control en recepcion.</p>
+        <h2 class="dw-side-title">Enviados por dia</h2>
+        <p class="dw-side-subtitle">Consulta todos los retiros registrados en la fecha que selecciones.</p>
 
-        @if ($this->latestTodayWithdrawals->isEmpty())
-            <div class="dw-side-empty">Aun no hay retiros registrados hoy.</div>
+        <div class="dw-side-controls">
+            <div>
+                <label for="historyDate" class="dw-side-date-label">Fecha</label>
+                <input
+                    id="historyDate"
+                    type="date"
+                    wire:model.live="historyDate"
+                    max="{{ now()->toDateString() }}"
+                    class="dw-side-date-input"
+                    onclick="if (this.showPicker) this.showPicker()"
+                    onfocus="if (this.showPicker) this.showPicker()"
+                >
+            </div>
+        </div>
+
+        <div class="dw-side-count">
+            <span>{{ $this->filteredWithdrawals->count() }}</span>
+            <span>{{ 'registro' . ($this->filteredWithdrawals->count() === 1 ? '' : 's') }}</span>
+        </div>
+
+        @if ($this->filteredWithdrawals->isEmpty())
+            <div class="dw-side-empty">No hay retiros registrados para la fecha seleccionada.</div>
         @else
-            <div class="dw-side-list">
-                @foreach ($this->latestTodayWithdrawals as $item)
-                    <article class="dw-side-item">
-                        <div class="dw-side-top">
-                            <p class="dw-side-material">{{ $item->product?->descripcion ?? 'Material sin descripcion' }}</p>
-                            <span class="dw-pill {{ $item->status === 'aprobado' ? 'approved' : ($item->status === 'rechazado' ? 'rejected' : 'pending') }}">
-                                {{ strtoupper((string) $item->status) }}
-                            </span>
-                        </div>
-                        <p class="dw-side-user">{{ $item->user?->name ?? 'Sin solicitante' }} - {{ $item->destination }}</p>
-                        <div class="dw-side-meta">
-                            <span class="dw-pill qty">Cant: {{ $item->quantity }}</span>
-                            <span class="dw-pill time">{{ optional($item->requested_at)->format('H:i:s') }}</span>
-                        </div>
-                    </article>
-                @endforeach
+            <div class="dw-side-scroll">
+                <div class="dw-side-list">
+                    @foreach ($this->filteredWithdrawals as $item)
+                        <article class="dw-side-item">
+                            <div class="dw-side-top">
+                                <p class="dw-side-material">{{ $item->product?->descripcion ?? 'Material sin descripcion' }}</p>
+                                <span class="dw-pill {{ $item->status === 'aprobado' ? 'approved' : ($item->status === 'rechazado' ? 'rejected' : 'pending') }}">
+                                    {{ strtoupper((string) $item->status) }}
+                                </span>
+                            </div>
+                            <p class="dw-side-user">{{ $item->user?->name ?? 'Sin solicitante' }} - {{ $item->destination }}</p>
+                            <div class="dw-side-meta">
+                                <span class="dw-pill qty">Cant: {{ $item->quantity }}</span>
+                                <span class="dw-pill time">{{ optional($item->requested_at)->format('H:i:s') }}</span>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
             </div>
         @endif
     </aside>
     </div>
+
+    @if ($showPasswordModal)
+        <div class="dw-modal-backdrop" wire:key="dw-password-modal" wire:click.self="closePasswordModal" wire:keydown.escape="closePasswordModal">
+            <div class="dw-modal">
+                <div class="dw-modal-head">
+                    <span class="dw-modal-kicker">Confirmacion final</span>
+                    <h2 class="dw-modal-title">Ingresa la contraseña de retiro</h2>
+                    <p class="dw-modal-text">Escribe la clave rapida del solicitante para terminar de registrar la hoja de recepcion de materiales diarios.</p>
+                </div>
+
+                <div class="dw-modal-body">
+                    <label for="withdrawalPasswordModal" class="dw-label">Contraseña de retiro</label>
+                    <div class="dw-input-wrap">
+                        <input
+                            id="withdrawalPasswordModal"
+                            type="password"
+                            wire:model.live="withdrawalPassword"
+                            wire:keydown.enter.prevent="register"
+                            maxlength="6"
+                            class="dw-input has-clear"
+                            placeholder="4 a 6 digitos"
+                            autocomplete="one-time-code"
+                        >
+                        @if ($withdrawalPassword !== '')
+                            <button type="button" class="dw-clear-btn" wire:click="clearField('withdrawalPassword')" aria-label="Limpiar contraseña">X</button>
+                        @endif
+                    </div>
+                    @error('withdrawalPassword') <p class="dw-error">{{ $message }}</p> @enderror
+
+                    <div class="dw-modal-actions">
+                        <button type="button" class="dw-btn-secondary" wire:click="closePasswordModal">Cancelar</button>
+                        <button type="button" class="dw-submit" wire:click="register">Registrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <script>
         if (!window.__kioskSuccessBound) {

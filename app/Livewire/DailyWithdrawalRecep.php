@@ -25,6 +25,8 @@ class DailyWithdrawalRecep extends Component
 
     public bool $showUserSuggestions = false;
 
+    public bool $showPasswordModal = false;
+
     public string $withdrawalPassword = '';
 
     public ?string $selectedProductLabel = null;
@@ -32,6 +34,8 @@ class DailyWithdrawalRecep extends Component
     public ?string $selectedUserLabel = null;
 
     public string $quantity = '1';
+
+    public string $historyDate = '';
 
     /**
      * @var array<int, array{product_id:int, sku:string, descripcion:string, quantity:int, requires_return:bool, return_date:?string}>
@@ -43,6 +47,11 @@ class DailyWithdrawalRecep extends Component
     public bool $requires_return = false;
 
     public ?string $return_date = null;
+
+    public function mount(): void
+    {
+        $this->historyDate = now()->toDateString();
+    }
 
     private function getRequestedUnitsForProduct(int $productId, ?int $exceptItemIndex = null): int
     {
@@ -288,12 +297,54 @@ class DailyWithdrawalRecep extends Component
         $this->userSearch = $this->selectedUserLabel;
         $this->destination = (string) ($user->departamento?->nombre ?? '');
         $this->showUserSuggestions = false;
-        $this->dispatch('kiosk-focus-field', field: 'withdrawalPassword');
+        $this->dispatch('kiosk-focus-field', field: 'destination');
+    }
+
+    public function openRegisterModal(): void
+    {
+        $this->resetErrorBag('items');
+        $this->resetErrorBag('withdrawalPassword');
+
+        $validated = $this->validate([
+            'user_id' => ['required', 'exists:users,id'],
+            'destination' => ['required', 'string', 'max:255'],
+        ], [
+            'user_id.required' => 'Selecciona un solicitante valido.',
+        ]);
+
+        if (count($this->items) === 0) {
+            $this->addError('items', 'Agrega al menos un material para registrar el retiro.');
+
+            return;
+        }
+
+        $requestedProducts = collect($this->items)
+            ->groupBy(fn (array $item): int => (int) $item['product_id'])
+            ->map(fn ($productItems): int => (int) collect($productItems)->sum(fn (array $item): int => (int) ($item['quantity'] ?? 0)));
+
+        foreach ($requestedProducts as $productId => $requestedUnits) {
+            if (! $this->ensureStockAvailableForProduct((int) $productId, (int) $requestedUnits, 'items')) {
+                return;
+            }
+        }
+
+        $this->showPasswordModal = true;
+        $this->withdrawalPassword = '';
+        $this->dispatch('kiosk-focus-field', field: 'withdrawalPasswordModal');
+    }
+
+    public function closePasswordModal(): void
+    {
+        $this->showPasswordModal = false;
+        $this->withdrawalPassword = '';
+        $this->resetErrorBag('withdrawalPassword');
+        $this->dispatch('kiosk-focus-field', field: 'destination');
     }
 
     public function register(): void
     {
         $this->resetErrorBag('items');
+        $this->resetErrorBag('withdrawalPassword');
 
         $validated = $this->validate([
             'user_id' => ['required', 'exists:users,id'],
@@ -302,9 +353,11 @@ class DailyWithdrawalRecep extends Component
         ], [
             'user_id.required' => 'Selecciona un solicitante valido.',
             'withdrawalPassword.required' => 'Ingresa la contrasena de retiro.',
+            'withdrawalPassword.regex' => 'La contrasena debe tener entre 4 y 6 digitos.',
         ]);
 
         if (count($this->items) === 0) {
+            $this->showPasswordModal = false;
             $this->addError('items', 'Agrega al menos un material para registrar el retiro.');
 
             return;
@@ -325,6 +378,8 @@ class DailyWithdrawalRecep extends Component
 
         foreach ($requestedProducts as $productId => $requestedUnits) {
             if (! $this->ensureStockAvailableForProduct((int) $productId, (int) $requestedUnits, 'items')) {
+                $this->showPasswordModal = false;
+
                 return;
             }
         }
@@ -375,6 +430,7 @@ class DailyWithdrawalRecep extends Component
             'user_id',
             'showUserSuggestions',
             'showProductSuggestions',
+            'showPasswordModal',
             'withdrawalPassword',
             'selectedProductLabel',
             'selectedUserLabel',
@@ -453,14 +509,20 @@ class DailyWithdrawalRecep extends Component
             ->get(['id', 'name', 'email']);
     }
 
-    public function getLatestTodayWithdrawalsProperty()
+    public function setHistoryDateToToday(): void
     {
+        $this->historyDate = now()->toDateString();
+    }
+
+    public function getFilteredWithdrawalsProperty()
+    {
+        $selectedDate = filled($this->historyDate) ? $this->historyDate : now()->toDateString();
+
         return DailyWithdrawal::query()
             ->with(['user:id,name', 'product:id,descripcion'])
-            ->whereDate('requested_at', now()->toDateString())
+            ->whereDate('requested_at', $selectedDate)
             ->orderByDesc('requested_at')
             ->orderByDesc('id')
-            ->limit(5)
             ->get();
     }
 
