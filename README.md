@@ -62,3 +62,32 @@ The Laravel framework is open-sourced software licensed under the [MIT license](
 
 - [Placeholders de planilla de compra](PLANILLA_PLACEHOLDERS.md)
 - [Documentacion esencial de carpetas y flujo de modulos](DOCUMENTACION_CODIGO_ESENCIAL.md)
+
+## Exportaciones PDF consistentes (LibreOffice)
+
+Para mantener el mismo comportamiento de exportacion en local y en Ubuntu servidor, la app usa una unica clase de conversion: `App\\Support\\LibreOfficePdfConverter`.
+
+### 1) Instalar LibreOffice y fuentes en Ubuntu
+
+Ejecuta:
+
+```bash
+sudo bash scripts/setup-libreoffice-ubuntu.sh
+```
+
+Esto instala LibreOffice Calc y fuentes comunes (DejaVu, Liberation, Noto) para reducir diferencias visuales en PDF.
+
+### 2) Variables de entorno recomendadas
+
+Configura en `.env`:
+
+```env
+LIBREOFFICE_PATH=/usr/bin/soffice
+LIBREOFFICE_TIMEOUT_SECONDS=120
+LIBREOFFICE_SAL_VCLPLUGIN=svp
+LIBREOFFICE_LANG=C.UTF-8
+```
+
+### 3) Reiniciar servicios web
+
+Despues de cambiar paquetes o variables de entorno, reinicia PHP-FPM/Apache/Nginx para que el proceso web cargue los cambios.
