@@ -21,7 +21,7 @@ class SolicitudCompraResource extends Resource
 
     protected static ?string $navigationLabel = 'Solicitudes de Compra';
 
-    protected static ?string $modelLabel = 'Solicitud Compra (Cabecera documento)';
+    protected static ?string $modelLabel = 'Solicitud Compra';
 
     protected static ?string $pluralModelLabel = 'Solicitudes de Compra';
 
