@@ -3,13 +3,27 @@
 namespace App\Filament\Resources\DailyWithdrawals\Pages;
 
 use App\Filament\Resources\DailyWithdrawals\DailyWithdrawalResource;
+use App\Models\DailyWithdrawal;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 
 class ListDailyWithdrawals extends ListRecords
 {
     protected static string $resource = DailyWithdrawalResource::class;
+
+    public function getTabs(): array
+    {
+        return [
+            'pendientes' => Tab::make('Pendientes')
+                ->badge((string) DailyWithdrawal::query()->pending()->count())
+                ->modifyQueryUsing(fn ($query) => $query->where('status', 'pendiente')),
+
+            'historial' => Tab::make('Historial')
+                ->modifyQueryUsing(fn ($query) => $query->whereIn('status', ['aprobado', 'rechazado'])),
+        ];
+    }
 
     protected function getHeaderActions(): array
     {
