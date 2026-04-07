@@ -172,6 +172,7 @@
                 align-items: center;
                 gap: 10px;
                 justify-self: end;
+                flex-wrap: wrap;
             }
 
             .kiosk-main {
@@ -202,8 +203,10 @@
                 }
 
                 .kiosk-topbar {
-                    flex-wrap: wrap;
-                    justify-content: center;
+                    grid-template-columns: 1fr;
+                    justify-items: center;
+                    text-align: center;
+                    gap: 10px;
                 }
 
                 .kiosk-brand {
@@ -212,6 +215,28 @@
 
                 .kiosk-brand img {
                     height: 82px;
+                }
+
+                .kiosk-actions {
+                    width: 100%;
+                    justify-content: center;
+                }
+
+                .kiosk-history-btn,
+                .kiosk-logout-btn {
+                    width: 100%;
+                    max-width: 260px;
+                }
+            }
+
+            @media (max-width: 520px) {
+                .kiosk-clock {
+                    width: 100%;
+                    max-width: 260px;
+                }
+
+                .kiosk-clock-value {
+                    font-size: 22px;
                 }
             }
         </style>

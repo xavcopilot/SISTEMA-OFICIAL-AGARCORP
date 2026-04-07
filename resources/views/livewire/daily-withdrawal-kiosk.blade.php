@@ -255,6 +255,7 @@
         .dw-item-remove:hover { background: #ffd7d7; }
         .dw-items-empty { padding: 12px; font-size: 13px; color: #5f7693; }
         .dw-error { margin-top: 5px; color: #b12626; font-size: 12px; font-weight: 600; }
+        .dw-mobile-label { display: none; }
         .dw-history-panel {
             position: fixed;
             top: 110px;
@@ -308,6 +309,41 @@
             .dw-modal { width: 100%; }
             .dw-modal-title { font-size: 24px; }
             .dw-modal-actions { grid-template-columns: 1fr; }
+
+            .dw-items-head {
+                display: none;
+            }
+
+            .dw-item-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+                padding: 12px;
+            }
+
+            .dw-item-row > span,
+            .dw-item-row > .dw-item-actions {
+                display: block;
+                width: 100%;
+            }
+
+            .dw-mobile-label {
+                display: inline-block;
+                margin-right: 6px;
+                font-size: 11px;
+                font-weight: 800;
+                color: #274264;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+            }
+
+            .dw-item-actions {
+                text-align: left;
+                margin-top: 4px;
+            }
+
+            .dw-item-remove {
+                width: 100%;
+            }
         }
     </style>
 
@@ -490,11 +526,12 @@
                     </div>
                     @forelse ($items as $index => $item)
                         <div class="dw-item-row">
-                            <span>{{ $item['sku'] }}</span>
-                            <span>{{ $item['descripcion'] }}</span>
-                            <span>{{ $item['quantity'] }}</span>
-                            <span>{{ $item['requires_return'] ? 'Retorna' : 'No retorna' }}</span>
+                            <span><span class="dw-mobile-label">SKU:</span>{{ $item['sku'] }}</span>
+                            <span><span class="dw-mobile-label">Descripcion:</span>{{ $item['descripcion'] }}</span>
+                            <span><span class="dw-mobile-label">Cantidad:</span>{{ $item['quantity'] }}</span>
+                            <span><span class="dw-mobile-label">Retorno:</span>{{ $item['requires_return'] ? 'Retorna' : 'No retorna' }}</span>
                             <span>
+                                <span class="dw-mobile-label">Fecha retorno:</span>
                                 @if ($item['requires_return'] && ! empty($item['return_date']))
                                     {{ \Illuminate\Support\Carbon::parse($item['return_date'])->format('d/m/Y') }}
                                 @else
