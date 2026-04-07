@@ -228,6 +228,31 @@ class DatabaseSeeder extends Seeder
             $superAdminRole->syncPermissions($allPermissionNames);
         }
 
+        // ===== INICIO BLOQUE DEMO (ELIMINABLE) =====
+        // Usuario de prueba para demostraciones con acceso total al sistema.
+        $demoDepartamentoId = Departamento::firstOrCreate(['nombre' => 'PRUEBA'])->id;
+        $demoCargoId = Cargo::firstOrCreate(['nombre' => 'PRUEBA'])->id;
+        $demoRole = Role::firstOrCreate(['name' => 'Demo Prueba']);
+
+        if (! empty($allPermissionNames)) {
+            $demoRole->syncPermissions($allPermissionNames);
+        }
+
+        $demoUser = User::updateOrCreate(
+            ['email' => 'prueba@gmail.com'],
+            [
+                'name' => 'Usuario Prueba',
+                'password' => Hash::make('prueba'),
+                'firma_password' => Hash::make('prueba'),
+                'email_verified_at' => now(),
+                'departamento_id' => $demoDepartamentoId,
+                'cargo_id' => $demoCargoId,
+            ]
+        );
+
+        $demoUser->syncRoles([$demoRole->name]);
+        // ===== FIN BLOQUE DEMO (ELIMINABLE) =====
+
         // A.I.T mantiene acceso a lo actual, pero sin heredar automaticamente
         // permisos futuros fuera de estos modulos.
         $aitAllowedSubjects = [
