@@ -59,7 +59,6 @@ class DatabaseSeeder extends Seeder
         // 1. Definimos los roles y sus contraseñas (antes estaba en $departamentos)
         $roles = [
             'Procura'     => 'Proc.Agar_2024',
-            'Compras'     => 'Comp.Agar_2024',
             'Almacen'     => 'Alm.Agar_2024',
             'Talento Humano' => 'TH.Agar_2024',
             'A.I.T'       => 'AIT.Agar_2024',
@@ -121,7 +120,7 @@ class DatabaseSeeder extends Seeder
             ->pluck('name')
             ->all();
 
-        foreach (['Gerencia', 'Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'] as $extraRole) {
+        foreach (['Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'] as $extraRole) {
             $roleModel = Role::firstOrCreate(['name' => $extraRole]);
             $roleModel->givePermissionTo($ticketPermissions);
         }
@@ -129,7 +128,6 @@ class DatabaseSeeder extends Seeder
         // Mapa desde rol => nombre de departamento (según tu tabla numerada)
         $roleToDept = [
             'Procura' => 'ADMINISTRACIÓN',
-            'Compras' => 'ADMINISTRACIÓN',
             'Almacen' => 'ALMACEN',
             'Talento Humano' => 'TALENTO HUMANO',
             'A.I.T' => 'A.I.T',
@@ -250,7 +248,7 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $demoUser->syncRoles([$demoRole->name]);
+        $demoUser->syncRoles([$demoRole->name, 'Alta Gerencia', 'Almacen']);
         // ===== FIN BLOQUE DEMO (ELIMINABLE) =====
 
         // A.I.T mantiene acceso a lo actual, pero sin heredar automaticamente

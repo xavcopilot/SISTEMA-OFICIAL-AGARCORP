@@ -10,7 +10,7 @@ class SolicitudCompraFlow
 {
     public const STORAGE_ROLES = ['Almacen'];
 
-    public const APPROVER_ROLES = ['Lider', 'GERENCIA', 'Gerencia', 'Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'];
+    public const APPROVER_ROLES = ['Lider', 'Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'];
 
     public const PROCUREMENT_ROLES = ['Procura'];
 

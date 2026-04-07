@@ -22,7 +22,7 @@ class DepartamentoSeeder extends Seeder
             'CAMPO OPERACIONAL',  // 9
             'ALMACEN',            // 10
             'TALENTO HUMANO',     // 11
-            'A.I.T',              // 12 (usamos A.I.T como departamento)
+            'A.I.T',              // 12 
             'SERVICIO TECNICO',   // 13
             'ALS',                // 14
         ];
