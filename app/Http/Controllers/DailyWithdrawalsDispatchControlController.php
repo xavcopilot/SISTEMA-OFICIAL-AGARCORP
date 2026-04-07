@@ -38,7 +38,7 @@ class DailyWithdrawalsDispatchControlController extends Controller
             abort(401);
         }
 
-        if (! $user->hasRole(['Almacen', 'admin', 'Alta Gerencia', 'A.I.T', 'Almacen Recepcion'])) {
+        if (! $user->can('ViewAny:DailyWithdrawal')) {
             abort(403);
         }
 

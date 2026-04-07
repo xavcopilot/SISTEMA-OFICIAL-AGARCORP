@@ -47,7 +47,7 @@ class DailyWithdrawalResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()?->hasRole(['Almacen', 'admin', 'Admin']);
+        return auth()->check() && auth()->user()?->can('ViewAny:DailyWithdrawal');
     }
 
     public static function shouldRegisterNavigation(): bool
