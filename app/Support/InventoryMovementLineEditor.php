@@ -116,7 +116,9 @@ class InventoryMovementLineEditor
             }
 
             $originalByProduct = self::sumByProduct($originalItems->all());
+            $originalValueByProduct = self::sumValueByProduct($originalItems->all());
             $finalByProduct = self::sumRowsByProduct($finalRows);
+            $finalValueByProduct = self::sumRowsValueByProduct($finalRows);
 
             $allProductIds = array_values(array_unique(array_merge(array_keys($originalByProduct), array_keys($finalByProduct))));
             $products = Product::query()
@@ -152,10 +154,18 @@ class InventoryMovementLineEditor
                 $product->stock_actual = $newStock;
 
                 if ($movementSign > 0) {
-                    $latestPrice = self::latestPriceForProduct($finalRows, $productId);
-                    if ($latestPrice !== null) {
-                        $product->precio_unitario = $latestPrice;
-                    }
+                    $currentStock = (int) ($product->stock_actual - $effectDelta);
+                    $currentValue = ((float) ($product->precio_unitario ?? 0)) * $currentStock;
+
+                    $originalValue = (float) ($originalValueByProduct[$productId] ?? 0);
+                    $finalValue = (float) ($finalValueByProduct[$productId] ?? 0);
+
+                    $baseValue = $currentValue - $originalValue;
+                    $newValue = $baseValue + $finalValue;
+
+                    $product->precio_unitario = $newStock > 0
+                        ? round(max(0, $newValue / $newStock), 2)
+                        : 0;
 
                     $product->fecha_ultima_entrada = now()->toDateString();
                 } else {
@@ -311,8 +321,12 @@ class InventoryMovementLineEditor
                 $product->ubicacion = trim((string) ($row['ubicacion'] ?? ''));
                 $product->dpto_responsable = trim((string) ($row['dpto_responsable'] ?? ''));
                 $product->stock_minimo = max(0, (int) ($row['stock_minimo'] ?? 0));
-                $product->precio_unitario = $price;
-                $product->fecha_ultima_entrada = now()->toDateString();
+                if (! $product->exists) {
+                    $product->precio_unitario = $price;
+                    $product->stock_actual = (int) ($product->stock_actual ?? 0);
+                    $product->fecha_ultima_entrada = now()->toDateString();
+                }
+
                 $product->save();
 
                 $resolvedRows[] = [
@@ -328,6 +342,8 @@ class InventoryMovementLineEditor
             self::assertNoDuplicateSkuLines($resolvedRows);
 
             $finalByProduct = self::sumRowsByProduct($resolvedRows);
+            $originalValueByProduct = self::sumValueByProduct($originalItems->all());
+            $finalValueByProduct = self::sumRowsValueByProduct($resolvedRows);
             $allProductIds = array_values(array_unique(array_merge(array_keys($originalByProduct), array_keys($finalByProduct))));
             $productsForStock = Product::query()
                 ->whereIn('id', $allProductIds)
@@ -359,10 +375,17 @@ class InventoryMovementLineEditor
                 $product->stock_actual = $newStock;
                 $product->fecha_ultima_entrada = now()->toDateString();
 
-                $latestPrice = self::latestPriceForProduct($resolvedRows, $productId);
-                if ($latestPrice !== null) {
-                    $product->precio_unitario = $latestPrice;
-                }
+                $currentStock = (int) ($product->stock_actual - ($finalQty - $originalQty));
+                $currentValue = ((float) ($product->precio_unitario ?? 0)) * $currentStock;
+                $originalValue = (float) ($originalValueByProduct[$productId] ?? 0);
+                $finalValue = (float) ($finalValueByProduct[$productId] ?? 0);
+
+                $baseValue = $currentValue - $originalValue;
+                $newValue = $baseValue + $finalValue;
+
+                $product->precio_unitario = $newStock > 0
+                    ? round(max(0, $newValue / $newStock), 2)
+                    : 0;
 
                 $product->save();
             }
@@ -547,21 +570,42 @@ class InventoryMovementLineEditor
         return $sum;
     }
 
-    private static function latestPriceForProduct(array $rows, int $productId): ?float
+    private static function sumValueByProduct(array $items): array
     {
-        $latest = null;
+        $sum = [];
 
-        foreach ($rows as $row) {
-            if ((int) ($row['product_id'] ?? 0) !== $productId) {
+        foreach ($items as $item) {
+            $productId = (int) ($item->product_id ?? 0);
+            $qty = (int) ($item->cantidad ?? 0);
+            $price = (float) ($item->precio_momento ?? 0);
+
+            if ($productId <= 0 || $qty <= 0) {
                 continue;
             }
 
-            if (isset($row['precio_momento']) && $row['precio_momento'] !== null) {
-                $latest = (float) $row['precio_momento'];
-            }
+            $sum[$productId] = ($sum[$productId] ?? 0) + ($qty * $price);
         }
 
-        return $latest;
+        return $sum;
+    }
+
+    private static function sumRowsValueByProduct(array $rows): array
+    {
+        $sum = [];
+
+        foreach ($rows as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            $qty = (int) ($row['cantidad'] ?? 0);
+            $price = (float) ($row['precio_momento'] ?? 0);
+
+            if ($productId <= 0 || $qty <= 0) {
+                continue;
+            }
+
+            $sum[$productId] = ($sum[$productId] ?? 0) + ($qty * $price);
+        }
+
+        return $sum;
     }
 
     private static function assertNoDuplicateSkuLines(array $rows): void

@@ -59,10 +59,10 @@ class DatabaseSeeder extends Seeder
         // 1. Definimos los roles y sus contraseñas (antes estaba en $departamentos)
         $roles = [
             'Procura'     => 'Proc.Agar_2024',
-            'Almacen'     => 'Alm.Agar_2024',
-            'Talento Humano' => 'TH.Agar_2024',
-            'A.I.T'       => 'AIT.Agar_2024',
-            'Finanzas'    => 'Fin.Agar_2024',
+            'Almacen'     => 'almacen',
+            'Talento Humano' => 'talentohumano',
+            'A.I.T'       => 'ait',
+            'Finanzas'    => 'finanzas',
         ];
 
         // creamos departamentos primero
@@ -78,7 +78,7 @@ class DatabaseSeeder extends Seeder
         Artisan::call('shield:generate', [
             '--all' => true,
             '--option' => 'permissions',
-            '--panel' => 'admin',
+            '--panel' => 'agarcorp',
             '--no-interaction' => true,
         ]);
 
@@ -120,6 +120,11 @@ class DatabaseSeeder extends Seeder
             ->pluck('name')
             ->all();
 
+        $proveedorPermissions = Permission::query()
+            ->where('name', 'like', '%:Proveedor')
+            ->pluck('name')
+            ->all();
+
         foreach (['Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'] as $extraRole) {
             $roleModel = Role::firstOrCreate(['name' => $extraRole]);
             $roleModel->givePermissionTo($ticketPermissions);
@@ -156,6 +161,10 @@ class DatabaseSeeder extends Seeder
 
             if (in_array($rol, ['Almacen', 'Procura'], true) && ! empty($solicitudCreatePermissions)) {
                 $roleModel->givePermissionTo($solicitudCreatePermissions);
+            }
+
+            if ($rol === 'Procura' && ! empty($proveedorPermissions)) {
+                $roleModel->givePermissionTo($proveedorPermissions);
             }
 
             if ($rol === 'Almacen' && ! empty($inventoryProductPermissions)) {

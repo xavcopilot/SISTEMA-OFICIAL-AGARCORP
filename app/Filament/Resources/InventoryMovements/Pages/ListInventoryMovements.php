@@ -69,6 +69,44 @@ class ListInventoryMovements extends ListRecords
         ];
     }
 
+    protected function viewFormatPromptAction(): Action
+    {
+        return Action::make('viewFormatPrompt')
+            ->requiresConfirmation()
+            ->modalHeading('Movimiento guardado')
+            ->modalDescription(function (array $arguments): string {
+                $tipo = (string) ($arguments['tipo'] ?? '');
+
+                if (in_array($tipo, ['ingreso', 'entrada'], true)) {
+                    return '¿Deseas visualizar ahora el formato de entrada?';
+                }
+
+                return '¿Deseas visualizar ahora el formato de salida?';
+            })
+            ->modalSubmitActionLabel('Ver formato')
+            ->modalCancelActionLabel('Luego')
+            ->color('primary')
+            ->action(function (array $arguments): void {
+                $movementId = (int) ($arguments['movementId'] ?? 0);
+                $tipo = (string) ($arguments['tipo'] ?? '');
+
+                if ($movementId <= 0) {
+                    return;
+                }
+
+                $routeName = in_array($tipo, ['ingreso', 'entrada'], true)
+                    ? 'inventario.movimientos.formato-entrada'
+                    : 'inventario.movimientos.formato-salida';
+
+                $formatUrl = route($routeName, [
+                    'inventoryMovement' => $movementId,
+                    'download' => 0,
+                ]);
+
+                $this->js('window.open(' . json_encode($formatUrl) . ', "_blank")');
+            });
+    }
+
     private function ingresoSchema(): array
     {
         return [
@@ -687,8 +725,9 @@ class ListInventoryMovements extends ListRecords
     private function storeIngreso(array $data): void
     {
         $processedProductIds = [];
+        $movementId = null;
 
-        DB::transaction(function () use ($data, &$processedProductIds): void {
+        DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
             $movement = InventoryMovement::create([
                 'tipo' => 'ingreso',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('ingreso'),
@@ -700,6 +739,8 @@ class ListInventoryMovements extends ListRecords
                 'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
+
+            $movementId = (int) $movement->id;
 
             $items = $data['items'] ?? [];
 
@@ -746,14 +787,22 @@ class ListInventoryMovements extends ListRecords
             ->success()
             ->send();
 
+        if ($movementId !== null) {
+            $this->replaceMountedAction('viewFormatPrompt', [
+                'movementId' => (int) $movementId,
+                'tipo' => 'ingreso',
+            ]);
+        }
+
         $this->notifyCriticalProductsByIds($processedProductIds, 'ingreso');
     }
 
     private function storeEntrada(array $data): void
     {
         $processedProductIds = [];
+        $movementId = null;
 
-        DB::transaction(function () use ($data, &$processedProductIds): void {
+        DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
             $movement = InventoryMovement::create([
                 'tipo' => 'entrada',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('entrada'),
@@ -765,6 +814,8 @@ class ListInventoryMovements extends ListRecords
                 'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
+
+            $movementId = (int) $movement->id;
 
             $items = $data['items'] ?? [];
             $this->assertItemsLimit($items, self::MAX_ENTRADA_ITEMS, 'entrada');
@@ -780,9 +831,19 @@ class ListInventoryMovements extends ListRecords
                 $cantidad = (int) ($item['cantidad'] ?? 0);
                 $precio = (float) ($item['precio'] ?? 0);
 
+                $stockAnterior = (int) ($product->stock_actual ?? 0);
+                $precioAnterior = (float) ($product->precio_unitario ?? 0);
+                $stockNuevo = $stockAnterior + $cantidad;
+                $precioPromedio = $this->calculateWeightedAverageUnitPrice(
+                    $stockAnterior,
+                    $precioAnterior,
+                    $cantidad,
+                    $precio
+                );
+
                 $product->update([
-                    'stock_actual' => ((int) $product->stock_actual) + $cantidad,
-                    'precio_unitario' => $precio,
+                    'stock_actual' => $stockNuevo,
+                    'precio_unitario' => $precioPromedio,
                     'fecha_ultima_entrada' => now()->toDateString(),
                 ]);
 
@@ -808,14 +869,22 @@ class ListInventoryMovements extends ListRecords
             ->success()
             ->send();
 
+        if ($movementId !== null) {
+            $this->replaceMountedAction('viewFormatPrompt', [
+                'movementId' => (int) $movementId,
+                'tipo' => 'entrada',
+            ]);
+        }
+
         $this->notifyCriticalProductsByIds($processedProductIds, 'entrada');
     }
 
     private function storeSalida(array $data): void
     {
         $processedProductIds = [];
+        $movementId = null;
 
-        DB::transaction(function () use ($data, &$processedProductIds): void {
+        DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
             $movement = InventoryMovement::create([
                 'tipo' => 'salida',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('salida'),
@@ -824,6 +893,8 @@ class ListInventoryMovements extends ListRecords
                 'dpto_destino' => $data['dpto_destino'] ?? null,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
+
+            $movementId = (int) $movement->id;
 
             $items = $data['items'] ?? [];
             $this->assertItemsLimit($items, self::MAX_SALIDA_ITEMS, 'salida');
@@ -873,7 +944,28 @@ class ListInventoryMovements extends ListRecords
             ->success()
             ->send();
 
+        if ($movementId !== null) {
+            $this->replaceMountedAction('viewFormatPrompt', [
+                'movementId' => (int) $movementId,
+                'tipo' => 'salida',
+            ]);
+        }
+
         $this->notifyCriticalProductsByIds($processedProductIds, 'salida');
+    }
+
+    private function calculateWeightedAverageUnitPrice(int $currentStock, float $currentUnitPrice, int $incomingQty, float $incomingUnitPrice): float
+    {
+        $newStock = $currentStock + $incomingQty;
+
+        if ($newStock <= 0) {
+            return round(max(0, $currentUnitPrice), 2);
+        }
+
+        $currentValue = $currentStock * $currentUnitPrice;
+        $incomingValue = $incomingQty * $incomingUnitPrice;
+
+        return round(max(0, ($currentValue + $incomingValue) / $newStock), 2);
     }
 
     private function notifyCriticalProductsByIds(array $productIds, string $context): void
