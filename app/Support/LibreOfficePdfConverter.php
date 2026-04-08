@@ -23,20 +23,11 @@ class LibreOfficePdfConverter
             return false;
         }
 
-        $runtimePaths = $this->prepareRuntimePaths();
-        $profileDir = $runtimePaths['profiles'] . DIRECTORY_SEPARATOR . 'profile-' . bin2hex(random_bytes(6));
+        $isWindows = $this->isWindows();
+        $runtimePaths = null;
+        $profileDir = null;
 
-        if (! is_dir($profileDir) && ! @mkdir($profileDir, 0775, true) && ! is_dir($profileDir)) {
-            Log::warning('No se pudo crear perfil runtime de LibreOffice.', [
-                ...$context,
-                'profile_dir' => $profileDir,
-                'xlsx' => $xlsxPath,
-            ]);
-
-            return false;
-        }
-
-        $process = new Process([
+        $command = [
             $binary,
             '--headless',
             '--nologo',
@@ -44,15 +35,36 @@ class LibreOfficePdfConverter
             '--norestore',
             '--nolockcheck',
             '--nofirststartwizard',
-            '-env:UserInstallation=' . $this->toFileUrl($profileDir),
             '--convert-to',
             'pdf:calc_pdf_Export',
             '--outdir',
             $outputDir,
             $xlsxPath,
-        ]);
+        ];
 
-        $process->setEnv($this->buildProcessEnvironment($runtimePaths));
+        if (! $isWindows) {
+            $runtimePaths = $this->prepareRuntimePaths();
+            $profileDir = $runtimePaths['profiles'] . DIRECTORY_SEPARATOR . 'profile-' . bin2hex(random_bytes(6));
+
+            if (! is_dir($profileDir) && ! @mkdir($profileDir, 0775, true) && ! is_dir($profileDir)) {
+                Log::warning('No se pudo crear perfil runtime de LibreOffice.', [
+                    ...$context,
+                    'profile_dir' => $profileDir,
+                    'xlsx' => $xlsxPath,
+                ]);
+
+                return false;
+            }
+
+            array_splice($command, 7, 0, ['-env:UserInstallation=' . $this->toFileUrl($profileDir)]);
+        }
+
+        $process = new Process($command);
+
+        if ($runtimePaths !== null) {
+            $process->setEnv($this->buildProcessEnvironment($runtimePaths));
+        }
+
         $process->setTimeout($this->resolveTimeoutSeconds());
         $process->run();
 
@@ -61,6 +73,7 @@ class LibreOfficePdfConverter
                 Log::warning('Fallo conversion con LibreOffice.', [
                     ...$context,
                     'binary' => $binary,
+                    'exit_code' => $process->getExitCode(),
                     'xlsx' => $xlsxPath,
                     'output_dir' => $outputDir,
                     'error' => $process->getErrorOutput(),
@@ -76,6 +89,7 @@ class LibreOfficePdfConverter
                 Log::warning('LibreOffice termino sin generar PDF esperado.', [
                     ...$context,
                     'binary' => $binary,
+                    'exit_code' => $process->getExitCode(),
                     'xlsx' => $xlsxPath,
                     'expected_pdf' => $outputDir . DIRECTORY_SEPARATOR . pathinfo($xlsxPath, PATHINFO_FILENAME) . '.pdf',
                     'pdf_candidates' => $this->listPdfCandidates($outputDir),
@@ -96,8 +110,15 @@ class LibreOfficePdfConverter
 
             return true;
         } finally {
-            $this->deleteDirectory($profileDir);
+            if ($profileDir !== null) {
+                $this->deleteDirectory($profileDir);
+            }
         }
+    }
+
+    private function isWindows(): bool
+    {
+        return PHP_OS_FAMILY === 'Windows';
     }
 
     private function resolveBinary(): ?string

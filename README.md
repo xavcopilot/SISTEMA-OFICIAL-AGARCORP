@@ -82,11 +82,16 @@ Esto instala LibreOffice Calc y fuentes comunes (DejaVu, Liberation, Noto) para 
 Configura en `.env`:
 
 ```env
-LIBREOFFICE_PATH=/usr/bin/soffice
+LIBREOFFICE_PATH=
 LIBREOFFICE_TIMEOUT_SECONDS=120
 LIBREOFFICE_SAL_VCLPLUGIN=svp
 LIBREOFFICE_LANG=C.UTF-8
 ```
+
+Notas:
+- Si `LIBREOFFICE_PATH` queda vacio, la app intenta autodetectar `soffice` en Linux y Windows.
+- En Windows puedes fijar: `LIBREOFFICE_PATH="C:/Program Files/LibreOffice/program/soffice.com"`.
+- El flujo de conversion usa perfil aislado en Linux/macOS y modo compatible en Windows para evitar fallos de arranque.
 
 ### 3) Reiniciar servicios web
 
