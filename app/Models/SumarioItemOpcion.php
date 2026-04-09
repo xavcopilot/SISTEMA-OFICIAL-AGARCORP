@@ -1,0 +1,37 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class SumarioItemOpcion extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'sumario_item_id',
+        'opcion_numero',
+        'proveedor_id',
+        'proveedor_nombre',
+        'marca',
+        'precio_unitario',
+        'precio_total',
+    ];
+
+    protected $casts = [
+        'precio_unitario' => 'decimal:2',
+        'precio_total' => 'decimal:2',
+    ];
+
+    public function sumarioItem(): BelongsTo
+    {
+        return $this->belongsTo(SumarioItem::class);
+    }
+
+    public function proveedor(): BelongsTo
+    {
+        return $this->belongsTo(Proveedor::class);
+    }
+}

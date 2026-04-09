@@ -64,6 +64,11 @@ class SolicitudCompra extends Model
         return $this->hasMany(SolicitudCompraItem::class);
     }
 
+    public function sumarios(): HasMany
+    {
+        return $this->hasMany(Sumario::class);
+    }
+
     public function solicitadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'solicitado_por_user_id');

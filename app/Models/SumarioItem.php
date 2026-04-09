@@ -7,35 +7,36 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class SolicitudCompraItem extends Model
+class SumarioItem extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'solicitud_compra_id',
+        'sumario_id',
+        'solicitud_compra_item_id',
         'item',
         'descripcion',
         'unidad_medida',
-        'cantidad_solicitada',
-        'cantidad_existencia',
-        'cantidad_a_comprar',
-        'estado_item',
+        'cantidad',
     ];
 
     protected $casts = [
-        'cantidad_solicitada' => 'decimal:2',
-        'cantidad_existencia' => 'decimal:2',
-        'cantidad_a_comprar' => 'decimal:2',
+        'cantidad' => 'decimal:2',
     ];
 
-    public function solicitudCompra(): BelongsTo
+    public function sumario(): BelongsTo
     {
-        return $this->belongsTo(SolicitudCompra::class);
+        return $this->belongsTo(Sumario::class);
     }
 
-    public function sumarioItems(): HasMany
+    public function solicitudCompraItem(): BelongsTo
     {
-        return $this->hasMany(SumarioItem::class);
+        return $this->belongsTo(SolicitudCompraItem::class);
+    }
+
+    public function opciones(): HasMany
+    {
+        return $this->hasMany(SumarioItemOpcion::class);
     }
 
     public function ordenCompraItems(): HasMany

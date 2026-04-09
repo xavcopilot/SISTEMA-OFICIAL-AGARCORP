@@ -139,3 +139,11 @@ Route::get('/inventario/productos/etiquetas-codigos', \App\Http\Controllers\Prod
 Route::get('/inventario/productos/etiquetas-qr', \App\Http\Controllers\ProductQrLabelsController::class)
     ->middleware(['auth'])
     ->name('inventario.productos.etiquetas-qr');
+
+Route::get('/ordenes-compra/{ordenCompra}/formato', \App\Http\Controllers\OrdenCompraFormatoController::class)
+    ->middleware(['auth'])
+    ->name('ordenes-compra.formato');
+
+Route::get('/ordenes-compra/{ordenCompra}/formato/impresion', [\App\Http\Controllers\OrdenCompraFormatoController::class, 'printPreview'])
+    ->middleware(['auth'])
+    ->name('ordenes-compra.formato.print');
