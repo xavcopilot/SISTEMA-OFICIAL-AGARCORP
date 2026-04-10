@@ -7,6 +7,7 @@ use App\Models\SolicitudCompraItem;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -15,6 +16,7 @@ use Filament\Forms\Components\ToggleButtons;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\HtmlString;
 
 class SumarioForm
 {
@@ -25,12 +27,39 @@ class SumarioForm
                 Hidden::make('elaborado_por_user_id')
                     ->default(fn () => auth()->id()),
 
-                Section::make('Cabecera del sumario (ADV-FPR-SDC)')
+                Placeholder::make('sumario_sdc_style')
+                    ->hiddenLabel()
+                    ->content(new HtmlString('<style>
+                        .sdc-sheet { border: 2px solid #0f172a; background: #f8fafc; }
+                        .sdc-sheet .fi-section-header-heading { font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+                        .sdc-header, .sdc-proveedores, .sdc-items, .sdc-cuadro, .sdc-footer { border: 1px solid #1e293b; background: #fff; }
+                        .sdc-header .fi-section-content, .sdc-proveedores .fi-section-content, .sdc-items .fi-section-content, .sdc-cuadro .fi-section-content, .sdc-footer .fi-section-content { padding: 12px; }
+                        .sdc-header .fi-input-wrp, .sdc-proveedores .fi-input-wrp, .sdc-items .fi-input-wrp, .sdc-cuadro .fi-input-wrp, .sdc-footer .fi-input-wrp { border-radius: 0 !important; }
+                        .sdc-cuadro [data-field-wrapper] { border: 1px solid #cbd5e1; padding: 6px; }
+                        .sdc-cuadro .fi-fo-repeater-item { border: 1px solid #0f172a; border-radius: 0 !important; margin-bottom: 8px; }
+                        .sdc-cuadro .fi-fo-repeater-item-header { background: #e2e8f0; border-bottom: 1px solid #94a3b8; }
+                        .sdc-footer .fi-ta { min-height: 92px; }
+                    </style>')),
+
+                Section::make('FORMATO SUMARIO DE COTIZACIONES (ADV-FPR-SDC)')
+                    ->extraAttributes(['class' => 'sdc-sheet sdc-header'])
                     ->schema([
                         Grid::make(12)
                             ->schema([
+                                Placeholder::make('codigo_formato_sdc')
+                                    ->label('Control de formato')
+                                    ->content('COD: ADV-FPR-SDC | Revision: 01')
+                                    ->columnSpan(6),
+                                Placeholder::make('fecha_referencia_sdc')
+                                    ->label('Referencia visual')
+                                    ->content('Diseno operacional de Sumario de Cotizaciones')
+                                    ->columnSpan(6),
+                            ]),
+
+                        Grid::make(12)
+                            ->schema([
                                 Select::make('solicitud_compra_id')
-                                    ->label('Solicitud de compra')
+                                    ->label('Sumario N° / Solicitud de compra base')
                                     ->options(fn (): array => self::solicitudCompraOptions())
                                     ->searchable()
                                     ->preload()
@@ -44,14 +73,14 @@ class SumarioForm
                                         $set('comparativo_items', []);
                                         self::setColumnTotals([], $set);
                                     })
-                                    ->columnSpan(4),
+                                    ->columnSpan(5),
 
                                 TextInput::make('correlativo_sdc')
-                                    ->label('Correlativo SDC')
+                                    ->label('Sumario N°')
                                     ->placeholder('2026-001')
                                     ->required()
                                     ->maxLength(50)
-                                    ->columnSpan(2),
+                                    ->columnSpan(3),
 
                                 DatePicker::make('fecha')
                                     ->label('Fecha')
@@ -60,7 +89,7 @@ class SumarioForm
                                     ->columnSpan(2),
 
                                 Select::make('procedencia')
-                                    ->label('Procedencia')
+                                    ->label('Procedencia de los Proveedores')
                                     ->options([
                                         'LOCAL' => 'Local',
                                         'IMPORTADO' => 'Importado',
@@ -69,64 +98,65 @@ class SumarioForm
                                     ->columnSpan(2),
 
                                 Select::make('tipo_orden')
-                                    ->label('Tipo de orden')
+                                    ->label('Tipo de Orden')
                                     ->options([
                                         'COMPRA' => 'Compra',
                                         'SERVICIO' => 'Servicio',
                                     ])
                                     ->required()
-                                    ->columnSpan(2),
+                                    ->columnSpan(3),
 
                                 TextInput::make('departamento_solicitante')
-                                    ->label('Departamento solicitante')
+                                    ->label('Departamento Solicitante')
                                     ->required()
                                     ->readOnly()
-                                    ->columnSpan(4),
+                                    ->columnSpan(5),
 
                                 TextInput::make('condiciones_pago')
-                                    ->label('Condiciones de pago')
+                                    ->label('Condiciones de Pago')
                                     ->maxLength(255)
-                                    ->columnSpan(4),
+                                    ->columnSpan(2),
 
                                 TextInput::make('tiempo_entrega')
-                                    ->label('Tiempo de entrega')
+                                    ->label('Tiempo de Entrega')
                                     ->maxLength(255)
-                                    ->columnSpan(4),
+                                    ->columnSpan(2),
                             ]),
                     ])
                     ->columnSpanFull(),
 
-                Section::make('Proveedores comparativos')
+                Section::make('PROVEEDORES')
+                    ->extraAttributes(['class' => 'sdc-sheet sdc-proveedores'])
                     ->schema([
                         Grid::make(12)
                             ->schema([
                                 TextInput::make('proveedor_a_nombre')
-                                    ->label('Proveedor A')
+                                    ->label('Proveedor 1')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_b_nombre')
-                                    ->label('Proveedor B')
+                                    ->label('Proveedor 2')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_c_nombre')
-                                    ->label('Proveedor C')
+                                    ->label('Proveedor 3')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
                                     ->columnSpan(4),
 
                                 ToggleButtons::make('columna_ganadora')
-                                    ->label('Marcar proveedor ganador')
+                                    ->label('Proveedor ganador (prioridad visual)')
                                     ->options([
-                                        'A' => 'Ganador: Proveedor A',
-                                        'B' => 'Ganador: Proveedor B',
-                                        'C' => 'Ganador: Proveedor C',
+                                        'A' => 'Ganador: Proveedor 1',
+                                        'B' => 'Ganador: Proveedor 2',
+                                        'C' => 'Ganador: Proveedor 3',
                                     ])
                                     ->inline()
                                     ->grouped()
@@ -137,10 +167,11 @@ class SumarioForm
                     ])
                     ->columnSpanFull(),
 
-                Section::make('Seleccion parcial de items de la solicitud')
+                Section::make('ITEMS A INCLUIR EN EL SUMARIO')
+                    ->extraAttributes(['class' => 'sdc-sheet sdc-items'])
                     ->schema([
                         CheckboxList::make('selected_item_ids')
-                            ->label('Items a incluir en este sumario')
+                            ->label('Seleccion parcial de items de la solicitud')
                             ->options(fn (callable $get): array => self::solicitudItemOptions((int) ($get('solicitud_compra_id') ?? 0)))
                             ->columns(1)
                             ->searchable()
@@ -178,11 +209,12 @@ class SumarioForm
                     ])
                     ->columnSpanFull(),
 
-                Section::make('Cuadro comparativo de cotizaciones')
-                    ->description('Izquierda: descripcion/unidad/cantidad. Centro: columnas de Proveedor A, B y C con calculo automatico.')
+                Section::make('CUADRO COMPARATIVO DE COTIZACIONES')
+                    ->extraAttributes(['class' => 'sdc-sheet sdc-cuadro'])
+                    ->description('Bloque principal del formato: item, descripcion, UND, cantidad y 3 proveedores con precios.')
                     ->schema([
                         Repeater::make('comparativo_items')
-                            ->label('Items del sumario')
+                            ->label('Matriz comparativa de items')
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
@@ -202,13 +234,13 @@ class SumarioForm
                                 Grid::make(18)
                                     ->schema([
                                         TextInput::make('item')
-                                            ->label('Item')
+                                            ->label('ITEM')
                                             ->disabled()
                                             ->dehydrated()
                                             ->columnSpan(1),
 
                                         TextInput::make('descripcion')
-                                            ->label('Descripcion')
+                                            ->label('DESCRIPCION')
                                             ->disabled()
                                             ->dehydrated()
                                             ->columnSpan(4),
@@ -220,19 +252,19 @@ class SumarioForm
                                             ->columnSpan(1),
 
                                         TextInput::make('cantidad')
-                                            ->label('Cantidad')
+                                            ->label('CANT')
                                             ->disabled()
                                             ->dehydrated()
                                             ->numeric()
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov1')
-                                            ->label('Marca A')
+                                            ->label('MARCA P1')
                                             ->maxLength(255)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov1')
-                                            ->label('P. Unit A')
+                                            ->label('PRECIO UNITARIO P1')
                                             ->numeric()
                                             ->default(0)
                                             ->live(debounce: 200)
@@ -245,19 +277,19 @@ class SumarioForm
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_total_prov1')
-                                            ->label('P. Total A')
+                                            ->label('PRECIO TOTAL P1')
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
                                             ->columnSpan(2),
 
                                         TextInput::make('marca_prov2')
-                                            ->label('Marca B')
+                                            ->label('MARCA P2')
                                             ->maxLength(255)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov2')
-                                            ->label('P. Unit B')
+                                            ->label('PRECIO UNITARIO P2')
                                             ->numeric()
                                             ->default(0)
                                             ->live(debounce: 200)
@@ -270,19 +302,19 @@ class SumarioForm
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_total_prov2')
-                                            ->label('P. Total B')
+                                            ->label('PRECIO TOTAL P2')
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
                                             ->columnSpan(2),
 
                                         TextInput::make('marca_prov3')
-                                            ->label('Marca C')
+                                            ->label('MARCA P3')
                                             ->maxLength(255)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov3')
-                                            ->label('P. Unit C')
+                                            ->label('PRECIO UNITARIO P3')
                                             ->numeric()
                                             ->default(0)
                                             ->live(debounce: 200)
@@ -295,18 +327,18 @@ class SumarioForm
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_total_prov3')
-                                            ->label('P. Total C')
+                                            ->label('PRECIO TOTAL P3')
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
                                             ->columnSpan(2),
 
                                         Select::make('proveedor_seleccionado')
-                                            ->label('Proveedor seleccionado')
+                                            ->label('PROVEEDOR SELECCIONADO')
                                             ->options([
-                                                'A' => 'Proveedor A',
-                                                'B' => 'Proveedor B',
-                                                'C' => 'Proveedor C',
+                                                'A' => 'Proveedor 1',
+                                                'B' => 'Proveedor 2',
+                                                'C' => 'Proveedor 3',
                                             ])
                                             ->required()
                                             ->default('A')
@@ -319,12 +351,13 @@ class SumarioForm
                     ])
                     ->columnSpanFull(),
 
-                Section::make('Totales y decision')
+                Section::make('PIE DEL FORMATO')
+                    ->extraAttributes(['class' => 'sdc-sheet sdc-footer'])
                     ->schema([
                         Grid::make(12)
                             ->schema([
                                 TextInput::make('total_compra_prov1')
-                                    ->label('Total compra Proveedor A')
+                                    ->label('TOTAL COMPRA PROVEEDOR 1')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
@@ -332,7 +365,7 @@ class SumarioForm
                                     ->columnSpan(4),
 
                                 TextInput::make('total_compra_prov2')
-                                    ->label('Total compra Proveedor B')
+                                    ->label('TOTAL COMPRA PROVEEDOR 2')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
@@ -340,7 +373,7 @@ class SumarioForm
                                     ->columnSpan(4),
 
                                 TextInput::make('total_compra_prov3')
-                                    ->label('Total compra Proveedor C')
+                                    ->label('TOTAL COMPRA PROVEEDOR 3')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
@@ -348,18 +381,33 @@ class SumarioForm
                                     ->columnSpan(4),
 
                                 Select::make('prioridad')
-                                    ->label('Prioridad de decision')
+                                    ->label('PRIORIDAD / CARACTERISTICA DE LA COMPRA')
                                     ->options([
-                                        'MEJOR_PRECIO' => 'Mejor Precio',
-                                        'CALIDAD' => 'Calidad',
+                                        'MEJOR_PRECIO' => 'MEJOR PRECIO',
+                                        'CALIDAD' => 'MEJOR SERVICIO/CALIDAD',
                                     ])
                                     ->required()
                                     ->columnSpan(4),
 
                                 Textarea::make('observaciones')
-                                    ->label('Observaciones')
+                                    ->label('OBSERVACIONES')
                                     ->rows(3)
                                     ->columnSpan(8),
+
+                                Placeholder::make('elaborado_por_preview')
+                                    ->label('Elaborado por')
+                                    ->content(fn (): string => (string) (auth()->user()?->name ?? 'N/A'))
+                                    ->columnSpan(4),
+
+                                Placeholder::make('revisado_por_preview')
+                                    ->label('Revisado por')
+                                    ->content('Pendiente de revision de Finanzas')
+                                    ->columnSpan(4),
+
+                                Placeholder::make('firma_preview')
+                                    ->label('Firma')
+                                    ->content('Se registra en el flujo de aprobacion')
+                                    ->columnSpan(4),
 
                                 Hidden::make('proveedor_ganador_id'),
                                 Hidden::make('estado'),
@@ -372,6 +420,8 @@ class SumarioForm
     public static function solicitudCompraOptions(): array
     {
         return SolicitudCompra::query()
+            ->whereNotNull('fecha_receptor')
+            ->where('estado', '!=', 'RECHAZADA')
             ->orderByDesc('id')
             ->get(['id', 'codigo_control', 'departamento_solicitante'])
             ->mapWithKeys(function (SolicitudCompra $solicitud): array {
