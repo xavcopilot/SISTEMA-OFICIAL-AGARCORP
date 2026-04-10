@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $defaultWithdrawalPassword = '1726';
+        $defaultSignaturePassword = 'firma';
 
         $executiveUsers = [
             [
@@ -449,7 +450,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name'             => 'Xavier Prado',
                 'password'         => Hash::make('Xavidev17'),
-                'firma_password'   => Hash::make('Contrafirma'),
+                'firma_password'   => Hash::make('firma'),
                 'email_verified_at'=> now(),
                 'departamento_id'  => Departamento::where('nombre', 'A.I.T')->value('id'),
             ]
@@ -457,6 +458,13 @@ class DatabaseSeeder extends Seeder
 
         // Se mantiene como usuario tecnico con permisos de gestion.
         $aitPrimaryUser->syncRoles([$aitPrimaryRole->name]);
+
+        // ===== INICIO BLOQUE FIRMA DEFAULT GLOBAL =====
+        // Homologa la clave de firma para pruebas de flujo en todos los usuarios.
+        User::query()->update([
+            'firma_password' => Hash::make($defaultSignaturePassword),
+        ]);
+        // ===== FIN BLOQUE FIRMA DEFAULT GLOBAL =====
 
         User::query()->update([
             'withdrawal_password' => Hash::make($defaultWithdrawalPassword),

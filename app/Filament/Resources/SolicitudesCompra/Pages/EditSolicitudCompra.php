@@ -121,6 +121,7 @@ class EditSolicitudCompra extends EditRecord
         ];
     }
 
+
     private function createRevisionFromRejectedRecord(SolicitudCompra $record, array $data): SolicitudCompra
     {
         $sharedCode = (string) ($record->codigo_control ?: $record->id);

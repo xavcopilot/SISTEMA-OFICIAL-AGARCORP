@@ -21,7 +21,7 @@ class AprobacionesCompraResource extends Resource
 
     protected static ?string $navigationLabel = 'Aprobaciones de Compra';
 
-    protected static ?string $modelLabel = 'Solicitud Compra (Detalle documento)';
+    protected static ?string $modelLabel = 'Solicitud Compra';
 
     protected static ?string $pluralModelLabel = 'Aprobaciones de Compra';
 

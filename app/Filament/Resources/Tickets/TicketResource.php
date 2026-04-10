@@ -75,7 +75,9 @@ public static function getNavigationBadge(): ?string
 {
     // El globito de notificación solo para gestores
     if (auth()->user()?->can('Manage:Ticket')) {
-        return static::getModel()::where('estado', 'Abierto')->count();
+        $count = static::getModel()::where('estado', 'Abierto')->count();
+
+        return $count > 0 ? (string) $count : null;
     }
     
     return null;

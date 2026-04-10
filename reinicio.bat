@@ -34,12 +34,10 @@ powershell -NoProfile -Command "if (Test-NetConnection -ComputerName '%DB_HOST%'
 if errorlevel 1 goto db_error
 
 echo Ejecutando migraciones y seeders...
-call php artisan migrate:fresh --seed --force
+call php artisan migrate:fresh --seed --force --no-interaction
 if errorlevel 1 goto artisan_error
 
-echo Generando Permisos de Shield...
-call php artisan shield:generate --all
-if errorlevel 1 goto artisan_error
+echo Shield se genera desde DatabaseSeeder con panel agarcorp y sin interaccion.
 
 echo Sincronizando permisos en roles de gestion...
 call php artisan db:seed --force --no-interaction

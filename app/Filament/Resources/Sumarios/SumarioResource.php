@@ -55,17 +55,17 @@ class SumarioResource extends Resource
 
     public static function canCreate(): bool
     {
-        return self::hasWriteAccess();
+        return self::hasCreateAccess();
     }
 
     public static function canEdit(Model $record): bool
     {
-        return self::hasWriteAccess();
+        return self::hasUpdateAccess();
     }
 
     public static function canDelete(Model $record): bool
     {
-        return self::hasWriteAccess();
+        return self::hasDeleteAccess();
     }
 
     private static function hasReadAccess(): bool
@@ -79,7 +79,18 @@ class SumarioResource extends Resource
         return $user->can('ViewAny:Sumario');
     }
 
-    private static function hasWriteAccess(): bool
+    private static function hasCreateAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can('Create:Sumario');
+    }
+
+    private static function hasUpdateAccess(): bool
     {
         $user = auth()->user();
 
@@ -88,5 +99,16 @@ class SumarioResource extends Resource
         }
 
         return $user->can('Update:Sumario');
+    }
+
+    private static function hasDeleteAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can('Delete:Sumario');
     }
 }
