@@ -32,27 +32,27 @@ class SkuCodeRuleResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('A.I.T');
+        return static::canViewAny();
     }
 
     public static function canViewAny(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('A.I.T');
+        return auth()->check() && auth()->user()?->can('ViewAny:SkuCodeRule');
     }
 
     public static function canCreate(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('A.I.T');
+        return auth()->check() && auth()->user()?->can('Create:SkuCodeRule');
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->check() && auth()->user()->hasRole('A.I.T');
+        return auth()->check() && auth()->user()?->can('Update:SkuCodeRule');
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->check() && auth()->user()->hasRole('A.I.T');
+        return auth()->check() && auth()->user()?->can('Delete:SkuCodeRule');
     }
 
     public static function form(Schema $schema): Schema

@@ -120,8 +120,8 @@ Select::make('estado')
         'Resuelto' => 'Resuelto',
         'Cancelado' => 'Cancelado',
     ])
-    // LA CLAVE: Solo es "disabled" si no eres gestor
-    ->disabled(fn () => !auth()->user()->hasRole(['admin', 'Alta Gerencia', 'A.I.T']))
+    // Se controla por permiso para poder asignarlo/quitarlo desde Shield.
+    ->disabled(fn () => ! auth()->user()?->can('Manage:Ticket'))
     // Pero es visible para todos en modo vista/edición
     ->visible(fn ($operation) => $operation === 'edit' || $operation === 'view')
     ->required()

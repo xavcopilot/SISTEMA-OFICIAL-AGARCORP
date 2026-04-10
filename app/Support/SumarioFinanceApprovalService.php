@@ -4,96 +4,132 @@ namespace App\Support;
 
 use App\Models\OrdenCompra;
 use App\Models\OrdenCompraItem;
+use App\Models\Proveedor;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
+use App\Models\SumarioItem;
+use App\Models\SumarioItemOpcion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class SumarioFinanceApprovalService
 {
-    public function approveByFinance(Sumario $sumario, User $user): OrdenCompra
+    /**
+     * @return array<int, OrdenCompra>
+     */
+    public function generateOrdersFromSelections(Sumario $sumario, User $user): array
     {
-        return DB::transaction(function () use ($sumario, $user): OrdenCompra {
+        return DB::transaction(function () use ($sumario, $user): array {
             $sumario = Sumario::query()
                 ->with(['items.opciones', 'proveedorGanador'])
                 ->lockForUpdate()
                 ->findOrFail($sumario->id);
 
-            $existingOrder = OrdenCompra::query()->where('sumario_id', $sumario->id)->first();
-            if ($existingOrder) {
-                $this->markAsReviewed($sumario, $user);
+            $existingOrders = OrdenCompra::query()
+                ->where('sumario_id', $sumario->id)
+                ->orderBy('id')
+                ->get();
 
-                return $existingOrder;
+            if ($existingOrders->isNotEmpty()) {
+                return $existingOrders->all();
             }
 
-            if ($sumario->proveedor_ganador_id === null) {
-                throw new \RuntimeException('El sumario no tiene proveedor ganador seleccionado.');
-            }
+            $grouped = [];
 
-            $winnerProviderId = (int) $sumario->proveedor_ganador_id;
-            $winnerColumn = $this->resolveWinnerColumn($sumario, $winnerProviderId);
-
-            if ($winnerColumn === null) {
-                throw new \RuntimeException('No se pudo identificar la columna del proveedor ganador.');
-            }
-
-            $proveedor = $sumario->proveedorGanador;
-
-            $subTotal = 0.0;
             foreach ($sumario->items as $sumarioItem) {
-                $opcion = $sumarioItem->opciones->firstWhere('opcion_numero', $winnerColumn);
-                $subTotal += (float) ($opcion?->precio_total ?? 0);
+                $selectedOption = $this->resolveSelectedOption($sumario, $sumarioItem);
+
+                if (! $selectedOption) {
+                    throw new \RuntimeException('Hay items del sumario sin proveedor seleccionado.');
+                }
+
+                $providerId = (int) ($selectedOption->proveedor_id ?? 0);
+                $providerName = trim((string) ($selectedOption->proveedor_nombre ?? ''));
+
+                if ($providerId <= 0 && $providerName === '') {
+                    throw new \RuntimeException('Hay items seleccionados sin proveedor valido.');
+                }
+
+                $groupKey = $providerId > 0 ? 'id:' . $providerId : 'name:' . mb_strtolower($providerName);
+
+                if (! isset($grouped[$groupKey])) {
+                    $grouped[$groupKey] = [
+                        'provider_id' => $providerId > 0 ? $providerId : null,
+                        'provider_name' => $providerName,
+                        'items' => [],
+                    ];
+                }
+
+                $grouped[$groupKey]['items'][] = [
+                    'sumario_item' => $sumarioItem,
+                    'selected_option' => $selectedOption,
+                ];
             }
 
-            $subTotal = round($subTotal, 2);
-            $iva = round($subTotal * 0.16, 2);
-            $gastosAdicionales = 0.0;
-            $montoExento = 0.0;
+            if ($grouped === []) {
+                throw new \RuntimeException('No hay items seleccionados para generar ordenes de compra.');
+            }
 
-            $ordenCompra = OrdenCompra::query()->create([
-                'sumario_id' => $sumario->id,
-                'correlativo_odc' => $this->nextCorrelativoOdc(),
-                'proveedor_id' => $winnerProviderId,
-                'rif_proveedor' => (string) ($proveedor?->rif ?? ''),
-                'direccion_proveedor' => (string) ($proveedor?->direccion ?? ''),
-                'email_proveedor' => (string) ($proveedor?->email ?? ''),
-                'contacto_proveedor' => (string) ($proveedor?->contacto ?? ''),
-                'tasa_bcv' => null,
-                'condicion_pago' => $sumario->condiciones_pago,
-                'monto_exento' => $montoExento,
-                'sub_total' => $subTotal,
-                'iva_16' => $iva,
-                'gastos_adicionales' => $gastosAdicionales,
-                'total_general' => round($subTotal + $iva + $gastosAdicionales + $montoExento, 2),
-                'estado' => 'PENDIENTE_APROBACION',
-            ]);
-
+            $createdOrders = [];
             $affectedSolicitudItemIds = [];
 
-            foreach ($sumario->items as $sumarioItem) {
-                $opcionGanadora = $sumarioItem->opciones->firstWhere('opcion_numero', $winnerColumn);
-                $precioUnitario = (float) ($opcionGanadora?->precio_unitario ?? 0);
-                $precioTotal = (float) ($opcionGanadora?->precio_total ?? 0);
+            foreach ($grouped as $group) {
+                $provider = null;
+                if (filled($group['provider_id'])) {
+                    $provider = Proveedor::query()->find($group['provider_id']);
+                }
 
-                OrdenCompraItem::query()->create([
-                    'orden_compra_id' => $ordenCompra->id,
-                    'sumario_item_id' => $sumarioItem->id,
-                    'solicitud_compra_item_id' => $sumarioItem->solicitud_compra_item_id,
-                    'item' => $sumarioItem->item,
-                    'descripcion' => $sumarioItem->descripcion,
-                    'unidad_medida' => $sumarioItem->unidad_medida,
-                    'cantidad' => $sumarioItem->cantidad,
-                    'precio_unitario' => round($precioUnitario, 2),
-                    'precio_total' => round($precioTotal, 2),
+                $subTotal = round(collect($group['items'])->sum(fn (array $entry): float => (float) ($entry['selected_option']->precio_total ?? 0)), 2);
+                $iva = round($subTotal * 0.16, 2);
+                $gastosAdicionales = 0.0;
+                $montoExento = 0.0;
+
+                $ordenCompra = OrdenCompra::query()->create([
+                    'sumario_id' => $sumario->id,
+                    'correlativo_odc' => $this->nextCorrelativoOdc(),
+                    'proveedor_id' => (int) ($group['provider_id'] ?? 0) > 0 ? (int) $group['provider_id'] : null,
+                    'rif_proveedor' => (string) ($provider?->rif ?? ''),
+                    'direccion_proveedor' => (string) ($provider?->direccion ?? ''),
+                    'email_proveedor' => (string) ($provider?->email ?? ''),
+                    'contacto_proveedor' => (string) ($provider?->contacto ?? ''),
+                    'tasa_bcv' => null,
+                    'condicion_pago' => $sumario->condiciones_pago,
+                    'monto_exento' => $montoExento,
+                    'sub_total' => $subTotal,
+                    'iva_16' => $iva,
+                    'gastos_adicionales' => $gastosAdicionales,
+                    'total_general' => round($subTotal + $iva + $gastosAdicionales + $montoExento, 2),
+                    'estado' => 'PENDIENTE_APROBACION',
                 ]);
 
-                $affectedSolicitudItemIds[] = (int) $sumarioItem->solicitud_compra_item_id;
+                foreach ($group['items'] as $entry) {
+                    /** @var SumarioItem $sumarioItem */
+                    $sumarioItem = $entry['sumario_item'];
+                    /** @var SumarioItemOpcion $selectedOption */
+                    $selectedOption = $entry['selected_option'];
+
+                    OrdenCompraItem::query()->create([
+                        'orden_compra_id' => $ordenCompra->id,
+                        'sumario_item_id' => $sumarioItem->id,
+                        'solicitud_compra_item_id' => $sumarioItem->solicitud_compra_item_id,
+                        'item' => $sumarioItem->item,
+                        'descripcion' => $sumarioItem->descripcion,
+                        'unidad_medida' => $sumarioItem->unidad_medida,
+                        'cantidad' => $sumarioItem->cantidad,
+                        'precio_unitario' => round((float) ($selectedOption->precio_unitario ?? 0), 2),
+                        'precio_total' => round((float) ($selectedOption->precio_total ?? 0), 2),
+                    ]);
+
+                    $affectedSolicitudItemIds[] = (int) $sumarioItem->solicitud_compra_item_id;
+                }
+
+                $createdOrders[] = $ordenCompra;
             }
 
             if ($affectedSolicitudItemIds !== []) {
                 SolicitudCompraItem::query()
-                    ->whereIn('id', $affectedSolicitudItemIds)
+                    ->whereIn('id', array_values(array_unique($affectedSolicitudItemIds)))
                     ->update(['estado_item' => 'EN_OC']);
             }
 
@@ -101,37 +137,46 @@ class SumarioFinanceApprovalService
                 ->whereKey($sumario->solicitud_compra_id)
                 ->update(['estado' => 'OC_PENDIENTE_APROBACION']);
 
-            $this->markAsReviewed($sumario, $user);
+            $sumario->forceFill([
+                'estado' => 'REVISADO_FINANZAS',
+                'revisado_por_user_id' => $user->id,
+                'workflow_estado' => 'ODC_GENERADA',
+            ])->save();
 
-            return $ordenCompra;
+            return $createdOrders;
         });
     }
 
-    private function markAsReviewed(Sumario $sumario, User $user): void
+    public function approveByFinance(Sumario $sumario, User $user): OrdenCompra
     {
-        $sumario->forceFill([
-            'estado' => 'REVISADO_FINANZAS',
-            'revisado_por_user_id' => $user->id,
-        ])->save();
-    }
+        $orders = $this->generateOrdersFromSelections($sumario, $user);
 
-    private function resolveWinnerColumn(Sumario $sumario, int $winnerProviderId): ?int
-    {
-        $firstItem = $sumario->items->first();
-
-        if (! $firstItem) {
-            return null;
+        if ($orders === []) {
+            throw new \RuntimeException('No se pudo generar ninguna orden de compra.');
         }
 
-        foreach ([1, 2, 3] as $column) {
-            $opcion = $firstItem->opciones->firstWhere('opcion_numero', $column);
+        return $orders[0];
+    }
 
-            if ((int) ($opcion?->proveedor_id ?? 0) === $winnerProviderId) {
-                return $column;
+    private function resolveSelectedOption(Sumario $sumario, SumarioItem $item): ?SumarioItemOpcion
+    {
+        $selected = $item->opciones->firstWhere('seleccionada', true);
+
+        if ($selected) {
+            return $selected;
+        }
+
+        $winnerProviderId = (int) ($sumario->proveedor_ganador_id ?? 0);
+        if ($winnerProviderId > 0) {
+            $legacy = $item->opciones->first(fn (SumarioItemOpcion $option): bool => (int) ($option->proveedor_id ?? 0) === $winnerProviderId);
+            if ($legacy) {
+                return $legacy;
             }
         }
 
-        return null;
+        return $item->opciones
+            ->sortBy(fn (SumarioItemOpcion $option): float => (float) ($option->precio_total ?? 0))
+            ->first();
     }
 
     private function nextCorrelativoOdc(): string

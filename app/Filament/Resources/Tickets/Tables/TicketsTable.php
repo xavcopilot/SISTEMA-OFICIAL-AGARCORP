@@ -13,7 +13,7 @@ class TicketsTable
 {
     public static function configure(Table $table): Table
     {
-        $esGestor = auth()->user()->hasRole(['admin', 'Alta Gerencia', 'A.I.T']);
+        $esGestor = auth()->user()?->can('Manage:Ticket');
         return $table
             ->headerActions($esGestor ? [
                 Action::make('export')

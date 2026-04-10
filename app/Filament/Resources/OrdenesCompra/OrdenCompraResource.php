@@ -96,7 +96,7 @@ class OrdenCompraResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return auth()->user()?->hasRole(['Alta Gerencia', 'A.I.T', 'admin']) ?? false;
+        return auth()->check() && auth()->user()?->can('Delete:OrdenCompra');
     }
 
     private static function hasReadAccess(): bool
@@ -125,14 +125,7 @@ class OrdenCompraResource extends Resource
             return false;
         }
 
-        return $user->hasRole([
-            'Procura',
-            'Finanzas',
-            'Gerencia de Finanzas',
-            'Alta Gerencia',
-            'A.I.T',
-            'admin',
-        ]);
+        return $user->can('ViewAny:OrdenCompra');
     }
 
     private static function hasEditAccess(): bool
@@ -143,12 +136,6 @@ class OrdenCompraResource extends Resource
             return false;
         }
 
-        return $user->hasRole([
-            'Finanzas',
-            'Gerencia de Finanzas',
-            'Alta Gerencia',
-            'A.I.T',
-            'admin',
-        ]);
+        return $user->can('Update:OrdenCompra');
     }
 }

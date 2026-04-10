@@ -130,7 +130,7 @@ class SumarioForm
                                     ])
                                     ->inline()
                                     ->grouped()
-                                    ->required()
+                                    ->nullable()
                                     ->live()
                                     ->columnSpanFull(),
                             ]),
@@ -301,6 +301,17 @@ class SumarioForm
                                             ->dehydrated()
                                             ->columnSpan(2),
 
+                                        Select::make('proveedor_seleccionado')
+                                            ->label('Proveedor seleccionado')
+                                            ->options([
+                                                'A' => 'Proveedor A',
+                                                'B' => 'Proveedor B',
+                                                'C' => 'Proveedor C',
+                                            ])
+                                            ->required()
+                                            ->default('A')
+                                            ->columnSpan(3),
+
                                         Hidden::make('solicitud_compra_item_id'),
                                     ]),
                             ])
@@ -444,6 +455,7 @@ class SumarioForm
                 'marca_prov3' => $existing['marca_prov3'] ?? null,
                 'precio_unitario_prov3' => (float) ($existing['precio_unitario_prov3'] ?? 0),
                 'precio_total_prov3' => (float) ($existing['precio_total_prov3'] ?? 0),
+                'proveedor_seleccionado' => $existing['proveedor_seleccionado'] ?? 'A',
             ];
         }
 

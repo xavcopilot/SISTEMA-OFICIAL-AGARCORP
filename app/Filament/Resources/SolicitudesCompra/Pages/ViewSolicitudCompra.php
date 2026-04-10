@@ -5,6 +5,7 @@ namespace App\Filament\Resources\SolicitudesCompra\Pages;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Models\User;
+use App\Support\ActivityNotification;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
@@ -172,6 +173,13 @@ class ViewSolicitudCompra extends ViewRecord
                 : 'La solicitud fue enviada al usuario de almacen seleccionado.')
             ->success()
             ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Solicitud enviada',
+            'Se envio la solicitud #' . (string) $record->id . ' al flujo de revision.',
+            'success'
+        );
     }
 
     private function getLatestRejectedVersion(SolicitudCompra $record): ?SolicitudCompra
@@ -216,6 +224,13 @@ class ViewSolicitudCompra extends ViewRecord
             ->title('Firma de almacén registrada')
             ->success()
             ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Firma de almacen registrada',
+            'Se firmo en etapa almacen la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
     }
 
     private function signApprover(array $data): void
@@ -239,6 +254,13 @@ class ViewSolicitudCompra extends ViewRecord
             ->title('Aprobación registrada')
             ->success()
             ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Aprobacion registrada',
+            'Se firmo en etapa aprobacion la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
     }
 
     private function signProcura(array $data): void
@@ -263,6 +285,13 @@ class ViewSolicitudCompra extends ViewRecord
             ->title('Recepción de procura registrada')
             ->success()
             ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Recepcion de procura registrada',
+            'Se firmo en etapa procura la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
     }
 
     private function validatePassword(array $data): bool
@@ -384,6 +413,13 @@ class ViewSolicitudCompra extends ViewRecord
             ->body('Se notifico al solicitante con el comentario de rechazo.')
             ->success()
             ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Rechazo registrado',
+            'Se rechazo la solicitud #' . (string) $record->id . ' en etapa ' . strtoupper($etapa) . '.',
+            'warning'
+        );
     }
 
     private function notifyReprocessingUsers(SolicitudCompra $record, array $previousRejection): void

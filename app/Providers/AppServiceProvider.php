@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Livewire\PersistentFilamentNotifications;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Observers\UserObserver;
 use Filament\Facades\Filament;
 use App\Models\Ticket;
 use Filament\Notifications\Notification;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Livewire::component('notifications', PersistentFilamentNotifications::class);
+
         User::observe(UserObserver::class); // Usamos el nombre corto porque ya lo importaste arriba
         Schema::defaultStringLength(125);
 

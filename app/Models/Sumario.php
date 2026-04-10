@@ -29,6 +29,17 @@ class Sumario extends Model
         'elaborado_por_user_id',
         'revisado_por_user_id',
         'estado',
+        'workflow_estado',
+        'enviado_validacion_finanzas_at',
+        'enviado_por_user_id',
+        'validado_finanzas_at',
+        'validado_por_user_id',
+        'validacion_finanzas_resultado',
+        'validacion_finanzas_comentario',
+        'decision_gerencia_finanzas_at',
+        'decision_gerencia_por_user_id',
+        'decision_gerencia_resultado',
+        'decision_gerencia_comentario',
     ];
 
     protected $casts = [
@@ -36,6 +47,9 @@ class Sumario extends Model
         'total_compra_prov1' => 'decimal:2',
         'total_compra_prov2' => 'decimal:2',
         'total_compra_prov3' => 'decimal:2',
+        'enviado_validacion_finanzas_at' => 'datetime',
+        'validado_finanzas_at' => 'datetime',
+        'decision_gerencia_finanzas_at' => 'datetime',
     ];
 
     public function solicitudCompra(): BelongsTo
@@ -66,5 +80,20 @@ class Sumario extends Model
     public function revisadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'revisado_por_user_id');
+    }
+
+    public function enviadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'enviado_por_user_id');
+    }
+
+    public function validadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validado_por_user_id');
+    }
+
+    public function decisionGerenciaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decision_gerencia_por_user_id');
     }
 }

@@ -18,11 +18,13 @@ class SumarioItemOpcion extends Model
         'marca',
         'precio_unitario',
         'precio_total',
+        'seleccionada',
     ];
 
     protected $casts = [
         'precio_unitario' => 'decimal:2',
         'precio_total' => 'decimal:2',
+        'seleccionada' => 'boolean',
     ];
 
     public function sumarioItem(): BelongsTo

@@ -158,7 +158,7 @@ class ConsultarEntradasTable
                     ->label('Editar')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
-                    ->visible(fn (InventoryMovement $record): bool => (bool) auth()->user()?->hasRole(['Almacen', 'admin', 'A.I.T']) && in_array((string) $record->tipo, ['entrada', 'ingreso'], true))
+                    ->visible(fn (InventoryMovement $record): bool => (bool) auth()->user()?->can('Update:InventoryMovement') && in_array((string) $record->tipo, ['entrada', 'ingreso'], true))
                     ->modalHeading(fn (InventoryMovement $record): string => 'Editar ' . ucfirst((string) $record->tipo) . ' ' . $record->nro_control)
                     ->fillForm(fn (InventoryMovement $record): array => (string) $record->tipo === 'ingreso'
                         ? self::getEditIngresoFormData($record)

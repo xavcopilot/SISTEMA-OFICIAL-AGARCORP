@@ -153,7 +153,7 @@ class ConsultarSalidasTable
                     ->label('Editar')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
-                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole(['Almacen', 'admin', 'A.I.T']))
+                    ->visible(fn (): bool => (bool) auth()->user()?->can('Update:InventoryMovement'))
                     ->modalHeading(fn (InventoryMovement $record): string => 'Editar Salida ' . $record->nro_control)
                     ->fillForm(fn (InventoryMovement $record): array => self::getEditSalidaFormData($record))
                     ->schema(self::getEditSalidaSchema())

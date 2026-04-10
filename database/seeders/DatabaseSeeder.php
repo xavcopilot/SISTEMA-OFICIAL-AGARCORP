@@ -58,7 +58,7 @@ class DatabaseSeeder extends Seeder
 
         // 1. Definimos los roles y sus contraseñas (antes estaba en $departamentos)
         $roles = [
-            'Procura'     => 'Proc.Agar_2024',
+            'Procura'     => 'procura',
             'Almacen'     => 'almacen',
             'Talento Humano' => 'talentohumano',
             'A.I.T'       => 'ait',
@@ -101,6 +101,19 @@ class DatabaseSeeder extends Seeder
             Permission::firstOrCreate(['name' => $perm]);
         }
 
+        $customControlPermissions = [
+            'Manage:Ticket',
+            'ProcessReception:OrdenCompra',
+            'SubmitValidation:Sumario',
+            'ValidateFinance:Sumario',
+            'ApprovePayment:Sumario',
+            'GenerateOdcs:Sumario',
+        ];
+
+        foreach ($customControlPermissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm]);
+        }
+
         $solicitudCreatePermissions = Permission::query()
             ->whereIn('name', [
                 'ViewAny:SolicitudCompra',
@@ -125,9 +138,64 @@ class DatabaseSeeder extends Seeder
             ->pluck('name')
             ->all();
 
+        $categoryReadWritePermissions = Permission::query()
+            ->whereIn('name', [
+                'ViewAny:Category',
+                'View:Category',
+                'Create:Category',
+                'Update:Category',
+            ])
+            ->pluck('name')
+            ->all();
+
+        $categoryDeletePermissions = Permission::query()
+            ->whereIn('name', ['Delete:Category'])
+            ->pluck('name')
+            ->all();
+
+        $inventoryViewPermissions = Permission::query()
+            ->whereIn('name', ['ViewAny:InventoryMovement', 'View:InventoryMovement'])
+            ->pluck('name')
+            ->all();
+
+        $sumarioReviewPermissions = Permission::query()
+            ->whereIn('name', ['ViewAny:Sumario', 'View:Sumario', 'Update:Sumario'])
+            ->pluck('name')
+            ->all();
+
+        $sumarioWriteExtraPermissions = Permission::query()
+            ->whereIn('name', ['Create:Sumario', 'Delete:Sumario'])
+            ->pluck('name')
+            ->all();
+
+        $ordenCompraReadPermissions = Permission::query()
+            ->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra'])
+            ->pluck('name')
+            ->all();
+
+        $ordenCompraEditPermissions = Permission::query()
+            ->whereIn('name', ['Update:OrdenCompra'])
+            ->pluck('name')
+            ->all();
+
+        $ordenCompraDeletePermissions = Permission::query()
+            ->whereIn('name', ['Delete:OrdenCompra'])
+            ->pluck('name')
+            ->all();
+
         foreach (['Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'] as $extraRole) {
             $roleModel = Role::firstOrCreate(['name' => $extraRole]);
             $roleModel->givePermissionTo($ticketPermissions);
+
+            if ($extraRole === 'Gerencia de Finanzas') {
+                $roleModel->givePermissionTo(array_merge(
+                    $sumarioReviewPermissions,
+                    $ordenCompraReadPermissions,
+                    $ordenCompraEditPermissions,
+                ));
+
+                $roleModel->givePermissionTo(['ApprovePayment:Sumario']);
+            }
         }
 
         // Mapa desde rol => nombre de departamento (según tu tabla numerada)
@@ -173,6 +241,59 @@ class DatabaseSeeder extends Seeder
 
             if ($rol === 'Almacen' && ! empty($inventoryMovementPermissions)) {
                 $roleModel->givePermissionTo($inventoryMovementPermissions);
+            }
+
+            if ($rol === 'Almacen') {
+                $roleModel->givePermissionTo(array_merge(
+                    $inventoryViewPermissions,
+                    $categoryReadWritePermissions,
+                ));
+            }
+
+            if ($rol === 'Procura') {
+                $roleModel->givePermissionTo(array_merge(
+                    $sumarioReviewPermissions,
+                    $sumarioWriteExtraPermissions,
+                    $ordenCompraReadPermissions,
+                ));
+
+                $roleModel->givePermissionTo([
+                    'ProcessReception:OrdenCompra',
+                    'SubmitValidation:Sumario',
+                    'GenerateOdcs:Sumario',
+                ]);
+            }
+
+            if ($rol === 'Finanzas') {
+                $roleModel->givePermissionTo(array_merge(
+                    $sumarioReviewPermissions,
+                    $ordenCompraReadPermissions,
+                    $ordenCompraEditPermissions,
+                ));
+
+                $roleModel->givePermissionTo(['ValidateFinance:Sumario']);
+            }
+
+            if ($rol === 'A.I.T') {
+                $roleModel->givePermissionTo(array_merge(
+                    $inventoryViewPermissions,
+                    $categoryReadWritePermissions,
+                    $categoryDeletePermissions,
+                    $sumarioReviewPermissions,
+                    $sumarioWriteExtraPermissions,
+                    $ordenCompraReadPermissions,
+                    $ordenCompraEditPermissions,
+                    $ordenCompraDeletePermissions,
+                ));
+
+                $roleModel->givePermissionTo([
+                    'Manage:Ticket',
+                    'ProcessReception:OrdenCompra',
+                    'SubmitValidation:Sumario',
+                    'ValidateFinance:Sumario',
+                    'ApprovePayment:Sumario',
+                    'GenerateOdcs:Sumario',
+                ]);
             }
 
             $override = $roleUserOverrides[$rol] ?? null;
@@ -235,6 +356,18 @@ class DatabaseSeeder extends Seeder
             $superAdminRole->syncPermissions($allPermissionNames);
         }
 
+        $adminRole = Role::query()->where('name', 'admin')->first();
+        if ($adminRole) {
+            $adminRole->givePermissionTo([
+                'Manage:Ticket',
+                'ProcessReception:OrdenCompra',
+                'SubmitValidation:Sumario',
+                'ValidateFinance:Sumario',
+                'ApprovePayment:Sumario',
+                'GenerateOdcs:Sumario',
+            ]);
+        }
+
         // ===== INICIO BLOQUE DEMO (ELIMINABLE) =====
         // Usuario de prueba para demostraciones con acceso total al sistema.
         $demoDepartamentoId = Departamento::firstOrCreate(['nombre' => 'PRUEBA'])->id;
@@ -270,6 +403,10 @@ class DatabaseSeeder extends Seeder
             'Cargo',
             'Departamento',
             'Impresora',
+            'Category',
+            'InventoryMovement',
+            'Sumario',
+            'OrdenCompra',
         ];
 
         $aitPermissionNames = Permission::query()
@@ -310,7 +447,7 @@ class DatabaseSeeder extends Seeder
         $aitPrimaryUser = User::updateOrCreate(
             ['email' => 'xavierdpdev@gmail.com'], 
             [
-                'name'             => 'A.I.T Xavier Prado',
+                'name'             => 'Xavier Prado',
                 'password'         => Hash::make('Xavidev17'),
                 'firma_password'   => Hash::make('Contrafirma'),
                 'email_verified_at'=> now(),

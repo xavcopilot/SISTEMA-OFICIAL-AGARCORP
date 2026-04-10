@@ -24,7 +24,7 @@ return [
             'pages' => true,
             'widgets' => true,
             'resources' => true,
-            'custom_permissions' => false,
+            'custom_permissions' => true,
 
         ],
     ],
@@ -230,7 +230,14 @@ return [
     |
     */
 
-    'custom_permissions' => [],
+    'custom_permissions' => [
+        'ProcessReception:OrdenCompra',
+        'Manage:Ticket',
+        'SubmitValidation:Sumario',
+        'ValidateFinance:Sumario',
+        'ApprovePayment:Sumario',
+        'GenerateOdcs:Sumario',
+    ],
 
     /*
     |--------------------------------------------------------------------------

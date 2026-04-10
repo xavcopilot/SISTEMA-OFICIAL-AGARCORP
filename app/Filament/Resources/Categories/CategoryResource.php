@@ -31,27 +31,27 @@ class CategoryResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['Almacen', 'A.I.T', 'admin']);
+        return static::canViewAny();
     }
 
     public static function canViewAny(): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['Almacen', 'A.I.T', 'admin']);
+        return auth()->check() && auth()->user()?->can('ViewAny:Category');
     }
 
     public static function canCreate(): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['Almacen', 'A.I.T', 'admin']);
+        return auth()->check() && auth()->user()?->can('Create:Category');
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['Almacen', 'A.I.T', 'admin']);
+        return auth()->check() && auth()->user()?->can('Update:Category');
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['A.I.T', 'admin']);
+        return auth()->check() && auth()->user()?->can('Delete:Category');
     }
 
     public static function form(Schema $schema): Schema

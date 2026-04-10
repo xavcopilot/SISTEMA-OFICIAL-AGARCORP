@@ -76,14 +76,7 @@ class SumarioResource extends Resource
             return false;
         }
 
-        return $user->hasRole([
-            'Procura',
-            'Finanzas',
-            'Gerencia de Finanzas',
-            'Alta Gerencia',
-            'A.I.T',
-            'admin',
-        ]);
+        return $user->can('ViewAny:Sumario');
     }
 
     private static function hasWriteAccess(): bool
@@ -94,11 +87,6 @@ class SumarioResource extends Resource
             return false;
         }
 
-        return $user->hasRole([
-            'Procura',
-            'Alta Gerencia',
-            'A.I.T',
-            'admin',
-        ]);
+        return $user->can('Update:Sumario');
     }
 }

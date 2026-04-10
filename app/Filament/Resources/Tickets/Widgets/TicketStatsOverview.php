@@ -12,12 +12,12 @@ class TicketStatsOverview extends BaseWidget
    protected function getStats(): array
 {
     $user = auth()->user();
-    $esGestor = $user->hasRole(['admin', 'Alta Gerencia', 'A.I.T']);
+    $esGestor = (bool) $user?->can('Manage:Ticket');
 
     // Definimos la base de la consulta: si no es gestor, filtramos por su ID
     $query = $esGestor ? Ticket::query() : Ticket::where('user_id', $user->id);
 
-    // Si eres gestor (admin / Alta Gerencia / A.I.T) notificar en pantalla cuando haya nuevos tickets
+    // Si tiene permiso de gestion, notificar en pantalla cuando haya nuevos tickets.
     if ($esGestor) {
         $cacheKey = "tickets:last_notified:{$user->id}";
         $lastNotified = cache()->get($cacheKey, now()->subMinutes(60));

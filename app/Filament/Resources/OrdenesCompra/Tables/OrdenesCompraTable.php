@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrdenesCompra\Tables;
 
+use App\Support\ActivityNotification;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OrdenCompraRecepcionService;
 use Filament\Actions\Action;
@@ -137,6 +138,13 @@ class OrdenesCompraTable
                                     : 'Items enviados a ZONA DE TRANSICION y factura enviada a bandeja de Administracion.')
                                 ->success()
                                 ->send();
+
+                            ActivityNotification::record(
+                                auth()->user(),
+                                'Recepcion de ODC procesada',
+                                'Se proceso la recepcion de la ODC ' . (string) $record->correlativo_odc . '.',
+                                'success'
+                            );
                         } catch (\Throwable $exception) {
                             Notification::make()
                                 ->title('No se pudo procesar la recepcion')
@@ -163,6 +171,13 @@ class OrdenesCompraTable
                                 ->body('Se ejecuto la entrada oficial en inventario y se completo el ciclo.')
                                 ->success()
                                 ->send();
+
+                            ActivityNotification::record(
+                                auth()->user(),
+                                'Conformidad de ODC registrada',
+                                'Se registro conformidad para la ODC ' . (string) $record->correlativo_odc . '.',
+                                'success'
+                            );
                         } catch (\Throwable $exception) {
                             Notification::make()
                                 ->title('No se pudo registrar la conformidad')
@@ -186,6 +201,13 @@ class OrdenesCompraTable
                             ->title('Factura enviada a proceso contable')
                             ->success()
                             ->send();
+
+                        ActivityNotification::record(
+                            auth()->user(),
+                            'Factura marcada como procesada',
+                            'La factura de la ODC ' . (string) $record->correlativo_odc . ' fue marcada para cierre contable.',
+                            'success'
+                        );
                     }),
 
                 EditAction::make(),
@@ -201,7 +223,7 @@ class OrdenesCompraTable
             return false;
         }
 
-        $canOperate = $user->hasRole(['Procura', 'admin', 'A.I.T', 'Alta Gerencia']);
+        $canOperate = $user->can('ProcessReception:OrdenCompra');
 
         return $canOperate && ! filled($record->recepcion_procesada_at);
     }

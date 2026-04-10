@@ -49,7 +49,7 @@ class InventoryMovementResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['Almacen', 'admin', 'Alta Gerencia', 'A.I.T']);
+        return auth()->check() && auth()->user()?->can('ViewAny:InventoryMovement');
     }
 
     public static function shouldRegisterNavigation(): bool

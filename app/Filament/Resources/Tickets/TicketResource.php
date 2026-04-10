@@ -64,7 +64,7 @@ public static function getEloquentQuery(): Builder
     $query = parent::getEloquentQuery();
     
     // Gestores con visibilidad global de tickets
-    if (auth()->user()->hasRole(['admin', 'Alta Gerencia', 'A.I.T'])) {
+    if (auth()->user()?->can('Manage:Ticket')) {
         return $query;
     }
 
@@ -74,7 +74,7 @@ public static function getEloquentQuery(): Builder
 public static function getNavigationBadge(): ?string
 {
     // El globito de notificación solo para gestores
-    if (auth()->user()->hasRole(['admin', 'Alta Gerencia', 'A.I.T'])) {
+    if (auth()->user()?->can('Manage:Ticket')) {
         return static::getModel()::where('estado', 'Abierto')->count();
     }
     
@@ -83,12 +83,7 @@ public static function getNavigationBadge(): ?string
 
 public static function canCreate(): bool
 {
-    if (! auth()->check()) {
-        return false;
-    }
-
-    // A.I.T gestiona tickets y no debe auto-registrarse solicitudes.
-    return ! auth()->user()->hasRole(['A.I.T']);
+    return auth()->check() && auth()->user()?->can('Create:Ticket');
 }
 
 

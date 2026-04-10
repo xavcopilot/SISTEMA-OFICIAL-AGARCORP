@@ -44,6 +44,6 @@ class CargoResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()->hasRole(['admin', 'Alta Gerencia', 'A.I.T']);
+        return auth()->check() && auth()->user()?->can('ViewAny:Cargo');
     }
 }
