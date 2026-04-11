@@ -97,7 +97,7 @@ class AgarcorpPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::TOPBAR_LOGO_AFTER,
                 fn (): string => "
-                    <span class='hidden md:inline-block tracking-wide' style='font-size: 2rem; font-weight: 800; line-height: 1; color: #0e3398 !important;'>
+                    <span class='ag-topbar-panel-title hidden md:inline-block tracking-wide'>
                         {$panelTitle}
                     </span>
                 "

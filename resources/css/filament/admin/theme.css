@@ -324,6 +324,17 @@
     display: none !important;
 }
 
+.ag-topbar-panel-title {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #0e3398;
+}
+
+.dark .ag-topbar-panel-title {
+    color: #ffffff;
+}
+
 .ag-top-module-wrap {
     margin-right: 0.85rem;
 }
@@ -688,7 +699,12 @@
 .dark .ag-desktop-title,
 .dark .ag-desktop-card__title,
 .dark .ag-desktop-link__title {
-    color: #f8fafc;
+    color: #ffffff;
+}
+
+.dark .ag-desktop-hero .ag-desktop-title,
+.dark .ag-desktop-kicker {
+    color: #ffffff !important;
 }
 
 .dark .ag-desktop-subtitle,
@@ -704,6 +720,10 @@
 .dark .ag-desktop-list__item {
     background: rgba(15, 23, 42, 0.78);
     border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dark .ag-desktop-tags span {
+    color: #ffffff;
 }
 
 @media (max-width: 1024px) {
