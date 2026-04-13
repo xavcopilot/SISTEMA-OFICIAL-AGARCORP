@@ -31,30 +31,36 @@ class SumarioForm
                     ->content(new HtmlString('<style>
                         .sdc-sheet {
                             --sdc-surface: #ffffff;
-                            --sdc-surface-soft: #f8fafc;
-                            --sdc-surface-muted: #f1f5f9;
-                            --sdc-border: #dbe4ee;
-                            --sdc-border-strong: #c7d2df;
-                            --sdc-text: #0f172a;
+                            --sdc-surface-soft: #eaf2ff;
+                            --sdc-surface-muted: #dbe9ff;
+                            --sdc-border: #b7cff3;
+                            --sdc-border-strong: #5ea2f7;
+                            --sdc-text: #0b1f44;
+                            --sdc-accent: #2563eb;
+                            --sdc-accent-soft: #60a5fa;
+                            --sdc-ring: rgba(37, 99, 235, .18);
                             width: 100%;
                             border: 1px solid var(--sdc-border);
                             border-radius: 16px;
-                            background: color-mix(in srgb, var(--sdc-surface) 92%, transparent);
+                            background: linear-gradient(180deg, color-mix(in srgb, var(--sdc-surface-soft) 42%, var(--sdc-surface) 58%) 0%, var(--sdc-surface) 100%);
                             overflow: hidden;
-                            box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+                            box-shadow: 0 10px 28px rgba(37, 99, 235, .12);
                         }
                         .dark .sdc-sheet {
-                            --sdc-surface: #0f172a;
-                            --sdc-surface-soft: #111c31;
-                            --sdc-surface-muted: #162338;
-                            --sdc-border: #334155;
-                            --sdc-border-strong: #475569;
-                            --sdc-text: #e5edf6;
-                            box-shadow: 0 12px 28px rgba(2, 6, 23, .28);
+                            --sdc-surface: #0b1528;
+                            --sdc-surface-soft: #0f1f3a;
+                            --sdc-surface-muted: #122746;
+                            --sdc-border: #26456f;
+                            --sdc-border-strong: #3b82f6;
+                            --sdc-text: #e8f2ff;
+                            --sdc-accent: #60a5fa;
+                            --sdc-accent-soft: #93c5fd;
+                            --sdc-ring: rgba(96, 165, 250, .26);
+                            box-shadow: 0 12px 30px rgba(3, 10, 26, .42);
                         }
                         .sdc-sheet .fi-section-header {
                             padding: 10px 14px;
-                            background: var(--sdc-surface-muted);
+                            background: linear-gradient(90deg, color-mix(in srgb, var(--sdc-accent) 16%, var(--sdc-surface-muted) 84%) 0%, var(--sdc-surface-muted) 100%);
                             border-bottom: 1px solid var(--sdc-border);
                         }
                         .sdc-sheet .fi-section-header-heading { font-weight: 800; letter-spacing: .05em; text-transform: uppercase; font-size: 12px; color: var(--sdc-text); }
@@ -65,16 +71,39 @@ class SumarioForm
                         .sdc-header .fi-input-wrp, .sdc-proveedores .fi-input-wrp, .sdc-items .fi-input-wrp, .sdc-cuadro .fi-input-wrp, .sdc-footer .fi-input-wrp {
                             border-radius: 12px !important;
                             min-height: 38px;
+                            border: 1.5px solid var(--sdc-accent-soft) !important;
+                            background: color-mix(in srgb, var(--sdc-surface) 78%, var(--sdc-accent-soft) 22%);
+                            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 18%, transparent);
+                        }
+                        .sdc-header .fi-input-wrp:focus-within,
+                        .sdc-proveedores .fi-input-wrp:focus-within,
+                        .sdc-items .fi-input-wrp:focus-within,
+                        .sdc-cuadro .fi-input-wrp:focus-within,
+                        .sdc-footer .fi-input-wrp:focus-within {
+                            border-color: var(--sdc-accent) !important;
+                            box-shadow: 0 0 0 3px var(--sdc-ring), inset 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 40%, transparent);
                         }
                         .sdc-label-box {
                             border: 1px solid var(--sdc-border-strong);
-                            background: var(--sdc-surface-muted);
+                            background: linear-gradient(180deg, color-mix(in srgb, var(--sdc-accent) 14%, var(--sdc-surface-muted) 86%) 0%, var(--sdc-surface-muted) 100%);
                             padding: 8px 10px;
                             font-size: 11px;
                             font-weight: 700;
                             text-align: center;
                             letter-spacing: .03em;
                             border-radius: 12px;
+                            color: var(--sdc-text);
+                        }
+                        .sdc-header .fi-input,
+                        .sdc-proveedores .fi-input,
+                        .sdc-items .fi-input,
+                        .sdc-cuadro .fi-input,
+                        .sdc-footer .fi-input,
+                        .sdc-header .fi-select-input,
+                        .sdc-proveedores .fi-select-input,
+                        .sdc-items .fi-select-input,
+                        .sdc-cuadro .fi-select-input,
+                        .sdc-footer .fi-select-input {
                             color: var(--sdc-text);
                         }
                         .sdc-top-title {
@@ -85,16 +114,18 @@ class SumarioForm
                             letter-spacing: .05em;
                             padding: 12px;
                             border-radius: 14px;
-                            background: var(--sdc-surface-soft);
+                            background: linear-gradient(120deg, color-mix(in srgb, var(--sdc-accent) 16%, var(--sdc-surface-soft) 84%) 0%, color-mix(in srgb, var(--sdc-accent-soft) 14%, var(--sdc-surface-soft) 86%) 100%);
                             color: var(--sdc-text);
+                            text-shadow: 0 1px 0 rgba(255, 255, 255, .12);
                         }
                         .sdc-meta-box {
                             border: 1px solid var(--sdc-border-strong);
+                            border-left: 4px solid var(--sdc-accent);
                             padding: 10px 12px;
                             font-size: 12px;
                             line-height: 1.4;
                             border-radius: 14px;
-                            background: var(--sdc-surface-soft);
+                            background: linear-gradient(180deg, color-mix(in srgb, var(--sdc-surface-soft) 86%, var(--sdc-accent-soft) 14%) 0%, var(--sdc-surface-soft) 100%);
                             color: var(--sdc-text);
                         }
                         .sdc-table-wide { width: max(1900px, 100%); }
@@ -105,7 +136,7 @@ class SumarioForm
                             border-radius: 16px !important;
                             margin-bottom: 0;
                             background: var(--sdc-surface-soft);
-                            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .02);
+                            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03), 0 4px 14px rgba(37, 99, 235, .08);
                         }
                         .sdc-cuadro .fi-fo-repeater-item-header { display: none; }
                         .sdc-cuadro .fi-fo-repeater-item-content { padding: 10px !important; background: transparent; }
@@ -218,33 +249,36 @@ class SumarioForm
                             ->schema([
                                 Placeholder::make('label_proveedor_a')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR</div>'))
+                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR 1</div>'))
                                     ->columnSpan(4),
                                 Placeholder::make('label_proveedor_b')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR</div>'))
+                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR 2</div>'))
                                     ->columnSpan(4),
                                 Placeholder::make('label_proveedor_c')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR</div>'))
+                                    ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR 3</div>'))
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_a_nombre')
-                                    ->label('Proveedor 1')
+                                    ->hiddenLabel()
+                                    ->placeholder('Nombre proveedor 1')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_b_nombre')
-                                    ->label('Proveedor 2')
+                                    ->hiddenLabel()
+                                    ->placeholder('Nombre proveedor 2')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_c_nombre')
-                                    ->label('Proveedor 3')
+                                    ->hiddenLabel()
+                                    ->placeholder('Nombre proveedor 3')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
