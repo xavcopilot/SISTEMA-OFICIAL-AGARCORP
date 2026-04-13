@@ -20,6 +20,8 @@ class CreateSumario extends CreateRecord
 
     protected Width | string | null $maxWidth = Width::Full;
 
+    protected Width | string | null $maxContentWidth = Width::Full;
+
     protected static bool $canCreateAnother = false;
 
     protected function mutateFormDataBeforeCreate(array $data): array
@@ -55,7 +57,6 @@ class CreateSumario extends CreateRecord
         unset(
             $data['selected_item_ids'],
             $data['comparativo_items'],
-            $data['columna_ganadora'],
             $data['proveedor_a_nombre'],
             $data['proveedor_b_nombre'],
             $data['proveedor_c_nombre']
@@ -113,20 +114,6 @@ class CreateSumario extends CreateRecord
             'precio_total' => round($precioTotal, 2),
             'seleccionada' => $selected,
         ]);
-    }
-
-    private function resolveWinnerProviderId(array $data): ?int
-    {
-        $column = strtoupper((string) ($data['columna_ganadora'] ?? ''));
-
-        $providerName = match ($column) {
-            'A' => trim((string) ($data['proveedor_a_nombre'] ?? '')),
-            'B' => trim((string) ($data['proveedor_b_nombre'] ?? '')),
-            'C' => trim((string) ($data['proveedor_c_nombre'] ?? '')),
-            default => '',
-        };
-
-        return $this->resolveProveedorIdByName($providerName);
     }
 
     private function resolveProveedorIdByName(string $nombre): ?int

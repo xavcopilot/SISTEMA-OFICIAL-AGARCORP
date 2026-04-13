@@ -25,7 +25,7 @@ class AprobacionesCompraResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Aprobaciones de Compra';
 
-    protected static string | \UnitEnum | null $navigationGroup = null;
+    protected static string | \UnitEnum | null $navigationGroup = 'Compras';
 
     protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 

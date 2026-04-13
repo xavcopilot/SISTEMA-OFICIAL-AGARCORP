@@ -21,6 +21,8 @@ class EditSumario extends EditRecord
 
     protected Width | string | null $maxWidth = Width::Full;
 
+    protected Width | string | null $maxContentWidth = Width::Full;
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var Sumario $sumario */
@@ -61,8 +63,6 @@ class EditSumario extends EditRecord
         $data['proveedor_b_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 2)?->proveedor_nombre;
         $data['proveedor_c_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 3)?->proveedor_nombre;
 
-        $data['columna_ganadora'] = $this->resolveWinningColumn($data, (int) ($sumario->proveedor_ganador_id ?? 0));
-
         return $data;
     }
 
@@ -102,7 +102,6 @@ class EditSumario extends EditRecord
         unset(
             $data['selected_item_ids'],
             $data['comparativo_items'],
-            $data['columna_ganadora'],
             $data['proveedor_a_nombre'],
             $data['proveedor_b_nombre'],
             $data['proveedor_c_nombre']
@@ -205,38 +204,6 @@ class EditSumario extends EditRecord
             ->update([
                 'estado_item' => $existsInSumario ? 'EN_SUMARIO' : 'SIN_PROCESAR',
             ]);
-    }
-
-    private function resolveWinningColumn(array $data, int $winnerProviderId): ?string
-    {
-        if ($winnerProviderId <= 0) {
-            return null;
-        }
-
-        $providerAId = $this->resolveProveedorIdByName((string) ($data['proveedor_a_nombre'] ?? ''));
-        $providerBId = $this->resolveProveedorIdByName((string) ($data['proveedor_b_nombre'] ?? ''));
-        $providerCId = $this->resolveProveedorIdByName((string) ($data['proveedor_c_nombre'] ?? ''));
-
-        return match ($winnerProviderId) {
-            (int) $providerAId => 'A',
-            (int) $providerBId => 'B',
-            (int) $providerCId => 'C',
-            default => null,
-        };
-    }
-
-    private function resolveWinnerProviderId(array $data): ?int
-    {
-        $column = strtoupper((string) ($data['columna_ganadora'] ?? ''));
-
-        $providerName = match ($column) {
-            'A' => trim((string) ($data['proveedor_a_nombre'] ?? '')),
-            'B' => trim((string) ($data['proveedor_b_nombre'] ?? '')),
-            'C' => trim((string) ($data['proveedor_c_nombre'] ?? '')),
-            default => '',
-        };
-
-        return $this->resolveProveedorIdByName($providerName);
     }
 
     private function resolveProveedorIdByName(string $nombre): ?int
