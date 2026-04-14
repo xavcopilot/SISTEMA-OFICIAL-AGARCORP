@@ -67,15 +67,29 @@ class SolicitudCompraForm
 
                                 Select::make('prioridad')
                                     ->label('Prioridad')
-                                    ->options([
-                                        'Alta' => 'Alta',
-                                        'Media' => 'Media',
-                                        'Baja' => 'Baja',
-                                    ])
+                                    ->options(function (?SolicitudCompra $record) {
+                                        $isApprover = auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) 
+                                            || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record));
+                                        
+                                        $approverHasSigned = isset($record) && filled($record->fecha_aprobador);
+
+                                        if ($isApprover || $approverHasSigned) {
+                                            return [
+                                                'Alta' => 'Alta',
+                                                'Media' => 'Media',
+                                                'Baja' => 'Baja',
+                                            ];
+                                        }
+
+                                        return [
+                                            'Alta' => '(Asignado por Aprobador)',
+                                            'Media' => '(Asignado por Aprobador)',
+                                            'Baja' => '(Asignado por Aprobador)',
+                                        ];
+                                    })
                                     ->default('Media')
-                                    ->disabled(fn (?SolicitudCompra $record) => !auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) && ! (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record)))
-                                    ->placeholder(fn (?SolicitudCompra $record) => (auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))) ? null : 'Asignado por Aprobador')
-                                    ->editable(fn (?SolicitudCompra $record) => isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))
+                                    ->disabled(fn (?SolicitudCompra $record) => ! (auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))))
+                                    ->dehydrated(fn (?SolicitudCompra $record) => auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record)))
                                     ->required(),
 
                                 TextInput::make('departamento_solicitante')
