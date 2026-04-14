@@ -73,6 +73,9 @@ class SolicitudCompraForm
                                         'Baja' => 'Baja',
                                     ])
                                     ->default('Media')
+                                    ->disabled(fn (?SolicitudCompra $record) => !auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) && ! (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record)))
+                                    ->placeholder(fn (?SolicitudCompra $record) => (auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))) ? null : 'Asignado por Aprobador')
+                                    ->editable(fn (?SolicitudCompra $record) => isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))
                                     ->required(),
 
                                 TextInput::make('departamento_solicitante')

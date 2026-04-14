@@ -7,16 +7,17 @@ use App\Models\SolicitudCompra;
 use App\Models\User;
 use App\Support\ActivityNotification;
 use App\Support\SolicitudCompraFlow;
-use Filament\Actions\Action;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Resources\Pages\ViewRecord;
-use Illuminate\Support\Facades\Hash;
+use Filament\Schemas\Schema;
+use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
 
 class ViewSolicitudCompra extends ViewRecord
 {
     protected static string $resource = SolicitudCompraResource::class;
+
+    protected function getFormSchema(): array
+    {
+        return SolicitudCompraForm::configure(Schema::make($this->getRecord()))->getComponents();
+    }
 
     protected function getHeaderActions(): array
     {
