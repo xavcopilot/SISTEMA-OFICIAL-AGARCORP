@@ -72,7 +72,7 @@ class SumarioForm
                             border-radius: 12px !important;
                             min-height: 38px;
                             border: 1.5px solid var(--sdc-accent-soft) !important;
-                            background: color-mix(in srgb, var(--sdc-surface) 78%, var(--sdc-accent-soft) 22%);
+                            background: var(--sdc-surface);
                             box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 18%, transparent);
                         }
                         .sdc-header .fi-input-wrp:focus-within,

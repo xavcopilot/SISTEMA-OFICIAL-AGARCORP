@@ -450,6 +450,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name'             => 'Xavier Prado',
                 'password'         => Hash::make('Xavidev17'),
+                'cargo_id'         => Cargo::firstOrCreate(['nombre' => 'Técnico'])->id,
                 'firma_password'   => Hash::make('firma'),
                 'email_verified_at'=> now(),
                 'departamento_id'  => Departamento::where('nombre', 'A.I.T')->value('id'),

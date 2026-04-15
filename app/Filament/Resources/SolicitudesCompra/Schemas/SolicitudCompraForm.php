@@ -59,8 +59,7 @@ class SolicitudCompraForm
                                 Select::make('tipo_solicitud')
                                     ->label('Tipo de solicitud')
                                     ->options([
-                                        'Consumo' => 'Consumo',
-                                        'Repuesto' => 'Repuesto',
+                                        'Material' => 'Material',
                                         'Servicio' => 'Servicio',
                                     ])
                                     ->required(),

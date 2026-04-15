@@ -9,6 +9,12 @@ use App\Support\ActivityNotification;
 use App\Support\SolicitudCompraFlow;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Hash;
 
 class ViewSolicitudCompra extends ViewRecord
 {

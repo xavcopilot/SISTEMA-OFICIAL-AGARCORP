@@ -14,6 +14,41 @@ class CreateSolicitudCompra extends CreateRecord
 {
     protected static string $resource = SolicitudCompraResource::class;
 
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCreateFormAction(),
+            \Filament\Actions\Action::make('saveDraft')
+                ->label('Guardar como borrador')
+                ->color('warning')
+                ->action(function () {
+                    $data = $this->form->getRawState();
+                    $data['estado'] = 'BORRADOR';
+                    
+                    // Remove unsupported or computed fields before create if needed, 
+                    // though Eloquent ignores them if guarded handling is proper.
+                    $data['solicitado_por_user_id'] = auth()->id();
+                    
+                    $record = static::getModel()::create($data);
+                    
+                    if (!empty($data['items'])) {
+                        $record->items()->createMany(array_values($data['items']));
+                    }
+                    
+                    $this->record = $record;
+                    
+                    \Filament\Notifications\Notification::make()
+                        ->title('Borrador guardado')
+                        ->body('Tu solicitud ahora aparece en la lista principal como BORRADOR.')
+                        ->success()
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('index'));
+                }),
+            $this->getCancelFormAction(),
+        ];
+    }
+
     protected static bool $canCreateAnother = false;
 
     private ?array $signatureSubmissionData = null;

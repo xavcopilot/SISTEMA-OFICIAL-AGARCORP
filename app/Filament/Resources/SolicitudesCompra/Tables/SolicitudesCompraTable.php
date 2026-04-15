@@ -37,8 +37,8 @@ class SolicitudesCompraTable
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
-                TextColumn::make('departamento_solicitante')
-                    ->label('Departamento')
+                TextColumn::make('para_ser_usado_en')
+                    ->label('Para ser usado en')
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')
@@ -305,8 +305,8 @@ class SolicitudesCompraTable
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
-                TextColumn::make('departamento_solicitante')
-                    ->label('Departamento')
+                TextColumn::make('para_ser_usado_en')
+                    ->label('Para ser usado en')
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')

@@ -18,6 +18,33 @@ class CreateSumario extends CreateRecord
 {
     protected static string $resource = SumarioResource::class;
 
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCreateFormAction(),
+            \Filament\Actions\Action::make('saveDraft')
+                ->label('Guardar como borrador')
+                ->color('warning')
+                ->action(function () {
+                    $data = $this->form->getRawState();
+                    $data['estado'] = 'BORRADOR';
+                    
+                    $record = $this->handleRecordCreation($this->mutateFormDataBeforeCreate($data));
+                    
+                    $this->record = $record;
+                    
+                    \Filament\Notifications\Notification::make()
+                        ->title('Borrador de sumario guardado')
+                        ->body('Tu sumario ha sido guardado exitosamente como BORRADOR en la lista.')
+                        ->success()
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('index'));
+                }),
+            $this->getCancelFormAction(),
+        ];
+    }
+
     protected Width | string | null $maxWidth = Width::Full;
 
     protected Width | string | null $maxContentWidth = Width::Full;
