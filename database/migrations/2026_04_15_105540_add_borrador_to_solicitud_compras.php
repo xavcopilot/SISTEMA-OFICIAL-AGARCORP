@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('solicitud_compras', function (Blueprint $table) {
             $table->string('tipo_solicitud')->nullable()->change();
             $table->string('departamento_solicitante')->nullable()->change();
-            $table->string('estado')->default('EN_ESPERA_DE_COTIZACION')->change();
+            $table->string('estado')->default('BORRADOR')->change();
         });
     }
 

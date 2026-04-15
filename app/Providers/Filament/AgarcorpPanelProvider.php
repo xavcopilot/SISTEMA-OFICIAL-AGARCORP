@@ -51,7 +51,6 @@ class AgarcorpPanelProvider extends PanelProvider
             ])
             ->databaseNotifications()
             ->databaseNotificationsPolling('30s')
-            ->unsavedChangesAlerts()
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

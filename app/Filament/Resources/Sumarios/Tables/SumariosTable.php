@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Sumarios\Tables;
 use App\Support\ActivityNotification;
 use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -275,9 +276,40 @@ class SumariosTable
                         );
                     }),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->visible(fn ($record): bool => self::canEditDraftOrRejected($record)),
+
+                DeleteAction::make()
+                    ->visible(fn ($record): bool => self::canDeleteDraft($record)),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function canEditDraftOrRejected(mixed $record): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $record || ! $user->can('Update:Sumario')) {
+            return false;
+        }
+
+        return in_array((string) ($record->workflow_estado ?? 'BORRADOR'), [
+            'BORRADOR',
+            'RECHAZADO_VALIDACION_FINANZAS',
+            'RECHAZADO_GERENCIA_FINANZAS',
+        ], true);
+    }
+
+    private static function canDeleteDraft(mixed $record): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $record || ! $user->can('Delete:Sumario')) {
+            return false;
+        }
+
+        return (string) ($record->workflow_estado ?? 'BORRADOR') === 'BORRADOR'
+            && blank($record->ordenesCompra()->first());
     }
 
     private static function canSubmitForFinanceValidation(mixed $record): bool
@@ -330,7 +362,7 @@ class SumariosTable
             return false;
         }
 
-        return in_array((string) ($record->workflow_estado ?? 'BORRADOR'), ['BORRADOR', 'RECHAZADO_VALIDACION_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS'], true)
+        return (string) ($record->workflow_estado ?? '') === 'APROBADO_GERENCIA_FINANZAS'
             && blank($record->ordenesCompra()->first());
     }
 

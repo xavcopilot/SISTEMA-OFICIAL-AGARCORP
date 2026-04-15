@@ -6,6 +6,7 @@ namespace App\Policies;
 
 use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\SolicitudCompra;
+use App\Support\SolicitudCompraFlow;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class SolicitudCompraPolicy
@@ -29,11 +30,19 @@ class SolicitudCompraPolicy
 
     public function update(AuthUser $authUser, SolicitudCompra $solicitudCompra): bool
     {
+        if (SolicitudCompraFlow::canManageDraft($authUser, $solicitudCompra)) {
+            return true;
+        }
+
         return $authUser->can('Update:SolicitudCompra');
     }
 
     public function delete(AuthUser $authUser, SolicitudCompra $solicitudCompra): bool
     {
+        if (SolicitudCompraFlow::canManageDraft($authUser, $solicitudCompra)) {
+            return true;
+        }
+
         return $authUser->can('Delete:SolicitudCompra');
     }
 

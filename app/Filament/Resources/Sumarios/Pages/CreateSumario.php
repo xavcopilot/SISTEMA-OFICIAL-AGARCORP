@@ -9,14 +9,21 @@ use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class CreateSumario extends CreateRecord
 {
     protected static string $resource = SumarioResource::class;
+
+    protected ?bool $hasUnsavedDataChangesAlert = true;
+
+    private bool $isSubmittingForValidation = false;
 
     protected function getFormActions(): array
     {
@@ -26,23 +33,69 @@ class CreateSumario extends CreateRecord
                 ->label('Guardar como borrador')
                 ->color('warning')
                 ->action(function () {
-                    $data = $this->form->getRawState();
-                    $data['estado'] = 'BORRADOR';
-                    
-                    $record = $this->handleRecordCreation($this->mutateFormDataBeforeCreate($data));
-                    
-                    $this->record = $record;
-                    
-                    \Filament\Notifications\Notification::make()
-                        ->title('Borrador de sumario guardado')
-                        ->body('Tu sumario ha sido guardado exitosamente como BORRADOR en la lista.')
-                        ->success()
-                        ->send();
+                    $data = $this->prepareDraftData($this->form->getRawState());
 
-                    $this->redirect($this->getResource()::getUrl('index'));
+                    if (blank($data['solicitud_compra_id'] ?? null)) {
+                        Notification::make()
+                            ->title('No se pudo guardar borrador')
+                            ->body('Selecciona una solicitud base para guardar este borrador en la lista de borradores.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    try {
+                        $record = $this->handleRecordCreation($this->mutateFormDataBeforeCreate($data));
+
+                        $this->record = $record;
+
+                        Notification::make()
+                            ->title('Borrador de sumario guardado')
+                            ->body('Tu sumario ha sido guardado exitosamente como BORRADOR en la lista.')
+                            ->success()
+                            ->send();
+
+                        $this->redirect($this->getResource()::getUrl('index'));
+                    } catch (Throwable $exception) {
+                        report($exception);
+
+                        Notification::make()
+                            ->title('No se pudo guardar borrador')
+                            ->body('Revisa que el correlativo no este repetido y vuelve a intentar.')
+                            ->danger()
+                            ->send();
+                    }
                 }),
             $this->getCancelFormAction(),
         ];
+    }
+
+    protected function getCreateFormAction(): Action
+    {
+        return Action::make('create')
+            ->label('Enviar')
+            ->color('primary')
+            ->keyBindings(['mod+s'])
+            ->action(function (): void {
+                if (! auth()->user()?->can('SubmitValidation:Sumario')) {
+                    Notification::make()
+                        ->title('Sin permisos')
+                        ->body('No tienes permisos para enviar el sumario a validacion.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $this->isSubmittingForValidation = true;
+
+                try {
+                    $this->create();
+                } finally {
+                    $this->isSubmittingForValidation = false;
+                }
+            });
     }
 
     protected Width | string | null $maxWidth = Width::Full;
@@ -59,8 +112,24 @@ class CreateSumario extends CreateRecord
         $data['total_compra_prov2'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov2'] ?? 0)), 2);
         $data['total_compra_prov3'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov3'] ?? 0)), 2);
 
-        $data['estado'] = 'BORRADOR';
-        $data['workflow_estado'] = 'BORRADOR';
+        if ($this->isSubmittingForValidation) {
+            $data['estado'] = 'PENDIENTE_REVISION_FINANZAS';
+            $data['workflow_estado'] = 'PENDIENTE_VALIDACION_FINANZAS';
+            $data['enviado_validacion_finanzas_at'] = now();
+            $data['enviado_por_user_id'] = auth()->id();
+            $data['validado_finanzas_at'] = null;
+            $data['validado_por_user_id'] = null;
+            $data['validacion_finanzas_resultado'] = null;
+            $data['validacion_finanzas_comentario'] = null;
+            $data['decision_gerencia_finanzas_at'] = null;
+            $data['decision_gerencia_por_user_id'] = null;
+            $data['decision_gerencia_resultado'] = null;
+            $data['decision_gerencia_comentario'] = null;
+        } else {
+            $data['estado'] = 'BORRADOR';
+            $data['workflow_estado'] = 'BORRADOR';
+        }
+
         $data['elaborado_por_user_id'] = auth()->id();
         $data['proveedor_ganador_id'] = null;
 
@@ -121,9 +190,11 @@ class CreateSumario extends CreateRecord
                     ->update(['estado_item' => 'EN_SUMARIO']);
             }
 
-            SolicitudCompra::query()
-                ->whereKey($sumario->solicitud_compra_id)
-                ->update(['estado' => 'SUMARIO_EN_REVISION']);
+            if (filled($sumario->solicitud_compra_id) && (string) $sumario->workflow_estado !== 'BORRADOR') {
+                SolicitudCompra::query()
+                    ->whereKey($sumario->solicitud_compra_id)
+                    ->update(['estado' => 'SUMARIO_EN_REVISION']);
+            }
 
             return $sumario;
         });
@@ -154,6 +225,71 @@ class CreateSumario extends CreateRecord
         return Proveedor::query()
             ->whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombre)])
             ->value('id');
+    }
+
+    private function prepareDraftData(array $data): array
+    {
+        $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+
+        $data['solicitud_compra_id'] = $data['solicitud_compra_id']
+            ?? $this->resolveSolicitudCompraIdFromRows($rows);
+        $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
+            ? trim((string) $data['correlativo_sdc'])
+            : $this->generateDraftCorrelativo();
+        $data['fecha'] = $data['fecha'] ?? now()->toDateString();
+        $data['procedencia'] = $data['procedencia'] ?? 'LOCAL';
+        $data['tipo_orden'] = $data['tipo_orden'] ?? 'COMPRA';
+        $data['departamento_solicitante'] = filled($data['departamento_solicitante'] ?? null)
+            ? trim((string) $data['departamento_solicitante'])
+            : $this->resolveDepartamentoSolicitante($data['solicitud_compra_id'] ?? null);
+        $data['estado'] = 'BORRADOR';
+        $data['workflow_estado'] = 'BORRADOR';
+        $data['elaborado_por_user_id'] = $data['elaborado_por_user_id'] ?? auth()->id();
+
+        return $data;
+    }
+
+    private function resolveSolicitudCompraIdFromRows(array $rows): ?int
+    {
+        $firstItemId = collect($rows)
+            ->pluck('solicitud_compra_item_id')
+            ->filter(fn ($id): bool => filled($id))
+            ->map(fn ($id): int => (int) $id)
+            ->first();
+
+        if (! $firstItemId) {
+            return null;
+        }
+
+        $solicitudId = SolicitudCompraItem::query()
+            ->whereKey($firstItemId)
+            ->value('solicitud_compra_id');
+
+        return $solicitudId ? (int) $solicitudId : null;
+    }
+
+    private function resolveDepartamentoSolicitante(mixed $solicitudCompraId): string
+    {
+        if (filled($solicitudCompraId)) {
+            $departamento = SolicitudCompra::query()
+                ->whereKey($solicitudCompraId)
+                ->value('departamento_solicitante');
+
+            if (filled($departamento)) {
+                return (string) $departamento;
+            }
+        }
+
+        return 'PENDIENTE';
+    }
+
+    private function generateDraftCorrelativo(): string
+    {
+        do {
+            $candidate = 'BOR-' . now()->format('Ymd-His') . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+        } while (Sumario::query()->where('correlativo_sdc', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

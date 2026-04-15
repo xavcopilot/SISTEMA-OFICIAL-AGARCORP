@@ -6,6 +6,7 @@ use App\Filament\Resources\AprobacionesCompra\AprobacionesCompraResource;
 use App\Models\SolicitudCompra;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Textarea;
@@ -59,6 +60,7 @@ class SolicitudesCompraTable
                 Action::make('imprimirPdf')
                     ->label('Imprimir / Guardar PDF')
                     ->icon(Heroicon::OutlinedPrinter)
+                    ->visible(fn (SolicitudCompra $record): bool => ! SolicitudCompraFlow::isDraft($record))
                     ->url(fn ($record) => route('solicitudes-compra.formato.print', ['solicitudCompra' => $record]))
                     ->openUrlInNewTab(),
                 Action::make('verDetalle')
@@ -73,7 +75,12 @@ class SolicitudesCompraTable
                     ->schema(self::getViewSchema()),
 
                 EditAction::make()
+                    ->authorize(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record))
                     ->visible(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record)),
+
+                DeleteAction::make()
+                    ->authorize(fn ($record): bool => SolicitudCompraFlow::canDeleteRequest(auth()->user(), $record))
+                    ->visible(fn ($record): bool => SolicitudCompraFlow::canDeleteRequest(auth()->user(), $record)),
             ])
             ->recordUrl(null)
             ->defaultSort('created_at', 'desc');
@@ -286,6 +293,7 @@ class SolicitudesCompraTable
             . '<div style="min-height:44px;border:1px solid #d1d5db;border-radius:12px;padding:10px 14px;color:#6b7280;background:#fff;">' . $value . '</div>'
             . '</div>';
     }
+
 
     public static function configureForApprovals(Table $table): Table
     {

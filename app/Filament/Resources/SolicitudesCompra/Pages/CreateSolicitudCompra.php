@@ -14,6 +14,8 @@ class CreateSolicitudCompra extends CreateRecord
 {
     protected static string $resource = SolicitudCompraResource::class;
 
+    protected ?bool $hasUnsavedDataChangesAlert = true;
+
     protected function getFormActions(): array
     {
         return [
@@ -33,6 +35,12 @@ class CreateSolicitudCompra extends CreateRecord
                     
                     if (!empty($data['items'])) {
                         $record->items()->createMany(array_values($data['items']));
+                    }
+
+                    if (blank($record->codigo_control)) {
+                        $record->forceFill([
+                            'codigo_control' => (string) $record->id,
+                        ])->save();
                     }
                     
                     $this->record = $record;

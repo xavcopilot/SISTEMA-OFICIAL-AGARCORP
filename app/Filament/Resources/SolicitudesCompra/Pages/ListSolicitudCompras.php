@@ -19,6 +19,8 @@ class ListSolicitudCompras extends ListRecords
         return [
             'mis_solicitudes' => Tab::make('Mis solicitudes')
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterRequestsQuery($query, $user)),
+            'borradores' => Tab::make('Borradores')
+                ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterDraftsQuery($query, $user)),
         ];
     }
 

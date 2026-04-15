@@ -89,4 +89,9 @@ class SolicitudCompraResource extends Resource
     {
         return SolicitudCompraFlow::canEditRequest(auth()->user(), $record);
     }
+
+    public static function canDelete(Model $record): bool
+    {
+        return SolicitudCompraFlow::canDeleteRequest(auth()->user(), $record);
+    }
 }

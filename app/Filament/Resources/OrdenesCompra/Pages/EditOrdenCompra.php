@@ -10,6 +10,8 @@ class EditOrdenCompra extends EditRecord
 {
     protected static string $resource = OrdenCompraResource::class;
 
+    protected ?bool $hasUnsavedDataChangesAlert = true;
+
     protected Width | string | null $maxWidth = Width::Full;
 
     protected function mutateFormDataBeforeSave(array $data): array

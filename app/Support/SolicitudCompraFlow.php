@@ -114,6 +114,72 @@ class SolicitudCompraFlow
 
     public static function canEditRequest(?User $user, SolicitudCompra $solicitudCompra): bool
     {
+        if (self::canManageDraft($user, $solicitudCompra)) {
+            return true;
+        }
+
+        return self::canEditRejectedRequest($user, $solicitudCompra);
+    }
+
+    public static function canDeleteRequest(?User $user, SolicitudCompra $solicitudCompra): bool
+    {
+        return self::canManageDraft($user, $solicitudCompra);
+    }
+
+    public static function canManageDraft(?User $user, SolicitudCompra $solicitudCompra): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ((int) $solicitudCompra->solicitado_por_user_id !== (int) $user->id) {
+            return false;
+        }
+
+        return self::isDraft($solicitudCompra);
+    }
+
+    public static function isDraft(SolicitudCompra $solicitudCompra): bool
+    {
+        return (string) $solicitudCompra->estado === 'BORRADOR';
+    }
+
+    public static function submitDraft(SolicitudCompra $solicitudCompra, User $user): SolicitudCompra
+    {
+        $almacenUserId = $solicitudCompra->por_almacen_user_id ?: self::defaultAlmacenUserId();
+        $procuraUserId = $solicitudCompra->recibido_por_user_id ?: self::defaultProcuraUserId();
+
+        $solicitudCompra->forceFill([
+            'codigo_control' => $solicitudCompra->codigo_control ?: (string) $solicitudCompra->id,
+            'solicitado_por_user_id' => $solicitudCompra->solicitado_por_user_id ?: $user->id,
+            'por_almacen_user_id' => $almacenUserId,
+            'cargo_solicitante' => $solicitudCompra->cargo_solicitante ?: $user->cargo?->nombre,
+            'cargo_almacen' => self::cargoForUserId($almacenUserId),
+            'cargo_aprobador' => self::cargoForUserId($solicitudCompra->aprobado_por_user_id),
+            'recibido_por_user_id' => $procuraUserId,
+            'cargo_receptor' => self::cargoForUserId($procuraUserId),
+            'firma_solicitante' => '__ENVIADA__',
+            'firma_almacen' => null,
+            'firma_aprobador' => null,
+            'firma_receptor' => null,
+            'fecha_solicitante' => now()->toDateString(),
+            'fecha_almacen' => null,
+            'fecha_aprobador' => null,
+            'fecha_receptor' => null,
+            'hora_receptor' => null,
+            'rechazo_etapa' => null,
+            'rechazo_comentario' => null,
+            'rechazo_por_user_id' => null,
+            'rechazo_destinatario_user_id' => null,
+            'rechazo_en' => null,
+            'estado' => 'EN_ESPERA_DE_COTIZACION',
+        ])->save();
+
+        return $solicitudCompra->fresh();
+    }
+
+    public static function canEditRejectedRequest(?User $user, SolicitudCompra $solicitudCompra): bool
+    {
         if (! $user) {
             return false;
         }
@@ -143,7 +209,7 @@ class SolicitudCompraFlow
 
     public static function canSignRequester(?User $user, SolicitudCompra $solicitudCompra): bool
     {
-        if ((string) $solicitudCompra->estado === 'RECHAZADA') {
+        if (! self::isDraft($solicitudCompra)) {
             return false;
         }
 
@@ -265,6 +331,19 @@ class SolicitudCompraFlow
 
         return $query
             ->where('solicitado_por_user_id', $user->id)
+            ->where('estado', '!=', 'BORRADOR')
+            ->orderByDesc('updated_at');
+    }
+
+    public static function requesterDraftsQuery(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->where('solicitado_por_user_id', $user->id)
+            ->where('estado', 'BORRADOR')
             ->orderByDesc('updated_at');
     }
 

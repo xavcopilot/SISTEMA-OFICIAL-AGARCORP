@@ -10,6 +10,7 @@ use App\Models\InventoryMovement;
 use App\Models\MovementItem;
 use App\Models\Product;
 use App\Models\Subcategory;
+use App\Support\FormDraftStore;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -42,7 +43,9 @@ class ListInventoryMovements extends ListRecords
                 ->color('success')
                 ->modalHeading('Ingreso de Materiales (Productos Nuevos)')
                 ->modalWidth('7xl')
+                ->fillForm(fn (): array => $this->loadMovementDraft('ingreso'))
                 ->schema($this->ingresoSchema())
+                ->extraModalFooterActions(fn (Action $action): array => $this->movementDraftFooterActions($action, 'ingreso'))
                 ->action(function (array $data): void {
                     $this->storeIngreso($data);
                 }),
@@ -52,7 +55,9 @@ class ListInventoryMovements extends ListRecords
                 ->color('primary')
                 ->modalHeading('Entrada de Materiales (Productos Registrados)')
                 ->modalWidth('7xl')
+                ->fillForm(fn (): array => $this->loadMovementDraft('entrada'))
                 ->schema($this->entradaSchema())
+                ->extraModalFooterActions(fn (Action $action): array => $this->movementDraftFooterActions($action, 'entrada'))
                 ->action(function (array $data): void {
                     $this->storeEntrada($data);
                 }),
@@ -62,11 +67,87 @@ class ListInventoryMovements extends ListRecords
                 ->color('danger')
                 ->modalHeading('Registro de Salidas de Materiales')
                 ->modalWidth('7xl')
+                ->fillForm(fn (): array => $this->loadMovementDraft('salida'))
                 ->schema($this->salidaSchema())
+                ->extraModalFooterActions(fn (Action $action): array => $this->movementDraftFooterActions($action, 'salida'))
                 ->action(function (array $data): void {
                     $this->storeSalida($data);
                 }),
         ];
+    }
+
+    private function movementDraftFooterActions(Action $action, string $movementType): array
+    {
+        return [
+            Action::make('saveTemporary_' . $movementType)
+                ->label('Guardar borrador')
+                ->color('warning')
+                ->cancelParentActions(false)
+                ->action(function (Action $action) use ($movementType): void {
+                    $this->saveMovementDraftFromAction($action, $movementType);
+                }),
+            Action::make('clearTemporary_' . $movementType)
+                ->label('Limpiar borrador')
+                ->color('gray')
+                ->cancelParentActions(false)
+                ->action(function () use ($movementType): void {
+                    $this->clearMovementDraft($movementType);
+                    $this->replaceMountedAction($movementType);
+
+                    Notification::make()
+                        ->title('Borrador limpiado')
+                        ->body('El borrador fue eliminado y el formulario se reinicio.')
+                        ->success()
+                        ->send();
+                }),
+        ];
+    }
+
+    private function loadMovementDraft(string $movementType): array
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return [];
+        }
+
+        return FormDraftStore::load($user, $this->movementDraftKey($movementType)) ?? [];
+    }
+
+    private function saveMovementDraftFromAction(Action $action, string $movementType): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return;
+        }
+
+        $parentAction = $action->getParentAction();
+        $rawData = $parentAction?->getRawData() ?? [];
+
+        FormDraftStore::save($user, $this->movementDraftKey($movementType), is_array($rawData) ? $rawData : []);
+
+        Notification::make()
+            ->title('Borrador guardado')
+            ->body('Borrador guardado exitosamente.')
+            ->success()
+            ->send();
+    }
+
+    private function clearMovementDraft(string $movementType): void
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return;
+        }
+
+        FormDraftStore::clear($user, $this->movementDraftKey($movementType));
+    }
+
+    private function movementDraftKey(string $movementType): string
+    {
+        return 'inventory_movements:' . $movementType;
     }
 
     protected function viewFormatPromptAction(): Action
@@ -724,6 +805,8 @@ class ListInventoryMovements extends ListRecords
 
     private function storeIngreso(array $data): void
     {
+        $this->clearMovementDraft('ingreso');
+
         $processedProductIds = [];
         $movementId = null;
 
@@ -799,6 +882,8 @@ class ListInventoryMovements extends ListRecords
 
     private function storeEntrada(array $data): void
     {
+        $this->clearMovementDraft('entrada');
+
         $processedProductIds = [];
         $movementId = null;
 
@@ -881,6 +966,8 @@ class ListInventoryMovements extends ListRecords
 
     private function storeSalida(array $data): void
     {
+        $this->clearMovementDraft('salida');
+
         $processedProductIds = [];
         $movementId = null;
 

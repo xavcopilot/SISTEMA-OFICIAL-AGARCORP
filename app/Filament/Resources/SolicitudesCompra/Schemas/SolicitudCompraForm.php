@@ -66,30 +66,14 @@ class SolicitudCompraForm
 
                                 Select::make('prioridad')
                                     ->label('Prioridad')
-                                    ->options(function (?SolicitudCompra $record) {
-                                        $isApprover = auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) 
-                                            || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record));
-                                        
-                                        $approverHasSigned = isset($record) && filled($record->fecha_aprobador);
-
-                                        if ($isApprover || $approverHasSigned) {
-                                            return [
-                                                'Alta' => 'Alta',
-                                                'Media' => 'Media',
-                                                'Baja' => 'Baja',
-                                            ];
-                                        }
-
-                                        return [
-                                            'Alta' => '(Asignado por Aprobador)',
-                                            'Media' => '(Asignado por Aprobador)',
-                                            'Baja' => '(Asignado por Aprobador)',
-                                        ];
-                                    })
-                                    ->default('Media')
-                                    ->disabled(fn (?SolicitudCompra $record) => ! (auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record))))
-                                    ->dehydrated(fn (?SolicitudCompra $record) => auth()->user()?->hasRole(\App\Support\SolicitudCompraFlow::APPROVER_ROLES) || (isset($record) && \App\Support\SolicitudCompraFlow::canSignApprover(auth()->user(), $record)))
-                                    ->required(),
+                                    ->options([
+                                        'Alta' => 'Alta',
+                                        'Media' => 'Media',
+                                        'Baja' => 'Baja',
+                                    ])
+                                    ->placeholder('Asignado por aprobador al firmar')
+                                    ->disabled()
+                                    ->dehydrated(false),
 
                                 TextInput::make('departamento_solicitante')
                                     ->label('Departamento solicitante')
@@ -328,6 +312,7 @@ class SolicitudCompraForm
                         Select::make('estado')
                             ->label('Estado')
                             ->options([
+                                'BORRADOR' => 'BORRADOR',
                                 'RECHAZADA' => 'RECHAZADA',
                                 'EN_ESPERA_DE_COTIZACION' => 'EN_ESPERA_DE_COTIZACION',
                                 'SUMARIO_EN_REVISION' => 'SUMARIO_EN_REVISION',
@@ -338,7 +323,7 @@ class SolicitudCompraForm
                                 'MATERIAL_RECIBIDO' => 'MATERIAL_RECIBIDO',
                                 'CERRADA' => 'CERRADA',
                             ])
-                            ->default('EN_ESPERA_DE_COTIZACION')
+                            ->default('BORRADOR')
                             ->disabled()
                             ->dehydrated(false),
 

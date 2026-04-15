@@ -10,6 +10,8 @@ use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
@@ -19,9 +21,44 @@ class EditSumario extends EditRecord
 {
     protected static string $resource = SumarioResource::class;
 
+    protected ?bool $hasUnsavedDataChangesAlert = true;
+
     protected Width | string | null $maxWidth = Width::Full;
 
     protected Width | string | null $maxContentWidth = Width::Full;
+
+    protected function getSaveFormAction(): Action
+    {
+        if ((string) ($this->record->workflow_estado ?? '') === 'BORRADOR') {
+            return Action::make('saveDraft')
+                ->label('Guardar borrador')
+                ->color('primary')
+                ->keyBindings(['mod+s'])
+                ->action(function (): void {
+                    $this->saveDraft();
+                });
+        }
+
+        return parent::getSaveFormAction();
+    }
+
+    protected function getFormActions(): array
+    {
+        if ((string) ($this->record->workflow_estado ?? '') === 'BORRADOR') {
+            return [
+                $this->getSaveFormAction(),
+                Action::make('submitForFinanceValidation')
+                    ->label('Enviar a validacion')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(function (): void {
+                        $this->submitForFinanceValidation();
+                    }),
+            ];
+        }
+
+        return parent::getFormActions();
+    }
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -88,6 +125,97 @@ class EditSumario extends EditRecord
         return $data;
     }
 
+    private function saveDraft(): void
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof Sumario || (string) $record->workflow_estado !== 'BORRADOR') {
+            return;
+        }
+
+        $rawState = $this->form->getRawState();
+        $data = $this->prepareDraftData($rawState, $record);
+
+        if (blank($data['solicitud_compra_id'] ?? null)) {
+            Notification::make()
+                ->title('No se pudo guardar borrador')
+                ->body('Selecciona una solicitud base para mantener este borrador en la lista.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $updated = $this->handleRecordUpdate($record, $data);
+
+        $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
+        $this->fillForm();
+
+        Notification::make()
+            ->title('Borrador guardado')
+            ->body('Borrador guardado exitosamente.')
+            ->success()
+            ->send();
+    }
+
+    private function submitForFinanceValidation(): void
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof Sumario || (string) $record->workflow_estado !== 'BORRADOR') {
+            return;
+        }
+
+        if (! auth()->user()?->can('SubmitValidation:Sumario')) {
+            Notification::make()
+                ->title('Sin permisos')
+                ->body('No tienes permisos para enviar el sumario a validacion.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $validatedState = $this->form->getState();
+        $data = $this->prepareDraftData($validatedState, $record);
+
+        if (blank($data['solicitud_compra_id'] ?? null)) {
+            Notification::make()
+                ->title('No se pudo enviar')
+                ->body('Selecciona una solicitud base antes de enviar a validacion.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $data['estado'] = 'PENDIENTE_REVISION_FINANZAS';
+        $data['workflow_estado'] = 'PENDIENTE_VALIDACION_FINANZAS';
+        $data['enviado_validacion_finanzas_at'] = now();
+        $data['enviado_por_user_id'] = auth()->id();
+        $data['validado_finanzas_at'] = null;
+        $data['validado_por_user_id'] = null;
+        $data['validacion_finanzas_resultado'] = null;
+        $data['validacion_finanzas_comentario'] = null;
+        $data['decision_gerencia_finanzas_at'] = null;
+        $data['decision_gerencia_por_user_id'] = null;
+        $data['decision_gerencia_resultado'] = null;
+        $data['decision_gerencia_comentario'] = null;
+
+        $updated = $this->handleRecordUpdate($record, $data);
+
+        $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
+        $this->fillForm();
+
+        Notification::make()
+            ->title('Sumario enviado')
+            ->body('El sumario fue enviado a validacion de Finanzas.')
+            ->success()
+            ->send();
+
+        $this->redirect(SumarioResource::getUrl('index'));
+    }
+
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Sumario $sumario */
@@ -145,9 +273,11 @@ class EditSumario extends EditRecord
                 $this->syncSolicitudItemStatus((int) $itemId);
             }
 
-            SolicitudCompra::query()
-                ->whereKey($sumario->solicitud_compra_id)
-                ->update(['estado' => 'SUMARIO_EN_REVISION']);
+            if (filled($sumario->solicitud_compra_id) && (string) $sumario->workflow_estado !== 'BORRADOR') {
+                SolicitudCompra::query()
+                    ->whereKey($sumario->solicitud_compra_id)
+                    ->update(['estado' => 'SUMARIO_EN_REVISION']);
+            }
 
             return $sumario->fresh();
         });
@@ -217,6 +347,52 @@ class EditSumario extends EditRecord
         return Proveedor::query()
             ->whereRaw('LOWER(nombre) = ?', [mb_strtolower($nombre)])
             ->value('id');
+    }
+
+    private function prepareDraftData(array $data, Sumario $record): array
+    {
+        $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+
+        $data['solicitud_compra_id'] = $data['solicitud_compra_id'] ?? $record->solicitud_compra_id;
+        $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
+            ? trim((string) $data['correlativo_sdc'])
+            : ((string) ($record->correlativo_sdc ?: $this->generateDraftCorrelativo()));
+        $data['fecha'] = $data['fecha'] ?? optional($record->fecha)->toDateString() ?? now()->toDateString();
+        $data['procedencia'] = $data['procedencia'] ?? $record->procedencia ?? 'LOCAL';
+        $data['tipo_orden'] = $data['tipo_orden'] ?? $record->tipo_orden ?? 'COMPRA';
+        $data['departamento_solicitante'] = filled($data['departamento_solicitante'] ?? null)
+            ? trim((string) $data['departamento_solicitante'])
+            : ($record->departamento_solicitante ?: $this->resolveDepartamentoSolicitante($data['solicitud_compra_id'] ?? null));
+        $data['estado'] = 'BORRADOR';
+        $data['workflow_estado'] = 'BORRADOR';
+        $data['elaborado_por_user_id'] = $data['elaborado_por_user_id'] ?? $record->elaborado_por_user_id ?? auth()->id();
+        $data['comparativo_items'] = $rows;
+
+        return $data;
+    }
+
+    private function resolveDepartamentoSolicitante(mixed $solicitudCompraId): string
+    {
+        if (filled($solicitudCompraId)) {
+            $departamento = SolicitudCompra::query()
+                ->whereKey($solicitudCompraId)
+                ->value('departamento_solicitante');
+
+            if (filled($departamento)) {
+                return (string) $departamento;
+            }
+        }
+
+        return 'PENDIENTE';
+    }
+
+    private function generateDraftCorrelativo(): string
+    {
+        do {
+            $candidate = 'BOR-' . now()->format('Ymd-His') . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+        } while (Sumario::query()->where('correlativo_sdc', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

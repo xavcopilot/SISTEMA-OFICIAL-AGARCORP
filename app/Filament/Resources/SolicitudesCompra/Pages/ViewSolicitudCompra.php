@@ -10,6 +10,7 @@ use App\Support\SolicitudCompraFlow;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -59,7 +60,7 @@ class ViewSolicitudCompra extends ViewRecord
                 ->label('Firmar aprobación')
                 ->color('success')
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignApprover(auth()->user(), $this->getRecord()))
-                ->schema($this->getSignatureSchema())
+                ->schema($this->getApproverSignatureSchema())
                 ->action(function (array $data): void {
                     $this->signApprover($data);
                 }),
@@ -108,6 +109,22 @@ class ViewSolicitudCompra extends ViewRecord
         ];
     }
 
+    private function getApproverSignatureSchema(): array
+    {
+        return [
+            Select::make('prioridad')
+                ->label('Prioridad')
+                ->options([
+                    'Alta' => 'Alta',
+                    'Media' => 'Media',
+                    'Baja' => 'Baja',
+                ])
+                ->required(),
+
+            ...$this->getSignatureSchema(),
+        ];
+    }
+
     private function getRejectionSchema(): array
     {
         return [
@@ -145,27 +162,7 @@ class ViewSolicitudCompra extends ViewRecord
             'rechazado_por_user_id' => $latestRejectedVersion?->rechazo_por_user_id,
         ];
 
-        $record->forceFill([
-            'solicitado_por_user_id' => $record->solicitado_por_user_id ?: auth()->id(),
-            'por_almacen_user_id' => $record->por_almacen_user_id ?: SolicitudCompraFlow::defaultAlmacenUserId(),
-            'cargo_solicitante' => auth()->user()?->cargo?->nombre,
-            'cargo_almacen' => SolicitudCompraFlow::cargoForUserId($record->por_almacen_user_id ?: SolicitudCompraFlow::defaultAlmacenUserId()),
-            'firma_solicitante' => $record->firma_solicitante ?: '__ENVIADA__',
-            'firma_almacen' => null,
-            'firma_aprobador' => null,
-            'firma_receptor' => null,
-            'fecha_solicitante' => now()->toDateString(),
-            'fecha_almacen' => null,
-            'fecha_aprobador' => null,
-            'fecha_receptor' => null,
-            'hora_receptor' => null,
-            'rechazo_etapa' => null,
-            'rechazo_comentario' => null,
-            'rechazo_por_user_id' => null,
-            'rechazo_destinatario_user_id' => null,
-            'rechazo_en' => null,
-            'estado' => 'EN_ESPERA_DE_COTIZACION',
-        ])->save();
+        SolicitudCompraFlow::submitDraft($record, auth()->user());
 
         $this->syncSignedRecord();
 
@@ -248,9 +245,21 @@ class ViewSolicitudCompra extends ViewRecord
             return;
         }
 
+        $prioridad = (string) ($data['prioridad'] ?? '');
+        if (! in_array($prioridad, ['Alta', 'Media', 'Baja'], true)) {
+            Notification::make()
+                ->title('Prioridad requerida')
+                ->body('Debes seleccionar la prioridad antes de firmar la aprobacion.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $record->forceFill([
             'aprobado_por_user_id' => $record->aprobado_por_user_id ?: auth()->id(),
             'cargo_aprobador' => auth()->user()?->cargo?->nombre,
+            'prioridad' => $prioridad,
             'firma_aprobador' => $record->firma_aprobador,
             'fecha_aprobador' => now()->toDateString(),
         ])->save();
