@@ -89,93 +89,92 @@ class SolicitudesCompraTable
     private static function getViewSchema(): array
     {
         return [
-            Section::make('Resumen rapido')
+            Section::make('Resumen de solicitud')
                 ->schema([
-                    Grid::make(4)
+                    Grid::make(6)
                         ->schema([
-                            TextInput::make('id')
-                                ->label('ID interno')
-                                ->disabled(),
-
                             TextInput::make('codigo_control')
-                                ->label('N° de control')
-                                ->disabled(),
+                                ->label('N° control')
+                                ->disabled()
+                                ->columnSpan(1),
+
                             TextInput::make('estado')
                                 ->label('Estado')
-                                ->disabled(),
+                                ->disabled()
+                                ->columnSpan(1),
+
                             TextInput::make('fecha_solicitud')
-                                ->label('Fecha solicitud')
-                                ->disabled(),
+                                ->label('Fecha')
+                                ->disabled()
+                                ->columnSpan(1),
+
+                            TextInput::make('tipo_solicitud')
+                                ->label('Tipo')
+                                ->disabled()
+                                ->columnSpan(1),
+
                             TextInput::make('prioridad')
                                 ->label('Prioridad')
-                                ->disabled(),
-                        ]),
-                ]),
+                                ->disabled()
+                                ->columnSpan(1),
 
-            Section::make('Datos de la solicitud')
-                ->schema([
-                    Grid::make(3)
-                        ->schema([
                             TextInput::make('departamento_solicitante')
-                                ->label('Departamento solicitante')
-                                ->disabled(),
-                            TextInput::make('tipo_solicitud')
-                                ->label('Tipo de solicitud')
-                                ->disabled(),
+                                ->label('Departamento')
+                                ->disabled()
+                                ->columnSpan(1),
+
                             TextInput::make('solicitado_por_nombre')
                                 ->label('Solicitado por')
-                                ->disabled(),
+                                ->disabled()
+                                ->columnSpan(2),
+
+                            TextInput::make('por_almacen_nombre')
+                                ->label('Almacén')
+                                ->disabled()
+                                ->columnSpan(2),
+
+                            TextInput::make('aprobado_por_nombre')
+                                ->label('Aprobador')
+                                ->disabled()
+                                ->columnSpan(1),
+
+                            TextInput::make('recibido_por_nombre')
+                                ->label('Procura')
+                                ->disabled()
+                                ->columnSpan(1),
                         ]),
 
                     Textarea::make('para_ser_usado_en')
                         ->label('Para ser usado en')
                         ->rows(2)
                         ->disabled(),
+
+                    Grid::make(4)
+                        ->schema([
+                            TextInput::make('fecha_almacen')
+                                ->label('Fecha almacén')
+                                ->disabled(),
+
+                            TextInput::make('fecha_aprobador')
+                                ->label('Fecha aprobador')
+                                ->disabled(),
+
+                            TextInput::make('fecha_receptor')
+                                ->label('Fecha procura')
+                                ->disabled(),
+
+                            TextInput::make('hora_receptor')
+                                ->label('Hora procura')
+                                ->disabled(),
+                        ]),
                 ]),
 
-            Section::make('Detalle de materiales / servicios')
+            Section::make('Materiales / servicios solicitados')
                 ->schema([
                     Placeholder::make('items_detalle')
                         ->label('Items')
                         ->content(fn (callable $get) => new HtmlString(self::renderItemsView($get('items') ?? [])))
                         ->dehydrated(false),
-                ]),
-
-            Section::make('Flujo y responsables')
-                ->schema([
-                    Grid::make(4)
-                        ->schema([
-                            Grid::make(1)
-                                ->schema([
-                                    TextInput::make('por_almacen_nombre')
-                                        ->label('Por almacén')
-                                        ->disabled(),
-                                    TextInput::make('fecha_almacen')
-                                        ->label('Fecha almacén')
-                                        ->disabled(),
-                                ]),
-                            Grid::make(1)
-                                ->schema([
-                                    TextInput::make('aprobado_por_nombre')
-                                        ->label('Aprobado por')
-                                        ->disabled(),
-                                    TextInput::make('fecha_aprobador')
-                                        ->label('Fecha aprobador')
-                                        ->disabled(),
-                                ]),
-                            Grid::make(1)
-                                ->schema([
-                                    TextInput::make('recibido_por_nombre')
-                                        ->label('Recibido por')
-                                        ->disabled(),
-                                    TextInput::make('fecha_receptor')
-                                        ->label('Fecha receptor')
-                                        ->disabled(),
-                                ]),
-                            TextInput::make('hora_receptor')
-                                ->label('Hora receptor')
-                                ->disabled(),
-                        ]),
                 ]),
 
             Section::make('Motivo de rechazo')
@@ -251,7 +250,7 @@ class SolicitudesCompraTable
             return '<div style="padding:12px 0;color:#6b7280;">Sin items registrados.</div>';
         }
 
-        $cards = collect($items)
+        $rows = collect($items)
             ->filter(fn ($item) => is_array($item))
             ->map(function (array $item, int $index): string {
                 $itemNumber = e((string) ($item['item'] ?? $index + 1));
@@ -261,36 +260,31 @@ class SolicitudesCompraTable
                 $existencia = e((string) ($item['cantidad_existencia'] ?? ''));
                 $comprar = e((string) ($item['cantidad_a_comprar'] ?? ''));
 
-                return '<div class="sc-item-card" style="border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-top:12px;background:#fff;">'
-                    . '<div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;">'
-                    . self::renderItemField('Item', $itemNumber)
-                    . self::renderItemField('Descripción', $descripcion)
-                    . self::renderItemField('UND', $unidad)
-                    . self::renderItemField('Solicitada', $solicitada)
-                    . self::renderItemField('Existencia', $existencia)
-                    . self::renderItemField('A comprar', $comprar)
-                    . '</div>'
-                    . '</div>';
+                return '<tr>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $itemNumber . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;">' . $descripcion . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $unidad . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $solicitada . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $existencia . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $comprar . '</td>'
+                    . '</tr>';
             })
             ->implode('');
 
-        return '<div x-data="{ expanded: false }">'
-            . '<div style="display:flex;gap:16px;margin-bottom:8px;">'
-            . '<button type="button" x-on:click="expanded = false" style="border:none;background:none;padding:0;color:#374151;font-size:14px;cursor:pointer;">Contraer todo</button>'
-            . '<button type="button" x-on:click="expanded = true" style="border:none;background:none;padding:0;color:#374151;font-size:14px;cursor:pointer;">Expandir todo</button>'
-            . '</div>'
-                . '<div x-cloak x-show="expanded" x-transition.opacity>'
-            . $cards
-            . '</div>'
-                . '<style>[x-cloak]{display:none!important;} @media (max-width: 1024px){.sc-item-card > div{grid-template-columns:repeat(2,minmax(0,1fr))!important;}}</style>'
-            . '</div>';
-    }
-
-    private static function renderItemField(string $label, string $value): string
-    {
-        return '<div>'
-            . '<div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:6px;">' . e($label) . '</div>'
-            . '<div style="min-height:44px;border:1px solid #d1d5db;border-radius:12px;padding:10px 14px;color:#6b7280;background:#fff;">' . $value . '</div>'
+        return '<div style="overflow:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead>'
+            . '<tr style="background:#f3f4f6;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Solicitada</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Existencia</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">A comprar</th>'
+            . '</tr>'
+            . '</thead>'
+            . '<tbody>' . $rows . '</tbody>'
+            . '</table>'
             . '</div>';
     }
 
