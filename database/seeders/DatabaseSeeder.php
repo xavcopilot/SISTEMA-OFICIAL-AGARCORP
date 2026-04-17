@@ -293,7 +293,7 @@ class DatabaseSeeder extends Seeder
 
             if ($rol === 'A.I.T') {
                 $roleModel->givePermissionTo(array_merge(
-                    $inventoryViewPermissions,adv12
+                    $inventoryViewPermissions,
                     $categoryReadWritePermissions,
                     $categoryDeletePermissions,
                     $sumarioReviewPermissions,
