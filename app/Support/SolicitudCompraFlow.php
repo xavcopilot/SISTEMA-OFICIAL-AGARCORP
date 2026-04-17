@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\SolicitudCompra;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class SolicitudCompraFlow
 {
@@ -146,11 +147,14 @@ class SolicitudCompraFlow
 
     public static function submitDraft(SolicitudCompra $solicitudCompra, User $user): SolicitudCompra
     {
+        $solicitudCompra = self::ensureTrackingIdentifiers($solicitudCompra, (int) $user->id);
+
         $almacenUserId = $solicitudCompra->por_almacen_user_id ?: self::defaultAlmacenUserId();
         $procuraUserId = $solicitudCompra->recibido_por_user_id ?: self::defaultProcuraUserId();
 
         $solicitudCompra->forceFill([
-            'codigo_control' => $solicitudCompra->codigo_control ?: (string) $solicitudCompra->id,
+            'codigo_control' => $solicitudCompra->codigo_control,
+            'numero_solicitud_usuario' => $solicitudCompra->numero_solicitud_usuario,
             'solicitado_por_user_id' => $solicitudCompra->solicitado_por_user_id ?: $user->id,
             'por_almacen_user_id' => $almacenUserId,
             'cargo_solicitante' => $solicitudCompra->cargo_solicitante ?: $user->cargo?->nombre,
@@ -176,6 +180,40 @@ class SolicitudCompraFlow
         ])->save();
 
         return $solicitudCompra->fresh();
+    }
+
+    public static function ensureTrackingIdentifiers(SolicitudCompra $solicitudCompra, ?int $requesterUserId = null): SolicitudCompra
+    {
+        return DB::transaction(function () use ($solicitudCompra, $requesterUserId): SolicitudCompra {
+            $lockedRecord = SolicitudCompra::query()->lockForUpdate()->findOrFail($solicitudCompra->id);
+            $resolvedRequesterId = (int) ($requesterUserId ?: $lockedRecord->solicitado_por_user_id);
+
+            $changes = [];
+
+            if (blank($lockedRecord->codigo_control)) {
+                $changes['codigo_control'] = (string) $lockedRecord->id;
+            }
+
+            if (blank($lockedRecord->numero_solicitud_usuario) && $resolvedRequesterId > 0) {
+                $changes['numero_solicitud_usuario'] = self::nextRequesterSequence($resolvedRequesterId);
+            }
+
+            if ($changes !== []) {
+                $lockedRecord->forceFill($changes)->save();
+            }
+
+            return $lockedRecord->fresh();
+        });
+    }
+
+    private static function nextRequesterSequence(int $requesterUserId): int
+    {
+        $max = (int) SolicitudCompra::query()
+            ->where('solicitado_por_user_id', $requesterUserId)
+            ->lockForUpdate()
+            ->max('numero_solicitud_usuario');
+
+        return $max + 1;
     }
 
     public static function canEditRejectedRequest(?User $user, SolicitudCompra $solicitudCompra): bool

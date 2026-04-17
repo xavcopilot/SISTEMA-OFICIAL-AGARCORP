@@ -181,6 +181,8 @@ class EditSolicitudCompra extends EditRecord
 
     private function createRevisionFromRejectedRecord(SolicitudCompra $record, array $data): SolicitudCompra
     {
+        $record = SolicitudCompraFlow::ensureTrackingIdentifiers($record, (int) $record->solicitado_por_user_id);
+
         $sharedCode = (string) ($record->codigo_control ?: $record->id);
 
         if (blank($record->codigo_control)) {
@@ -195,6 +197,7 @@ class EditSolicitudCompra extends EditRecord
         $newRecord = SolicitudCompra::query()->create([
             ...$data,
             'codigo_control' => $sharedCode,
+            'numero_solicitud_usuario' => $record->numero_solicitud_usuario,
             'codigo_control_procura' => $record->codigo_control_procura,
             'estado' => 'EN_ESPERA_DE_COTIZACION',
             // La correccion de una solicitud rechazada se considera reenviada.

@@ -608,19 +608,26 @@ class SumarioForm
                                     ->rows(3)
                                     ->columnSpan(8),
 
-                                Placeholder::make('elaborado_por_preview')
+                                TextInput::make('elaborado_por_preview')
                                     ->label('Elaborado por')
-                                    ->content(fn (): string => (string) (auth()->user()?->name ?? 'N/A'))
+                                    ->default(fn (): string => (string) (auth()->user()?->name ?? 'N/A'))
+                                    ->readOnly()
+                                    ->dehydrated(false)
                                     ->columnSpan(6),
 
-                                Placeholder::make('revisado_por_preview')
+                                TextInput::make('revisado_por_preview')
                                     ->label('Revisado por')
-                                    ->content('Pendiente de revision de Finanzas')
+                                    ->default('Pendiente de revision de Finanzas')
+                                    ->readOnly()
+                                    ->dehydrated(false)
                                     ->columnSpan(6),
 
-                                Placeholder::make('firma_preview')
+                                TextInput::make('firma_preview')
                                     ->label('Firma')
-                                    ->content('Se registra en el flujo de aprobacion')
+                                    ->placeholder('Click en Enviar para realizar la firma')
+                                    ->helperText('La firma se registra automaticamente al enviar el sumario.')
+                                    ->readOnly()
+                                    ->dehydrated(false)
                                     ->columnSpanFull(),
 
                                 Hidden::make('proveedor_ganador_id'),

@@ -219,6 +219,11 @@ class DatabaseSeeder extends Seeder
                 'email' => 'daniela.carrasco@agarven.com',
                 'cargo' => 'Almacenista',
             ],
+            'Finanzas' => [
+                'name' => 'Vanessa',
+                'email' => 'vanessa@agarven.com',
+                'cargo' => 'Analista',
+            ],
         ];
 
         foreach ($roles as $rol => $password) {

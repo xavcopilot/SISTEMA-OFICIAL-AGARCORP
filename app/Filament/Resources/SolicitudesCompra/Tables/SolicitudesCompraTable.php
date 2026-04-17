@@ -24,8 +24,9 @@ class SolicitudesCompraTable
     {
         return $table
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
+                TextColumn::make('numero_solicitud_usuario')
+                    ->label('N° solicitud')
+                    ->state(fn ($record) => $record->numero_solicitud_usuario ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('codigo_control')
@@ -67,7 +68,7 @@ class SolicitudesCompraTable
                     ->label('Ver')
                     ->icon(Heroicon::OutlinedEye)
                     ->color('gray')
-                    ->modalHeading(fn (SolicitudCompra $record): string => 'Solicitud #' . $record->id)
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Solicitud #' . ($record->numero_solicitud_usuario ?: $record->id))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
@@ -293,8 +294,9 @@ class SolicitudesCompraTable
     {
         return $table
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
+                TextColumn::make('numero_solicitud_usuario')
+                    ->label('N° solicitud')
+                    ->state(fn ($record) => $record->numero_solicitud_usuario ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('codigo_control')

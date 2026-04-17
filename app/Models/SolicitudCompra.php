@@ -13,6 +13,7 @@ class SolicitudCompra extends Model
 
     protected $fillable = [
         'codigo_control',
+        'numero_solicitud_usuario',
         'codigo_control_procura',
         'fecha_solicitud',
         'tipo_solicitud',
@@ -50,6 +51,7 @@ class SolicitudCompra extends Model
     ];
 
     protected $casts = [
+        'numero_solicitud_usuario' => 'integer',
         'fecha_solicitud' => 'date',
         'fecha_solicitante' => 'date',
         'fecha_almacen' => 'date',

@@ -37,11 +37,7 @@ class CreateSolicitudCompra extends CreateRecord
                         $record->items()->createMany(array_values($data['items']));
                     }
 
-                    if (blank($record->codigo_control)) {
-                        $record->forceFill([
-                            'codigo_control' => (string) $record->id,
-                        ])->save();
-                    }
+                    $record = SolicitudCompraFlow::ensureTrackingIdentifiers($record, (int) auth()->id());
                     
                     $this->record = $record;
                     
@@ -114,11 +110,10 @@ class CreateSolicitudCompra extends CreateRecord
 
     protected function afterCreate(): void
     {
-        if (blank($this->record->codigo_control)) {
-            $this->record->forceFill([
-                'codigo_control' => (string) $this->record->id,
-            ])->save();
-        }
+        $this->record = SolicitudCompraFlow::ensureTrackingIdentifiers(
+            $this->record,
+            (int) ($this->record->solicitado_por_user_id ?: auth()->id())
+        );
     }
 
     private function getSignatureSchema(): array
