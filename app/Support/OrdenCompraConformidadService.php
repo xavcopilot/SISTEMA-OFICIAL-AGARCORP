@@ -41,6 +41,7 @@ class OrdenCompraConformidadService
                 'conformidad_por_user_id' => $user->id,
                 'inventario_movimiento_id' => $movement->id,
                 'factura_pendiente' => false,
+                'workflow_post_compra' => 'CERRADA_CONFORME',
             ])->save();
 
             return $ordenCompra->fresh(['inventarioMovimiento', 'sumario.solicitudCompra']);

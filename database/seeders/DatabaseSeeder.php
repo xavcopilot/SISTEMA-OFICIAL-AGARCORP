@@ -57,13 +57,14 @@ class DatabaseSeeder extends Seeder
             ],
         ];
 
-        // 1. Definimos los roles y sus contraseñas (antes estaba en $departamentos)
+        // 1. Definimos los roles y sus contraseñas.
         $roles = [
             'Procura'     => 'procura',
             'Almacen'     => 'almacen',
             'Talento Humano' => 'talentohumano',
             'A.I.T'       => 'ait',
             'Finanzas'    => 'finanzas',
+            'Administracion' => 'administracion',
         ];
 
         // creamos departamentos primero
@@ -206,6 +207,7 @@ class DatabaseSeeder extends Seeder
             'Talento Humano' => 'TALENTO HUMANO',
             'A.I.T' => 'A.I.T',
             'Finanzas' => 'FINANZAS',
+            'Administracion' => 'ADMINISTRACIÓN',
         ];
 
         $roleUserOverrides = [
@@ -222,6 +224,11 @@ class DatabaseSeeder extends Seeder
             'Finanzas' => [
                 'name' => 'Vanessa',
                 'email' => 'vanessa@agarven.com',
+                'cargo' => 'Analista',
+            ],
+            'Administracion' => [
+                'name' => 'administracion',
+                'email' => 'administracion@agarven.com',
                 'cargo' => 'Analista',
             ],
         ];
@@ -280,9 +287,13 @@ class DatabaseSeeder extends Seeder
                 $roleModel->givePermissionTo(['ValidateFinance:Sumario']);
             }
 
+            if ($rol === 'Administracion') {
+                $roleModel->givePermissionTo($ordenCompraReadPermissions);
+            }
+
             if ($rol === 'A.I.T') {
                 $roleModel->givePermissionTo(array_merge(
-                    $inventoryViewPermissions,
+                    $inventoryViewPermissions,adv12
                     $categoryReadWritePermissions,
                     $categoryDeletePermissions,
                     $sumarioReviewPermissions,

@@ -101,6 +101,7 @@ class SumarioFinanceApprovalService
                     'gastos_adicionales' => $gastosAdicionales,
                     'total_general' => round($subTotal + $iva + $gastosAdicionales + $montoExento, 2),
                     'estado' => 'PENDIENTE_APROBACION',
+                    'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
                 ]);
 
                 foreach ($group['items'] as $entry) {

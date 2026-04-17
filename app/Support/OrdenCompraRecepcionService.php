@@ -42,6 +42,7 @@ class OrdenCompraRecepcionService
                 'recepcion_procesada_at' => $now,
                 'recibido_por_user_id' => $user->id,
                 'estado' => 'RECIBIDA',
+                'workflow_post_compra' => 'EN_TRANSICION_ALMACEN',
             ])->save();
 
             $ordenCompra->items()->update([
@@ -52,7 +53,7 @@ class OrdenCompraRecepcionService
             $this->notifySolicitante($ordenCompra);
 
             if ($tipoDocumento === 'FACTURA' && filled($facturaPath)) {
-                $this->notifyAdministracion($ordenCompra);
+                $this->notifyFinanzas($ordenCompra);
             }
 
             return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
@@ -74,10 +75,10 @@ class OrdenCompraRecepcionService
             ->sendToDatabase($solicitante);
     }
 
-    private function notifyAdministracion(OrdenCompra $ordenCompra): void
+    private function notifyFinanzas(OrdenCompra $ordenCompra): void
     {
         $departamentoId = Departamento::query()
-            ->whereIn('nombre', ['ADMINISTRACIÓN', 'ADMINISTRACION'])
+            ->where('nombre', 'FINANZAS')
             ->value('id');
 
         $usuarios = User::query()
@@ -90,10 +91,10 @@ class OrdenCompraRecepcionService
 
         $url = OrdenCompraResource::getUrl('edit', ['record' => $ordenCompra]);
 
-        $usuarios->each(function (User $adminUser) use ($ordenCompra, $url): void {
+        $usuarios->each(function (User $financeUser) use ($ordenCompra, $url): void {
             Notification::make()
-                ->title('Nueva factura para proceso contable')
-                ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' subio factura en recepcion. Revisar en bandeja de Administracion.')
+                ->title('Factura recibida desde Procura')
+                ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' tiene factura cargada. Validar y enviar a Administracion.')
                 ->actions([
                     \Filament\Actions\Action::make('abrir')
                         ->label('Abrir ODC')
@@ -101,7 +102,7 @@ class OrdenCompraRecepcionService
                         ->button(),
                 ])
                 ->warning()
-                ->sendToDatabase($adminUser);
+                ->sendToDatabase($financeUser);
         });
     }
 }

@@ -83,6 +83,56 @@ class OrdenCompraForm
                                     ])
                                     ->required()
                                     ->columnSpan(4),
+
+                                TextInput::make('workflow_post_compra')
+                                    ->label('Flujo post-compra')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(4),
+                            ]),
+                    ])
+                    ->columnSpanFull(),
+
+                Section::make('Pagos y confirmaciones')
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                TextInput::make('monto_pagado')
+                                    ->label('Monto pagado')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
+
+                                TextInput::make('referencia_pago')
+                                    ->label('Referencia pago')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
+
+                                TextInput::make('pago_registrado_at')
+                                    ->label('Pago registrado en')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
+
+                                TextInput::make('confirmado_procura_at')
+                                    ->label('Confirmado por Procura en')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
+
+                                Placeholder::make('comprobante_pago_preview')
+                                    ->label('Comprobante de pago')
+                                    ->content(fn ($record): string => filled($record?->comprobante_pago_path)
+                                        ? (string) $record->comprobante_pago_path
+                                        : 'No cargado')
+                                    ->columnSpan(6),
+
+                                TextInput::make('observacion_pago')
+                                    ->label('Observacion de pago')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(6),
                             ]),
                     ])
                     ->columnSpanFull(),
@@ -218,7 +268,19 @@ class OrdenCompraForm
                                 Placeholder::make('factura_path_preview')
                                     ->label('Factura cargada')
                                     ->content(fn ($record): string => filled($record?->factura_path) ? (string) $record->factura_path : 'No cargada')
-                                    ->columnSpan(8),
+                                    ->columnSpan(6),
+
+                                TextInput::make('factura_enviada_administracion_at')
+                                    ->label('Factura enviada a Administracion')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
+
+                                TextInput::make('factura_procesada_administracion_at')
+                                    ->label('Factura procesada por Administracion')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(3),
 
                                 Placeholder::make('alerta_factura')
                                     ->label('Alerta')
@@ -226,6 +288,11 @@ class OrdenCompraForm
                                         ? 'FACTURA PENDIENTE: recibido con Nota de Entrega.'
                                         : 'Sin alertas de factura pendiente.')
                                     ->columnSpan(4),
+
+                                Placeholder::make('retenciones_placeholder')
+                                    ->label('Retenciones y comprobantes')
+                                    ->content('Proximamente: detalle contable de retenciones, comprobantes y carga manual de respaldo.')
+                                    ->columnSpan(8),
                             ]),
                     ])
                     ->columnSpanFull(),

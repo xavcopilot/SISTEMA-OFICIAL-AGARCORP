@@ -10,6 +10,8 @@ class SumarioItemOpcion extends Model
 {
     use HasFactory;
 
+    protected $table = 'sumario_item_opciones';
+
     protected $fillable = [
         'sumario_item_id',
         'opcion_numero',
