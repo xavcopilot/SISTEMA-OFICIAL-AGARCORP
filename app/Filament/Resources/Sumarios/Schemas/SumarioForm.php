@@ -206,10 +206,14 @@ class SumarioForm
                                 Select::make('solicitud_compra_id')
                                     ->label('Solicitud Compra Base')
                                     ->options(fn (): array => self::solicitudCompraOptions())
+                                    ->default(fn (): ?int => request()->integer('solicitud_compra_id') ?: null)
                                     ->searchable()
                                     ->preload()
                                     ->required()
                                     ->live()
+                                    ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                        self::hydrateSolicitudSelection($state, $set, $get);
+                                    })
                                     ->afterStateUpdated(function ($state, callable $set): void {
                                         $solicitud = filled($state) ? SolicitudCompra::find($state) : null;
 
@@ -643,15 +647,81 @@ class SumarioForm
         return SolicitudCompra::query()
             ->whereNotNull('fecha_receptor')
             ->where('estado', '!=', 'RECHAZADA')
+            ->orderByDesc('fecha_receptor')
             ->orderByDesc('id')
-            ->get(['id', 'codigo_control', 'departamento_solicitante'])
+            ->get(['id', 'codigo_control', 'numero_solicitud_usuario', 'departamento_solicitante', 'para_ser_usado_en'])
             ->mapWithKeys(function (SolicitudCompra $solicitud): array {
                 $codigo = $solicitud->codigo_control ?: (string) $solicitud->id;
-                $label = $codigo . ' | ' . ($solicitud->departamento_solicitante ?: 'Sin departamento');
+                $numeroSolicitud = $solicitud->numero_solicitud_usuario ?: $solicitud->id;
+                $uso = trim((string) ($solicitud->para_ser_usado_en ?? ''));
+                $usoCorto = $uso !== '' ? mb_strimwidth($uso, 0, 60, '...') : 'Sin detalle de uso';
+
+                $label = 'N° ' . $numeroSolicitud
+                    . ' | ' . $codigo
+                    . ' | ' . ($solicitud->departamento_solicitante ?: 'Sin departamento')
+                    . ' | ' . $usoCorto;
 
                 return [$solicitud->id => $label];
             })
             ->all();
+    }
+
+    private static function hydrateSolicitudSelection(mixed $state, callable $set, callable $get): void
+    {
+        $solicitudId = (int) ($state ?? 0);
+
+        if ($solicitudId <= 0) {
+            return;
+        }
+
+        $set('departamento_solicitante', SolicitudCompra::query()->whereKey($solicitudId)->value('departamento_solicitante'));
+
+        $existingSelected = collect($get('selected_item_ids') ?? [])
+            ->filter(fn ($id): bool => filled($id))
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->values()
+            ->all();
+
+        $existingRows = is_array($get('comparativo_items')) ? $get('comparativo_items') : [];
+
+        if ($existingRows !== []) {
+            if ($existingSelected === []) {
+                $existingSelected = collect($existingRows)
+                    ->pluck('solicitud_compra_item_id')
+                    ->filter(fn ($id): bool => filled($id))
+                    ->map(fn ($id): int => (int) $id)
+                    ->filter(fn (int $id): bool => $id > 0)
+                    ->values()
+                    ->all();
+
+                if ($existingSelected !== []) {
+                    $set('selected_item_ids', array_map(fn (int $id): string => (string) $id, $existingSelected));
+                }
+            }
+
+            self::setColumnTotals(self::recalculateRows($existingRows), $set);
+
+            return;
+        }
+
+        $selectedIds = $existingSelected;
+
+        if ($selectedIds === []) {
+            $selectedIds = SolicitudCompraItem::query()
+                ->where('solicitud_compra_id', $solicitudId)
+                ->orderBy('item')
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->values()
+                ->all();
+
+            $set('selected_item_ids', array_map(fn (int $id): string => (string) $id, $selectedIds));
+        }
+
+        if ($selectedIds !== []) {
+            self::syncRowsFromSelectedItems($selectedIds, [], $solicitudId, $set);
+        }
     }
 
     public static function solicitudItemOptions(int $solicitudId): array

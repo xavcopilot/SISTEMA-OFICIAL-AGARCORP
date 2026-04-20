@@ -16,6 +16,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Models\User;
+use App\Support\ControlCodeGenerator;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OrdenCompraRecepcionService;
 use App\Support\SolicitudCompraFlow;
@@ -188,12 +189,12 @@ function createSolicitudCompraBase(User $solicitante, User $almacen, User $aprob
         ->where('solicitado_por_user_id', $solicitante->id)
         ->max('numero_solicitud_usuario')) + 1;
 
-    $codeSeed = now()->format('YmdHis') . '-' . random_int(100, 999);
+    $codeSeed = now()->format('His') . '-' . random_int(100, 999);
 
     return SolicitudCompra::query()->create([
-        'codigo_control' => $prefix . '-' . $codeSeed,
+        'codigo_control' => ControlCodeGenerator::generate('SOL', SolicitudCompra::class, 'codigo_control'),
         'numero_solicitud_usuario' => $numeroUsuario,
-        'codigo_control_procura' => 'PROC-' . $codeSeed,
+        'codigo_control_procura' => ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
         'fecha_solicitud' => now()->toDateString(),
         'tipo_solicitud' => 'Consumo',
         'prioridad' => 'Media',
@@ -247,7 +248,7 @@ function createSolicitudItems(SolicitudCompra $solicitud, int $itemsCount): arra
 
 function createApprovedSumario(SolicitudCompra $solicitud, User $procura, User $gerenciaFinanzas, array $providers, string $prefix): Sumario
 {
-    $corr = 'SDC-' . now()->format('YmdHis') . '-' . random_int(100, 999);
+    $corr = ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
 
     return Sumario::query()->create([
         'solicitud_compra_id' => $solicitud->id,

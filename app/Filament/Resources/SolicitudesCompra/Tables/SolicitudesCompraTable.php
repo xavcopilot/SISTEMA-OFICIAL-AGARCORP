@@ -3,7 +3,11 @@
 namespace App\Filament\Resources\SolicitudesCompra\Tables;
 
 use App\Filament\Resources\AprobacionesCompra\AprobacionesCompraResource;
+use App\Filament\Resources\Sumarios\SumarioResource;
+use App\Models\OrdenCompra;
+use App\Models\OrdenCompraItem;
 use App\Models\SolicitudCompra;
+use App\Models\SolicitudCompraItem;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -20,6 +24,9 @@ use Illuminate\Support\HtmlString;
 
 class SolicitudesCompraTable
 {
+    /** @var array<int, array{label:string,color:string}> */
+    private static array $generalStateCache = [];
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -51,11 +58,11 @@ class SolicitudesCompraTable
                     ->label('Prioridad')
                     ->badge(),
 
-                TextColumn::make('estado')
+                TextColumn::make('estado_general')
                     ->label('Estado')
+                    ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
                     ->badge()
-                    ->formatStateUsing(fn ($state) => filled($state) ? str_replace('_', ' ', (string) $state) : '-')
-                    ->color(fn ($state) => (string) $state === 'RECHAZADA' ? 'danger' : 'gray'),
+                    ->color(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['color']),
             ])
             ->recordActions([
                 Action::make('imprimirPdf')
@@ -74,6 +81,22 @@ class SolicitudesCompraTable
                     ->modalWidth('7xl')
                     ->fillForm(fn (SolicitudCompra $record): array => self::getViewFormData($record))
                     ->schema(self::getViewSchema()),
+
+                Action::make('trazabilidadSolicitud')
+                    ->label('Trazabilidad')
+                    ->icon(Heroicon::OutlinedChartBar)
+                    ->color('info')
+                    ->visible(fn (SolicitudCompra $record): bool => filled($record->fecha_receptor))
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Trazabilidad solicitud ' . (string) ($record->codigo_control ?: $record->id))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->schema([
+                        Placeholder::make('trazabilidad_detalle')
+                            ->hiddenLabel()
+                            ->content(fn (SolicitudCompra $record): HtmlString => new HtmlString(self::renderTrackingView($record)))
+                            ->dehydrated(false),
+                    ]),
 
                 EditAction::make()
                     ->authorize(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record))
@@ -321,12 +344,12 @@ class SolicitudesCompraTable
                     ->label('Prioridad')
                     ->badge(),
 
-                TextColumn::make('estado')
+                TextColumn::make('estado_general')
                     ->label('Estado')
+                    ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
                     ->badge()
-                    ->formatStateUsing(fn ($state) => filled($state) ? str_replace('_', ' ', (string) $state) : '-')
                     ->visible(fn ($livewire): bool => ! self::isApprovalHistoryTab($livewire))
-                    ->color(fn ($state) => (string) $state === 'RECHAZADA' ? 'danger' : 'gray'),
+                    ->color(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['color']),
 
                 TextColumn::make('estado_rol')
                     ->label('Estado')
@@ -348,6 +371,33 @@ class SolicitudesCompraTable
                     ->icon(Heroicon::OutlinedPrinter)
                     ->url(fn ($record) => route('solicitudes-compra.formato.print', ['solicitudCompra' => $record]))
                     ->openUrlInNewTab(),
+
+                Action::make('crearSumario')
+                    ->label('Crear sumario')
+                    ->icon(Heroicon::OutlinedDocumentPlus)
+                    ->color('success')
+                    ->visible(fn (SolicitudCompra $record): bool => auth()->user()?->can('Create:Sumario')
+                        && filled($record->fecha_receptor)
+                        && (string) $record->estado !== 'RECHAZADA')
+                    ->url(fn (SolicitudCompra $record): string => SumarioResource::getUrl('create', [
+                        'solicitud_compra_id' => $record->id,
+                    ])),
+
+                Action::make('trazabilidadSolicitud')
+                    ->label('Trazabilidad')
+                    ->icon(Heroicon::OutlinedChartBar)
+                    ->color('info')
+                    ->visible(fn (SolicitudCompra $record): bool => filled($record->fecha_receptor))
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Trazabilidad solicitud ' . (string) ($record->codigo_control ?: $record->id))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->schema([
+                        Placeholder::make('trazabilidad_detalle')
+                            ->hiddenLabel()
+                            ->content(fn (SolicitudCompra $record): HtmlString => new HtmlString(self::renderTrackingView($record)))
+                            ->dehydrated(false),
+                    ]),
 
                 Action::make('verGestion')
                     ->label('Ver')
@@ -460,5 +510,301 @@ class SolicitudesCompraTable
         }
 
         return '';
+    }
+
+    /**
+     * @return array{label:string,color:string}
+     */
+    private static function resolveGeneralState(SolicitudCompra $record): array
+    {
+        $recordId = (int) $record->id;
+
+        if (isset(self::$generalStateCache[$recordId])) {
+            return self::$generalStateCache[$recordId];
+        }
+
+        if ((string) $record->estado === 'RECHAZADA') {
+            return self::$generalStateCache[$recordId] = ['label' => 'Rechazada', 'color' => 'danger'];
+        }
+
+        if ((string) $record->estado === 'BORRADOR' || blank($record->firma_solicitante)) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Borrador', 'color' => 'gray'];
+        }
+
+        if (blank($record->fecha_almacen)) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En espera de almacen', 'color' => 'warning'];
+        }
+
+        if (blank($record->fecha_aprobador)) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En espera de aprobador', 'color' => 'warning'];
+        }
+
+        if (blank($record->fecha_receptor)) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En espera de procura', 'color' => 'warning'];
+        }
+
+        $sumarioIds = $record->sumarios()->pluck('id');
+
+        if ($sumarioIds->isEmpty()) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Recibido por procura', 'color' => 'info'];
+        }
+
+        $ordenes = OrdenCompra::query()
+            ->whereIn('sumario_id', $sumarioIds)
+            ->get(['estado', 'workflow_post_compra']);
+
+        if ($ordenes->isEmpty()) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En sumario de cotizaciones', 'color' => 'info'];
+        }
+
+        $workflows = $ordenes->pluck('workflow_post_compra')->filter()->map(fn ($value): string => (string) $value);
+        $estados = $ordenes->pluck('estado')->filter()->map(fn ($value): string => (string) $value);
+
+        if ($workflows->contains('CERRADA_CONFORME')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Cerrada conforme', 'color' => 'success'];
+        }
+
+        if ($workflows->contains('RECHAZO_SOLICITANTE') || $workflows->contains('RECHAZADA_SOLICITANTE')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Con rechazo del solicitante', 'color' => 'danger'];
+        }
+
+        if ($workflows->contains('FACTURA_PROCESADA_ADMINISTRACION') || $workflows->contains('BACKUP_FACTURA_COMPLETADO')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Factura procesada por administracion', 'color' => 'success'];
+        }
+
+        if ($workflows->contains('FACTURA_ENVIADA_ADMINISTRACION')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Factura enviada a administracion', 'color' => 'info'];
+        }
+
+        if ($workflows->contains('EN_TRANSICION_ALMACEN')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En transicion a almacen', 'color' => 'info'];
+        }
+
+        if ($workflows->contains('EN_ESPERA_DE_PRODUCTO') || $workflows->contains('ESPERANDO_PRODUCTO')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En espera de producto', 'color' => 'warning'];
+        }
+
+        if ($workflows->contains('PAGO_CONFIRMADO_PROCURA')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Pago confirmado por procura', 'color' => 'info'];
+        }
+
+        if ($workflows->contains('PAGO_REGISTRADO_FINANZAS')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Pago registrado por finanzas', 'color' => 'info'];
+        }
+
+        if ($workflows->contains('PENDIENTE_PAGO_FINANZAS')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Pendiente de pago finanzas', 'color' => 'warning'];
+        }
+
+        if ($estados->contains('PENDIENTE_APROBACION')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'ODC pendiente de aprobacion', 'color' => 'warning'];
+        }
+
+        return self::$generalStateCache[$recordId] = ['label' => 'En proceso de ODC', 'color' => 'gray'];
+    }
+
+    private static function renderTrackingView(SolicitudCompra $record): string
+    {
+        $tracking = self::buildTrackingData($record);
+        $summary = $tracking['summary'];
+        $items = $tracking['items'];
+        $internalCycle = self::resolveInternalRequestCycle($record);
+
+        $rows = collect($items)
+            ->map(function (array $item): string {
+                return '<tr>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['item']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['descripcion']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['estado_item']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['sumarios']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['odcs']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['fase']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;font-weight:700;">' . e((string) $item['porcentaje']) . '%</td>'
+                    . '</tr>';
+            })
+            ->implode('');
+
+        if ($rows === '') {
+            $rows = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:10px;text-align:center;color:#6b7280;">Sin items registrados.</td></tr>';
+        }
+
+        return '<div style="display:grid;gap:12px;">'
+            . '<div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;background:#f9fafb;">'
+            . '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;">Ciclo interno de la solicitud (antes de procura)</div>'
+            . '<div style="font-size:14px;font-weight:700;color:#111827;margin-top:4px;">Estado actual: ' . e($internalCycle['current_label']) . '</div>'
+            . '<div style="font-size:12px;color:#374151;margin-top:6px;">NACE LA SOLICITUD = EN ESPERA DE ALMACEN / ALMACEN APRUEBA = EN ESPERA DE APROBADOR / APROBADOR APRUEBA = EN ESPERA DE PROCURA / PROCURA FIRMA = RECIBIDO POR PROCURA</div>'
+            . '</div>'
+            . '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">'
+            . self::trackingCard('Sumarios', (string) $summary['sumarios_count'])
+            . self::trackingCard('ODC', (string) $summary['odcs_count'])
+            . self::trackingCard('Items', (string) $summary['items_count'])
+            . self::trackingCard('Avance general', (string) $summary['progress'] . '%')
+            . '</div>'
+            . '<div style="overflow:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead><tr style="background:#f3f4f6;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Sumarios</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">ODC</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Fase actual</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Avance</th>'
+            . '</tr></thead>'
+            . '<tbody>' . $rows . '</tbody>'
+            . '</table>'
+            . '</div>'
+            . '</div>';
+    }
+
+    private static function trackingCard(string $title, string $value): string
+    {
+        return '<div style="border:1px solid #d1d5db;border-radius:10px;padding:10px;background:#f9fafb;">'
+            . '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;">' . e($title) . '</div>'
+            . '<div style="font-size:20px;font-weight:700;color:#111827;">' . e($value) . '</div>'
+            . '</div>';
+    }
+
+    /**
+     * @return array{summary: array{sumarios_count:int,odcs_count:int,items_count:int,progress:int}, items: array<int, array<string, mixed>>}
+     */
+    private static function buildTrackingData(SolicitudCompra $record): array
+    {
+        $solicitudId = (int) $record->id;
+
+        $items = SolicitudCompraItem::query()
+            ->where('solicitud_compra_id', $solicitudId)
+            ->withCount('sumarioItems')
+            ->orderBy('item')
+            ->get();
+
+        $itemIds = $items->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
+
+        $ocItems = OrdenCompraItem::query()
+            ->whereIn('solicitud_compra_item_id', $itemIds)
+            ->whereHas('ordenCompra.sumario', fn ($query) => $query->where('solicitud_compra_id', $solicitudId))
+            ->with('ordenCompra:id,correlativo_odc,workflow_post_compra,estado')
+            ->get()
+            ->groupBy('solicitud_compra_item_id');
+
+        $rows = [];
+        $progressAccumulator = 0;
+
+        foreach ($items as $item) {
+            $itemOcRows = $ocItems->get($item->id, collect());
+
+            $status = self::resolveItemTrackingStatus(
+                $record,
+                (string) ($item->estado_item ?: 'SIN_PROCESAR'),
+                $itemOcRows->sortByDesc('id')->first()
+            );
+
+            $odcCount = $itemOcRows
+                ->pluck('orden_compra_id')
+                ->unique()
+                ->count();
+
+            $progressAccumulator += $status['percent'];
+
+            $rows[] = [
+                'item' => $item->item ?: $item->id,
+                'descripcion' => $item->descripcion,
+                'estado_item' => str_replace('_', ' ', (string) ($item->estado_item ?: 'SIN_PROCESAR')),
+                'sumarios' => (int) $item->sumario_items_count,
+                'odcs' => $odcCount,
+                'fase' => $status['label'],
+                'porcentaje' => $status['percent'],
+            ];
+        }
+
+        $itemsCount = count($rows);
+        $progress = $itemsCount > 0 ? (int) round($progressAccumulator / $itemsCount) : 0;
+
+        return [
+            'summary' => [
+                'sumarios_count' => $record->sumarios()->count(),
+                'odcs_count' => $record->sumarios()->withCount('ordenesCompra')->get()->sum('ordenes_compra_count'),
+                'items_count' => $itemsCount,
+                'progress' => $progress,
+            ],
+            'items' => $rows,
+        ];
+    }
+
+    /**
+     * @return array{label:string,percent:int}
+     */
+    private static function resolveItemTrackingStatus(SolicitudCompra $record, string $estadoItem, mixed $latestOcItem): array
+    {
+        $internalCycle = self::resolveInternalRequestCycle($record);
+
+        if (! $latestOcItem) {
+            return match ($estadoItem) {
+                'EN_SUMARIO' => ['label' => 'Comparativo en sumario', 'percent' => 40],
+                'EN_OC' => ['label' => 'En ODC (sin detalle)', 'percent' => 60],
+                default => ['label' => $internalCycle['current_label'], 'percent' => $internalCycle['percent']],
+            };
+        }
+
+        $workflow = (string) ($latestOcItem->ordenCompra->workflow_post_compra ?? '');
+        $recepcionEstado = (string) ($latestOcItem->estado_recepcion ?? '');
+
+        if ($recepcionEstado === 'ENTREGADO_SOLICITANTE') {
+            return ['label' => 'Entregado al solicitante', 'percent' => 100];
+        }
+
+        return match ($workflow) {
+            'PENDIENTE_PAGO_FINANZAS' => ['label' => 'ODC pendiente de pago', 'percent' => 60],
+            'PAGO_REGISTRADO_FINANZAS' => ['label' => 'Pago registrado por Finanzas', 'percent' => 70],
+            'PAGO_CONFIRMADO_PROCURA' => ['label' => 'Pago confirmado por Procura', 'percent' => 75],
+            'ESPERANDO_PRODUCTO' => ['label' => 'Esperando producto', 'percent' => 80],
+            'EN_ESPERA_DE_PRODUCTO' => ['label' => 'Esperando producto', 'percent' => 80],
+            'EN_TRANSICION_ALMACEN' => ['label' => 'En transicion a almacen', 'percent' => 85],
+            'FACTURA_ENVIADA_ADMINISTRACION' => ['label' => 'Factura enviada a Administracion', 'percent' => 90],
+            'FACTURA_PROCESADA_ADMINISTRACION' => ['label' => 'Factura procesada por Administracion', 'percent' => 95],
+            'BACKUP_FACTURA_COMPLETADO' => ['label' => 'Factura procesada (respaldo completo)', 'percent' => 95],
+            'CERRADA_CONFORME' => ['label' => 'Cerrada conforme', 'percent' => 100],
+            'RECHAZO_SOLICITANTE' => ['label' => 'Rechazo del solicitante', 'percent' => 65],
+            default => ['label' => 'ODC en proceso', 'percent' => 60],
+        };
+    }
+
+    /**
+     * @return array{current_label:string,percent:int}
+     */
+    private static function resolveInternalRequestCycle(SolicitudCompra $record): array
+    {
+        if ((string) $record->estado === 'BORRADOR' || blank($record->firma_solicitante)) {
+            return [
+                'current_label' => 'Borrador (sin enviar)',
+                'percent' => 0,
+            ];
+        }
+
+        if (blank($record->fecha_almacen)) {
+            return [
+                'current_label' => 'En espera de almacen',
+                'percent' => 10,
+            ];
+        }
+
+        if (blank($record->fecha_aprobador)) {
+            return [
+                'current_label' => 'En espera de aprobador',
+                'percent' => 20,
+            ];
+        }
+
+        if (blank($record->fecha_receptor)) {
+            return [
+                'current_label' => 'En espera de procura',
+                'percent' => 30,
+            ];
+        }
+
+        return [
+            'current_label' => 'Recibido por procura',
+            'percent' => 40,
+        ];
     }
 }

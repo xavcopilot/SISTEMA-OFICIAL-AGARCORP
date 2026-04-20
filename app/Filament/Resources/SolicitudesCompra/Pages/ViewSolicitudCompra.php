@@ -6,6 +6,7 @@ use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Models\User;
 use App\Support\ActivityNotification;
+use App\Support\ControlCodeGenerator;
 use App\Support\SolicitudCompraFlow;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
@@ -290,6 +291,7 @@ class ViewSolicitudCompra extends ViewRecord
         $record->forceFill([
             'recibido_por_user_id' => $record->recibido_por_user_id ?: auth()->id(),
             'cargo_receptor' => auth()->user()?->cargo?->nombre,
+            'codigo_control_procura' => $record->codigo_control_procura ?: ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
             'firma_receptor' => $record->firma_receptor,
             'fecha_receptor' => now()->toDateString(),
             'hora_receptor' => now()->format('H:i:s'),
@@ -490,6 +492,8 @@ class ViewSolicitudCompra extends ViewRecord
             'cargo_almacen',
             'cargo_aprobador',
             'cargo_receptor',
+            'codigo_control',
+            'codigo_control_procura',
             'firma_solicitante',
             'firma_almacen',
             'firma_aprobador',

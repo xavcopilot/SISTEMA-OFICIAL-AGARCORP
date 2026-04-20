@@ -191,7 +191,7 @@ class SolicitudCompraFlow
             $changes = [];
 
             if (blank($lockedRecord->codigo_control)) {
-                $changes['codigo_control'] = (string) $lockedRecord->id;
+                $changes['codigo_control'] = ControlCodeGenerator::generate('SOL', SolicitudCompra::class, 'codigo_control');
             }
 
             if (blank($lockedRecord->numero_solicitud_usuario) && $resolvedRequesterId > 0) {
@@ -208,12 +208,13 @@ class SolicitudCompraFlow
 
     private static function nextRequesterSequence(int $requesterUserId): int
     {
-        $max = (int) SolicitudCompra::query()
+        $lastSequence = SolicitudCompra::query()
             ->where('solicitado_por_user_id', $requesterUserId)
             ->lockForUpdate()
-            ->max('numero_solicitud_usuario');
+            ->orderByDesc('numero_solicitud_usuario')
+            ->value('numero_solicitud_usuario');
 
-        return $max + 1;
+        return ((int) $lastSequence) + 1;
     }
 
     public static function canEditRejectedRequest(?User $user, SolicitudCompra $solicitudCompra): bool

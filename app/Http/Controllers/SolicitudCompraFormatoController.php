@@ -23,7 +23,7 @@ class SolicitudCompraFormatoController extends Controller
     private const PDF_MAX_END_ROW = 48;
     private const USO_LINE_MAX = 80;
     private const MAX_ITEMS = 15;
-    private const USAR_CODIGOS_PREDEFINIDOS = true;
+    private const USAR_CODIGOS_PREDEFINIDOS = false;
     private const CODIGO_CONTROL_PREDEFINIDO = 'CTRL-2026-000123';
     private const CODIGO_PROCURA_PREDEFINIDO = 'PROC-2026-000123';
     private const SIGNATURE_TOKENS = [

@@ -9,6 +9,7 @@ use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
+use App\Support\ControlCodeGenerator;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -107,6 +108,10 @@ class CreateSumario extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+
+        $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
+            ? trim((string) $data['correlativo_sdc'])
+            : ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
 
         $data['total_compra_prov1'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov1'] ?? 0)), 2);
         $data['total_compra_prov2'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov2'] ?? 0)), 2);
@@ -285,11 +290,7 @@ class CreateSumario extends CreateRecord
 
     private function generateDraftCorrelativo(): string
     {
-        do {
-            $candidate = 'BOR-' . now()->format('Ymd-His') . '-' . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
-        } while (Sumario::query()->where('correlativo_sdc', $candidate)->exists());
-
-        return $candidate;
+        return ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
     }
 
     /**

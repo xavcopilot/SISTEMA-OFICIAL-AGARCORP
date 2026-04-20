@@ -11,6 +11,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Models\User;
+use App\Support\ControlCodeGenerator;
 use Illuminate\Support\Facades\DB;
 
 class SumarioFinanceApprovalService
@@ -182,18 +183,6 @@ class SumarioFinanceApprovalService
 
     private function nextCorrelativoOdc(): string
     {
-        $year = now()->format('Y');
-
-        $next = OrdenCompra::query()
-            ->where('correlativo_odc', 'like', 'ODC-%-' . $year)
-            ->count() + 1;
-
-        do {
-            $correlativo = sprintf('ODC-%03d-%s', $next, $year);
-            $exists = OrdenCompra::query()->where('correlativo_odc', $correlativo)->exists();
-            $next++;
-        } while ($exists);
-
-        return $correlativo;
+        return ControlCodeGenerator::generate('OC', OrdenCompra::class, 'correlativo_odc');
     }
 }
