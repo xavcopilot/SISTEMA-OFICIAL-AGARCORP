@@ -8,11 +8,26 @@ use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 
 class ListOrdenesCompra extends ListRecords
 {
     protected static string $resource = OrdenCompraResource::class;
+
+    public function getTabs(): array
+    {
+        return [
+            'bandeja_finanzas' => Tab::make('Bandeja Finanzas')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')),
+            'pagadas_transito' => Tab::make('Pagadas y en transito')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')),
+            'todas' => Tab::make('Todas'),
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

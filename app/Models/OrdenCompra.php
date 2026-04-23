@@ -88,6 +88,11 @@ class OrdenCompra extends Model
         return $this->hasMany(OrdenCompraItem::class);
     }
 
+    public function comprobantes(): HasMany
+    {
+        return $this->hasMany(OrdenCompraComprobante::class);
+    }
+
     public function recibidoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recibido_por_user_id');

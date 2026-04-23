@@ -50,6 +50,12 @@ class SumariosTable
                     ->label('Tipo orden')
                     ->badge(),
 
+                TextColumn::make('mensaje_pago_transito')
+                    ->label('Mensaje dinamico')
+                    ->state(fn ($record): string => self::buildPaidTransitMessage($record))
+                    ->wrap()
+                    ->toggleable(),
+
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
@@ -561,5 +567,34 @@ class SumariosTable
             . '</div>';
 
         return $headerInfo . $table;
+    }
+
+    private static function buildPaidTransitMessage(mixed $record): string
+    {
+        $sumario = $record->loadMissing(['ordenesCompra.items']);
+
+        $segments = [];
+
+        foreach ($sumario->ordenesCompra as $ordenCompra) {
+            if ((string) ($ordenCompra->workflow_post_compra ?? '') !== 'PAGADO_Y_EN_TRANSITO') {
+                continue;
+            }
+
+            $itemsText = $ordenCompra->items
+                ->map(function ($item): string {
+                    $itemNumero = (string) ($item->item ?: $item->id);
+
+                    return '#' . $itemNumero . ' ' . (string) $item->descripcion;
+                })
+                ->implode(', ');
+
+            if ($itemsText === '') {
+                continue;
+            }
+
+            $segments[] = 'Los siguientes items de la OC ' . (string) $ordenCompra->id . ' fueron pagados y estan en transito: ' . $itemsText;
+        }
+
+        return $segments === [] ? 'Sin items pagados y en transito.' : implode(' | ', $segments);
     }
 }

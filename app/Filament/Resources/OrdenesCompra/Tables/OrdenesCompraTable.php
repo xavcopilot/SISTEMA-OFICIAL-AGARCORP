@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\OrdenesCompra\Tables;
 
 use App\Models\Departamento;
+use App\Models\SumarioItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
 use App\Support\OrdenCompraConformidadService;
@@ -138,9 +139,10 @@ class OrdenesCompraTable
                             ->label('Referencia / Nro operacion')
                             ->maxLength(255)
                             ->required(),
-                        FileUpload::make('comprobante_pago_path')
-                            ->label('Comprobante de pago')
+                        FileUpload::make('comprobantes_pago_paths')
+                            ->label('Comprobantes bancarios')
                             ->image()
+                            ->multiple()
                             ->disk('public')
                             ->directory('ordenes-compra/comprobantes-pago')
                             ->visibility('public')
@@ -150,16 +152,38 @@ class OrdenesCompraTable
                             ->rows(3),
                     ])
                     ->action(function (array $data, $record): void {
+                        $comprobantes = collect($data['comprobantes_pago_paths'] ?? [])
+                            ->filter(fn ($path): bool => filled($path))
+                            ->values()
+                            ->all();
+
+                        if ($comprobantes === []) {
+                            Notification::make()
+                                ->title('Comprobantes requeridos')
+                                ->body('Debes subir al menos un comprobante bancario.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         $record->forceFill([
                             'monto_pagado' => round((float) ($data['monto_pagado'] ?? 0), 2),
                             'referencia_pago' => (string) ($data['referencia_pago'] ?? ''),
-                            'comprobante_pago_path' => $data['comprobante_pago_path'] ?? null,
+                            'comprobante_pago_path' => $comprobantes[0] ?? null,
                             'observacion_pago' => (string) ($data['observacion_pago'] ?? ''),
                             'pago_registrado_at' => now(),
                             'pago_por_user_id' => auth()->id(),
                             'estado' => 'PAGADA',
                             'workflow_post_compra' => 'PAGO_REGISTRADO_FINANZAS',
                         ])->save();
+
+                        foreach ($comprobantes as $path) {
+                            $record->comprobantes()->create([
+                                'archivo_path' => (string) $path,
+                                'subido_por_user_id' => auth()->id(),
+                            ]);
+                        }
 
                         self::notifyProcuraPaymentRegistered($record);
 
@@ -171,7 +195,7 @@ class OrdenesCompraTable
                     }),
 
                 Action::make('confirmarPagoProcura')
-                    ->label('Procura: Confirmar pago recibido')
+                    ->label('Procura: Marcar Pagado y En Transito')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
                     ->color('info')
                     ->visible(fn ($record): bool => self::canConfirmPaymentByProcura($record))
@@ -180,12 +204,16 @@ class OrdenesCompraTable
                             'confirmado_procura_at' => now(),
                             'confirmado_por_user_id' => auth()->id(),
                             'estado' => 'EN_ESPERA_DE_PRODUCTO',
-                            'workflow_post_compra' => 'ESPERANDO_PRODUCTO',
+                            'workflow_post_compra' => 'PAGADO_Y_EN_TRANSITO',
                         ])->save();
 
+                        SumarioItem::query()
+                            ->whereIn('id', $record->items()->pluck('sumario_item_id')->filter()->values()->all())
+                            ->update(['sub_estado' => 'PAGADO_Y_EN_TRANSITO']);
+
                         Notification::make()
-                            ->title('Pago confirmado por Procura')
-                            ->body('La orden pasa a espera de llegada de producto.')
+                            ->title('Pago y transito confirmado por Procura')
+                            ->body('La orden ahora figura como Pagado y En Transito.')
                             ->success()
                             ->send();
                     }),
@@ -412,6 +440,7 @@ class OrdenesCompraTable
         }
 
         return $user->can('Update:OrdenCompra')
+            && (string) ($user->departamento?->nombre ?? '') === 'FINANZAS'
             && blank($record->pago_registrado_at);
     }
 
