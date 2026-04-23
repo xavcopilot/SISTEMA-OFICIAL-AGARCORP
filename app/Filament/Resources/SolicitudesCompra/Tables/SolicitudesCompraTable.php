@@ -535,6 +535,10 @@ class SolicitudesCompraTable
             return self::$generalStateCache[$recordId] = ['label' => 'Rechazada', 'color' => 'danger'];
         }
 
+        if ((string) $record->estado === SolicitudCompra::ESTADO_COMPLETADA) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Completada', 'color' => 'success'];
+        }
+
         if ((string) $record->estado === 'BORRADOR' || blank($record->firma_solicitante)) {
             return self::$generalStateCache[$recordId] = ['label' => 'Borrador', 'color' => 'gray'];
         }
@@ -567,10 +571,6 @@ class SolicitudesCompraTable
 
         $workflows = $ordenes->pluck('workflow_post_compra')->filter()->map(fn ($value): string => (string) $value);
         $estados = $ordenes->pluck('estado')->filter()->map(fn ($value): string => (string) $value);
-
-        if ($workflows->contains('CERRADA_CONFORME')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Cerrada conforme', 'color' => 'success'];
-        }
 
         if ($workflows->contains('RECHAZO_SOLICITANTE') || $workflows->contains('RECHAZADA_SOLICITANTE')) {
             return self::$generalStateCache[$recordId] = ['label' => 'Con rechazo del solicitante', 'color' => 'danger'];
@@ -757,8 +757,12 @@ class SolicitudesCompraTable
         $workflow = (string) ($latestOcItem->ordenCompra->workflow_post_compra ?? '');
         $recepcionEstado = (string) ($latestOcItem->estado_recepcion ?? '');
 
-        if ($recepcionEstado === 'ENTREGADO_SOLICITANTE') {
+        if ($estadoItem === 'CERRADO') {
             return ['label' => 'Entregado al solicitante', 'percent' => 100];
+        }
+
+        if (filled($latestOcItem->procesado_almacen_at)) {
+            return ['label' => 'Entrada oficial parcial', 'percent' => 95];
         }
 
         return match ($workflow) {

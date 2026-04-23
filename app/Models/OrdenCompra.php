@@ -41,8 +41,20 @@ class OrdenCompra extends Model
         'confirmado_por_user_id',
         'tipo_documento_recepcion',
         'factura_path',
+        'factura_numero',
+        'factura_numero_control',
+        'factura_fecha_emision',
+        'factura_base_imponible',
+        'factura_monto_iva',
+        'factura_monto_total',
+        'retencion_iva_monto',
+        'retencion_islr_monto',
+        'comprobantes_retencion_paths',
+        'observacion_administracion',
         'factura_enviada_administracion_at',
         'factura_enviada_por_user_id',
+        'factura_cargada_administracion_at',
+        'factura_cargada_por_user_id',
         'factura_pendiente',
         'recepcion_procesada_at',
         'recibido_por_user_id',
@@ -63,10 +75,18 @@ class OrdenCompra extends Model
         'gastos_adicionales' => 'decimal:2',
         'total_general' => 'decimal:2',
         'monto_pagado' => 'decimal:2',
+        'factura_base_imponible' => 'decimal:2',
+        'factura_monto_iva' => 'decimal:2',
+        'factura_monto_total' => 'decimal:2',
+        'retencion_iva_monto' => 'decimal:2',
+        'retencion_islr_monto' => 'decimal:2',
+        'comprobantes_retencion_paths' => 'array',
         'factura_pendiente' => 'boolean',
+        'factura_fecha_emision' => 'date',
         'pago_registrado_at' => 'datetime',
         'confirmado_procura_at' => 'datetime',
         'factura_enviada_administracion_at' => 'datetime',
+        'factura_cargada_administracion_at' => 'datetime',
         'recepcion_procesada_at' => 'datetime',
         'conformidad_solicitante_at' => 'datetime',
         'devolucion_solicitada_at' => 'datetime',
@@ -116,6 +136,11 @@ class OrdenCompra extends Model
     public function facturaEnviadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'factura_enviada_por_user_id');
+    }
+
+    public function facturaCargadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'factura_cargada_por_user_id');
     }
 
     public function devolucionSolicitadaPor(): BelongsTo

@@ -23,6 +23,8 @@ class SolicitudCompra extends Model
 
     public const ESTADO_RECIBIDO_POR_PROCURA = 'RECIBIDO_POR_PROCURA';
 
+    public const ESTADO_COMPLETADA = 'COMPLETADA';
+
     protected $fillable = [
         'codigo_control',
         'numero_solicitud_usuario',

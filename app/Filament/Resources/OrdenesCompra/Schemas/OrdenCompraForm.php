@@ -289,10 +289,66 @@ class OrdenCompraForm
                                         : 'Sin alertas de factura pendiente.')
                                     ->columnSpan(4),
 
-                                Placeholder::make('retenciones_placeholder')
-                                    ->label('Retenciones y comprobantes')
-                                    ->content('Proximamente: detalle contable de retenciones, comprobantes y carga manual de respaldo.')
+                                TextInput::make('factura_numero')
+                                    ->label('Nro Factura')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('factura_numero_control')
+                                    ->label('Nro Control')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('factura_fecha_emision')
+                                    ->label('Fecha factura')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('factura_monto_total')
+                                    ->label('Monto factura')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('retencion_iva_monto')
+                                    ->label('Ret. IVA')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('retencion_islr_monto')
+                                    ->label('Ret. ISLR')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                Placeholder::make('comprobantes_retencion_paths')
+                                    ->label('Comprobantes de retencion')
+                                    ->content(fn ($record): string => collect($record?->comprobantes_retencion_paths ?? [])->filter()->isEmpty()
+                                        ? 'Sin comprobantes cargados.'
+                                        : collect($record?->comprobantes_retencion_paths ?? [])->filter()->implode(' | '))
                                     ->columnSpan(8),
+
+                                TextInput::make('facturaCargadaPor.name')
+                                    ->label('Cargada por Administracion')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('factura_cargada_administracion_at')
+                                    ->label('Carga contable en')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(2),
+
+                                TextInput::make('observacion_administracion')
+                                    ->label('Observacion contable')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(12),
                             ]),
                     ])
                     ->columnSpanFull(),

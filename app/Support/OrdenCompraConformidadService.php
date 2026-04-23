@@ -192,6 +192,8 @@ class OrdenCompraConformidadService
                 'workflow_post_compra' => $remaining ? 'CONFORMIDAD_POR_ITEMS_COMPLETA' : 'CERRADA_CONFORME',
             ])->save();
 
+            app(SolicitudCompraCompletionService::class)->syncFromOrdenCompra($ordenCompra);
+
             return $ordenCompra->fresh(['items', 'sumario.solicitudCompra', 'inventarioMovimiento']);
         });
     }
@@ -267,14 +269,6 @@ class OrdenCompraConformidadService
 
     private function cerrarItemSolicitudOriginal(OrdenCompraItem $item): void
     {
-        $solicitudItemId = (int) ($item->solicitud_compra_item_id ?? 0);
-
-        if ($solicitudItemId <= 0) {
-            return;
-        }
-
-        SolicitudCompraItem::query()
-            ->whereKey($solicitudItemId)
-            ->update(['estado_item' => 'CERRADO']);
+        // El cierre final del item se recalcula por cantidad procesada acumulada.
     }
 }

@@ -7,13 +7,14 @@ use App\Models\Product;
 use App\Models\SumarioItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
+use App\Support\OrdenCompraAdministracionService;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OrdenCompraRecepcionService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -25,6 +26,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class OrdenesCompraTable
 {
@@ -327,19 +329,7 @@ class OrdenesCompraTable
                             ->send();
                     }),
 
-                Action::make('cargarFacturaManualPlaceholder')
-                    ->label('Administracion: Cargar factura manual')
-                    ->icon(Heroicon::OutlinedDocumentText)
-                    ->color('info')
-                    ->visible(fn ($record): bool => self::canOpenManualInvoicePlaceholder($record))
-                    ->modalHeading('Carga manual de factura')
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar')
-                    ->form([
-                        Placeholder::make('proximamente')
-                            ->hiddenLabel()
-                            ->content('Proximamente: formulario contable con campos de factura, retenciones y comprobantes.'),
-                    ]),
+                self::makeAdministracionFacturaAction(),
 
                 Action::make('conformidadMaterialesPorItem')
                     ->label('Conformidad de Materiales')
@@ -483,33 +473,125 @@ class OrdenesCompraTable
                         }
                     }),
 
-                Action::make('marcarFacturaProcesada')
-                    ->label('Marcar Factura Procesada')
-                    ->icon(Heroicon::OutlinedClipboardDocumentCheck)
-                    ->color('info')
-                    ->visible(fn ($record): bool => self::canMarkInvoiceProcessed($record))
-                    ->action(function ($record): void {
-                        $record->forceFill([
-                            'factura_procesada_administracion_at' => now(),
-                            'workflow_post_compra' => 'BACKUP_FACTURA_COMPLETADO',
-                        ])->save();
-
-                        Notification::make()
-                            ->title('Factura enviada a proceso contable')
-                            ->success()
-                            ->send();
-
-                        ActivityNotification::record(
-                            auth()->user(),
-                            'Factura marcada como procesada',
-                            'La factura de la ODC ' . (string) $record->correlativo_odc . ' fue marcada para cierre contable.',
-                            'success'
-                        );
-                    }),
-
                 EditAction::make(),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    public static function makeAdministracionFacturaAction(): Action
+    {
+        return Action::make('registrarFacturaAdministracion')
+            ->label('Administracion: Registrar Factura')
+            ->icon(Heroicon::OutlinedDocumentText)
+            ->color('info')
+            ->visible(fn ($record): bool => self::canOpenManualInvoicePlaceholder($record))
+            ->modalHeading('Formulario contable de factura')
+            ->fillForm(fn ($record): array => self::buildAdministracionFacturaData($record))
+            ->form(self::administracionFacturaFormSchema())
+            ->action(function (array $data, $record): void {
+                try {
+                    app(OrdenCompraAdministracionService::class)->registrarDatosFactura($record, auth()->user(), $data);
+
+                    Notification::make()
+                        ->title('Factura contable registrada')
+                        ->body('Administracion completo la carga manual y el respaldo de retenciones.')
+                        ->success()
+                        ->send();
+
+                    ActivityNotification::record(
+                        auth()->user(),
+                        'Factura registrada por Administracion',
+                        'Se registro la carga contable de la ODC ' . (string) $record->correlativo_odc . '.',
+                        'success'
+                    );
+                } catch (\Throwable $exception) {
+                    Notification::make()
+                        ->title('No se pudo registrar la factura')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    public static function administracionFacturaFormSchema(): array
+    {
+        return [
+            TextInput::make('factura_numero')
+                ->label('Nro Factura')
+                ->required()
+                ->maxLength(255),
+            TextInput::make('factura_numero_control')
+                ->label('Nro Control')
+                ->required()
+                ->maxLength(255),
+            DatePicker::make('factura_fecha_emision')
+                ->label('Fecha de emision')
+                ->required(),
+            TextInput::make('factura_base_imponible')
+                ->label('Base imponible')
+                ->numeric()
+                ->required(),
+            TextInput::make('factura_monto_iva')
+                ->label('Monto IVA')
+                ->numeric()
+                ->required(),
+            TextInput::make('factura_monto_total')
+                ->label('Monto total')
+                ->numeric()
+                ->required(),
+            TextInput::make('retencion_iva_monto')
+                ->label('Retencion IVA')
+                ->numeric()
+                ->default(0),
+            TextInput::make('retencion_islr_monto')
+                ->label('Retencion ISLR')
+                ->numeric()
+                ->default(0),
+            FileUpload::make('comprobantes_retencion_paths')
+                ->label('Comprobantes de retenciones')
+                ->multiple()
+                ->disk('public')
+                ->directory('ordenes-compra/comprobantes-retencion')
+                ->visibility('public')
+                ->required(fn (callable $get): bool => (float) ($get('retencion_iva_monto') ?? 0) > 0 || (float) ($get('retencion_islr_monto') ?? 0) > 0),
+            Textarea::make('observacion_administracion')
+                ->label('Observaciones contables')
+                ->rows(4),
+        ];
+    }
+
+    public static function makeOpenFacturaImageAction(): Action
+    {
+        return Action::make('abrirFacturaImagen')
+            ->label('Abrir factura')
+            ->icon(Heroicon::OutlinedEye)
+            ->visible(fn ($record): bool => filled($record->factura_path))
+            ->url(fn ($record): ?string => filled($record->factura_path)
+                ? Storage::disk('public')->url((string) $record->factura_path)
+                : null)
+            ->openUrlInNewTab();
+    }
+
+    public static function canAdministracionRegisterInvoice(mixed $record): bool
+    {
+        return self::canOpenManualInvoicePlaceholder($record);
+    }
+
+    public static function buildAdministracionFacturaData(mixed $record): array
+    {
+        return [
+            'factura_numero' => (string) ($record->factura_numero ?? ''),
+            'factura_numero_control' => (string) ($record->factura_numero_control ?? ''),
+            'factura_fecha_emision' => $record->factura_fecha_emision,
+            'factura_base_imponible' => $record->factura_base_imponible,
+            'factura_monto_iva' => $record->factura_monto_iva,
+            'factura_monto_total' => $record->factura_monto_total,
+            'retencion_iva_monto' => $record->retencion_iva_monto,
+            'retencion_islr_monto' => $record->retencion_islr_monto,
+            'comprobantes_retencion_paths' => $record->comprobantes_retencion_paths ?? [],
+            'observacion_administracion' => (string) ($record->observacion_administracion ?? ''),
+        ];
     }
 
     private static function canUploadReceptionDocumentByProcura(mixed $record): bool
@@ -685,23 +767,6 @@ class OrdenesCompraTable
                 ];
             })
             ->all();
-    }
-
-    private static function canMarkInvoiceProcessed(mixed $record): bool
-    {
-        $user = auth()->user();
-
-        if (! $user || ! $record) {
-            return false;
-        }
-
-        $isAdministracion = (string) ($user->departamento?->nombre ?? '') === 'ADMINISTRACIÓN'
-            || (string) ($user->departamento?->nombre ?? '') === 'ADMINISTRACION';
-
-        return $isAdministracion
-            && (string) ($record->tipo_documento_recepcion ?? '') === 'FACTURA'
-            && filled($record->factura_path)
-            && blank($record->factura_procesada_administracion_at);
     }
 
     private static function notifyProcuraPaymentRegistered(mixed $record): void
