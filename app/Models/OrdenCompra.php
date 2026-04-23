@@ -23,6 +23,7 @@ class OrdenCompra extends Model
         'contacto_proveedor',
         'tasa_bcv',
         'condicion_pago',
+        'departamento_solicitante',
         'monto_exento',
         'sub_total',
         'iva_16',

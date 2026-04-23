@@ -147,3 +147,7 @@ Route::get('/ordenes-compra/{ordenCompra}/formato', \App\Http\Controllers\OrdenC
 Route::get('/ordenes-compra/{ordenCompra}/formato/impresion', [\App\Http\Controllers\OrdenCompraFormatoController::class, 'printPreview'])
     ->middleware(['auth'])
     ->name('ordenes-compra.formato.print');
+
+Route::post('/ordenes-compra/sumarios/{sumario}/generar', \App\Http\Controllers\OrdenCompraGenerateFromSumarioController::class)
+    ->middleware(['auth'])
+    ->name('ordenes-compra.generar-desde-sumario');

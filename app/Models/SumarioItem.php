@@ -20,6 +20,7 @@ class SumarioItem extends Model
         'cantidad',
         'validacion_gerencia_resultado',
         'validacion_gerencia_comentario',
+        'sub_estado',
     ];
 
     protected $casts = [

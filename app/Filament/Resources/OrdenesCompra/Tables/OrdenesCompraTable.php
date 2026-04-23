@@ -42,6 +42,11 @@ class OrdenesCompraTable
                     ->default('-')
                     ->searchable(),
 
+                TextColumn::make('departamento_solicitante')
+                    ->label('Departamento')
+                    ->default('-')
+                    ->searchable(),
+
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
