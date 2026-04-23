@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SolicitudesCompra\Pages;
 
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
+use App\Models\SolicitudCompra;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -86,7 +87,7 @@ class CreateSolicitudCompra extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['solicitado_por_user_id'] = $data['solicitado_por_user_id'] ?? auth()->id();
-        $data['estado'] = 'EN_ESPERA_DE_COTIZACION';
+        $data['estado'] = SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN;
         $data['cargo_solicitante'] = $data['cargo_solicitante'] ?? auth()->user()?->cargo?->nombre;
         $data['fecha_solicitante'] = now()->toDateString();
         $data['firma_solicitante'] = '__ENVIADA__';

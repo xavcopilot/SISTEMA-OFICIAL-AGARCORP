@@ -314,14 +314,10 @@ class SolicitudCompraForm
                             ->options([
                                 'BORRADOR' => 'BORRADOR',
                                 'RECHAZADA' => 'RECHAZADA',
-                                'EN_ESPERA_DE_COTIZACION' => 'EN_ESPERA_DE_COTIZACION',
-                                'SUMARIO_EN_REVISION' => 'SUMARIO_EN_REVISION',
-                                'OC_PENDIENTE_APROBACION' => 'OC_PENDIENTE_APROBACION',
-                                'ORDEN_APROBADA' => 'ORDEN_APROBADA',
-                                'PAGADO' => 'PAGADO',
-                                'EN_CREDITO' => 'EN_CREDITO',
-                                'MATERIAL_RECIBIDO' => 'MATERIAL_RECIBIDO',
-                                'CERRADA' => 'CERRADA',
+                                'EN_ESPERA_ALMACEN' => 'En espera Almacen',
+                                'EN_ESPERA_APROBADOR' => 'En espera Aprobador',
+                                'EN_ESPERA_PROCURA' => 'En espera Procura',
+                                'RECIBIDO_POR_PROCURA' => 'Recibido por Procura',
                             ])
                             ->default('BORRADOR')
                             ->disabled()

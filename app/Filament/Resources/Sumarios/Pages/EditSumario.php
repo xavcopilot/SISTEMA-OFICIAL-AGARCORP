@@ -10,6 +10,7 @@ use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
+use App\Support\SolicitudItemTrackingService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -270,13 +271,13 @@ class EditSumario extends EditRecord
                 ->all();
 
             foreach ($affectedItemIds as $itemId) {
-                $this->syncSolicitudItemStatus((int) $itemId);
+                SolicitudItemTrackingService::syncByItemIds([(int) $itemId]);
             }
 
             if (filled($sumario->solicitud_compra_id) && (string) $sumario->workflow_estado !== 'BORRADOR') {
                 SolicitudCompra::query()
                     ->whereKey($sumario->solicitud_compra_id)
-                    ->update(['estado' => 'SUMARIO_EN_REVISION']);
+                    ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
             }
 
             return $sumario->fresh();
@@ -311,29 +312,7 @@ class EditSumario extends EditRecord
 
     private function syncSolicitudItemStatus(int $solicitudCompraItemId): void
     {
-        if ($solicitudCompraItemId <= 0) {
-            return;
-        }
-
-        $existsInOc = OrdenCompraItem::query()
-            ->where('solicitud_compra_item_id', $solicitudCompraItemId)
-            ->exists();
-
-        if ($existsInOc) {
-            SolicitudCompraItem::query()->whereKey($solicitudCompraItemId)->update(['estado_item' => 'EN_OC']);
-
-            return;
-        }
-
-        $existsInSumario = SumarioItem::query()
-            ->where('solicitud_compra_item_id', $solicitudCompraItemId)
-            ->exists();
-
-        SolicitudCompraItem::query()
-            ->whereKey($solicitudCompraItemId)
-            ->update([
-                'estado_item' => $existsInSumario ? 'EN_SUMARIO' : 'SIN_PROCESAR',
-            ]);
+        SolicitudItemTrackingService::syncByItemIds([$solicitudCompraItemId]);
     }
 
     private function resolveProveedorIdByName(string $nombre): ?int

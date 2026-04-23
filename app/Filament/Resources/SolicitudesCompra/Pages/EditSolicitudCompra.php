@@ -199,7 +199,7 @@ class EditSolicitudCompra extends EditRecord
             'codigo_control' => $sharedCode,
             'numero_solicitud_usuario' => $record->numero_solicitud_usuario,
             'codigo_control_procura' => $record->codigo_control_procura,
-            'estado' => 'EN_ESPERA_DE_COTIZACION',
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN,
             // La correccion de una solicitud rechazada se considera reenviada.
             'firma_solicitante' => '__ENVIADA__',
             'firma_almacen' => null,

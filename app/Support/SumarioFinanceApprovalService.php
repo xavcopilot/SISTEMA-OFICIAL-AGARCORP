@@ -130,14 +130,12 @@ class SumarioFinanceApprovalService
             }
 
             if ($affectedSolicitudItemIds !== []) {
-                SolicitudCompraItem::query()
-                    ->whereIn('id', array_values(array_unique($affectedSolicitudItemIds)))
-                    ->update(['estado_item' => 'EN_OC']);
+                SolicitudItemTrackingService::syncByItemIds(array_values(array_unique($affectedSolicitudItemIds)));
             }
 
             SolicitudCompra::query()
                 ->whereKey($sumario->solicitud_compra_id)
-                ->update(['estado' => 'OC_PENDIENTE_APROBACION']);
+                ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
 
             $sumario->forceFill([
                 'estado' => 'REVISADO_FINANZAS',

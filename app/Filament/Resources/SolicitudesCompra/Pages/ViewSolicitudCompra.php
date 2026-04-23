@@ -221,6 +221,7 @@ class ViewSolicitudCompra extends ViewRecord
             'cargo_almacen' => auth()->user()?->cargo?->nombre,
             'firma_almacen' => $record->firma_almacen,
             'fecha_almacen' => now()->toDateString(),
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_APROBADOR,
         ])->save();
 
         $this->syncSignedRecord();
@@ -263,6 +264,7 @@ class ViewSolicitudCompra extends ViewRecord
             'prioridad' => $prioridad,
             'firma_aprobador' => $record->firma_aprobador,
             'fecha_aprobador' => now()->toDateString(),
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_PROCURA,
         ])->save();
 
         $this->syncSignedRecord();
@@ -295,6 +297,7 @@ class ViewSolicitudCompra extends ViewRecord
             'firma_receptor' => $record->firma_receptor,
             'fecha_receptor' => now()->toDateString(),
             'hora_receptor' => now()->format('H:i:s'),
+            'estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA,
         ])->save();
 
         $this->syncSignedRecord();

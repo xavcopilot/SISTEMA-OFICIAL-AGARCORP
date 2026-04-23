@@ -176,7 +176,7 @@ class SolicitudCompraFlow
             'rechazo_por_user_id' => null,
             'rechazo_destinatario_user_id' => null,
             'rechazo_en' => null,
-            'estado' => 'EN_ESPERA_DE_COTIZACION',
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN,
         ])->save();
 
         return $solicitudCompra->fresh();

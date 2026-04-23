@@ -9,6 +9,7 @@ use App\Models\SolicitudCompraItem;
 use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
+use App\Support\SolicitudItemTrackingService;
 use App\Support\ControlCodeGenerator;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -189,16 +190,13 @@ class CreateSumario extends CreateRecord
             }
 
             if ($itemIds !== []) {
-                SolicitudCompraItem::query()
-                    ->whereIn('id', $itemIds)
-                    ->where('estado_item', '!=', 'EN_OC')
-                    ->update(['estado_item' => 'EN_SUMARIO']);
+                SolicitudItemTrackingService::syncByItemIds($itemIds);
             }
 
             if (filled($sumario->solicitud_compra_id) && (string) $sumario->workflow_estado !== 'BORRADOR') {
                 SolicitudCompra::query()
                     ->whereKey($sumario->solicitud_compra_id)
-                    ->update(['estado' => 'SUMARIO_EN_REVISION']);
+                    ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
             }
 
             return $sumario;

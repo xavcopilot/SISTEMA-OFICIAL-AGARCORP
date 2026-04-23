@@ -11,6 +11,13 @@ class SolicitudCompraItem extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::saving(function (SolicitudCompraItem $item): void {
+            $item->cantidad_pedida = round((float) ($item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2);
+        });
+    }
+
     protected $fillable = [
         'solicitud_compra_id',
         'item',
@@ -19,6 +26,9 @@ class SolicitudCompraItem extends Model
         'cantidad_solicitada',
         'cantidad_existencia',
         'cantidad_a_comprar',
+        'cantidad_pedida',
+        'cantidad_en_sumario',
+        'cantidad_comprada',
         'estado_item',
     ];
 
@@ -26,6 +36,9 @@ class SolicitudCompraItem extends Model
         'cantidad_solicitada' => 'decimal:2',
         'cantidad_existencia' => 'decimal:2',
         'cantidad_a_comprar' => 'decimal:2',
+        'cantidad_pedida' => 'decimal:2',
+        'cantidad_en_sumario' => 'decimal:2',
+        'cantidad_comprada' => 'decimal:2',
     ];
 
     public function solicitudCompra(): BelongsTo

@@ -732,15 +732,22 @@ class SumarioForm
 
         return SolicitudCompraItem::query()
             ->where('solicitud_compra_id', $solicitudId)
+            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_comprada, 0)')
             ->orderBy('item')
             ->get()
             ->mapWithKeys(function (SolicitudCompraItem $item): array {
+                $cantidadPendiente = max(
+                    round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2)
+                    - round((float) ($item->cantidad_comprada ?? 0), 2),
+                    0
+                );
+
                 $label = sprintf(
-                    '#%s | %s | %s | Cant: %s',
+                    '#%s | %s | %s | Pendiente: %s',
                     (string) ($item->item ?: $item->id),
                     (string) $item->descripcion,
                     (string) $item->unidad_medida,
-                    number_format((float) $item->cantidad_a_comprar ?: (float) $item->cantidad_solicitada, 2, ',', '.')
+                    number_format($cantidadPendiente, 2, ',', '.')
                 );
 
                 return [(string) $item->id => $label];
@@ -779,7 +786,13 @@ class SumarioForm
             }
 
             $existing = $existingByItemId->get($selectedId, []);
-            $cantidad = (float) ($item->cantidad_a_comprar ?: $item->cantidad_solicitada);
+            $cantidadPendiente = max(
+                round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2)
+                - round((float) ($item->cantidad_comprada ?? 0), 2),
+                0
+            );
+
+            $cantidad = (float) ($existing['cantidad'] ?? $cantidadPendiente);
 
             $rows[] = [
                 'solicitud_compra_item_id' => $selectedId,

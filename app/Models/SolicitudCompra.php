@@ -11,6 +11,18 @@ class SolicitudCompra extends Model
 {
     use HasFactory;
 
+    public const ESTADO_BORRADOR = 'BORRADOR';
+
+    public const ESTADO_RECHAZADA = 'RECHAZADA';
+
+    public const ESTADO_EN_ESPERA_ALMACEN = 'EN_ESPERA_ALMACEN';
+
+    public const ESTADO_EN_ESPERA_APROBADOR = 'EN_ESPERA_APROBADOR';
+
+    public const ESTADO_EN_ESPERA_PROCURA = 'EN_ESPERA_PROCURA';
+
+    public const ESTADO_RECIBIDO_POR_PROCURA = 'RECIBIDO_POR_PROCURA';
+
     protected $fillable = [
         'codigo_control',
         'numero_solicitud_usuario',
@@ -69,6 +81,18 @@ class SolicitudCompra extends Model
     public function sumarios(): HasMany
     {
         return $this->hasMany(Sumario::class);
+    }
+
+    public function ordenesCompra(): HasMany
+    {
+        return $this->hasManyThrough(
+            OrdenCompra::class,
+            Sumario::class,
+            'solicitud_compra_id',
+            'sumario_id',
+            'id',
+            'id'
+        );
     }
 
     public function solicitadoPor(): BelongsTo
