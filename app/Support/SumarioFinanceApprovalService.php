@@ -38,7 +38,19 @@ class SumarioFinanceApprovalService
 
             $grouped = [];
 
-            foreach ($sumario->items as $sumarioItem) {
+            $itemsForOc = $sumario->items
+                ->filter(function (SumarioItem $sumarioItem): bool {
+                    $resultado = (string) ($sumarioItem->validacion_gerencia_resultado ?? '');
+
+                    if ($resultado === '') {
+                        return true;
+                    }
+
+                    return $resultado === 'CORRECTO';
+                })
+                ->values();
+
+            foreach ($itemsForOc as $sumarioItem) {
                 $selectedOption = $this->resolveSelectedOption($sumario, $sumarioItem);
 
                 if (! $selectedOption) {
@@ -69,7 +81,7 @@ class SumarioFinanceApprovalService
             }
 
             if ($grouped === []) {
-                throw new \RuntimeException('No hay items seleccionados para generar ordenes de compra.');
+                throw new \RuntimeException('No hay items aprobados por Gerencia para generar ordenes de compra.');
             }
 
             $createdOrders = [];

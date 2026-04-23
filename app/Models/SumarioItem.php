@@ -18,6 +18,8 @@ class SumarioItem extends Model
         'descripcion',
         'unidad_medida',
         'cantidad',
+        'validacion_gerencia_resultado',
+        'validacion_gerencia_comentario',
     ];
 
     protected $casts = [
