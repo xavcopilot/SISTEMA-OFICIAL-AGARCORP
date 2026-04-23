@@ -373,12 +373,13 @@ class SolicitudesCompraTable
                     ->openUrlInNewTab(),
 
                 Action::make('crearSumario')
-                    ->label('Crear sumario')
+                    ->label('Realizar Sumario')
                     ->icon(Heroicon::OutlinedDocumentPlus)
                     ->color('success')
                     ->visible(fn (SolicitudCompra $record): bool => auth()->user()?->can('Create:Sumario')
                         && filled($record->fecha_receptor)
-                        && (string) $record->estado !== 'RECHAZADA')
+                        && (string) $record->estado !== 'RECHAZADA'
+                        && self::hasPendingItemsForSumario($record))
                     ->url(fn (SolicitudCompra $record): string => SumarioResource::getUrl('create', [
                         'solicitud_compra_id' => $record->id,
                     ])),
@@ -491,6 +492,13 @@ class SolicitudesCompraTable
         }
 
         return null;
+    }
+
+    private static function hasPendingItemsForSumario(SolicitudCompra $record): bool
+    {
+        return $record->items()
+            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
+            ->exists();
     }
 
     private static function resolveActiveApprovalTab(mixed $livewire = null): string

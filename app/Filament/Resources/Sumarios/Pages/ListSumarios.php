@@ -15,7 +15,7 @@ class ListSumarios extends ListRecords
     public function getTabs(): array
     {
         return [
-            'sumarios' => Tab::make('Sumarios')
+            'sumarios' => Tab::make('Historial de sumarios')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->where('workflow_estado', '!=', 'BORRADOR')),
             'borradores' => Tab::make('Borradores')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->where('workflow_estado', 'BORRADOR')),

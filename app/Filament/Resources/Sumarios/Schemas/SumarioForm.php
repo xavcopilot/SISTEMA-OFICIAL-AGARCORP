@@ -269,6 +269,7 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 1')
                                     ->required()
                                     ->maxLength(255)
+                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
 
@@ -277,6 +278,7 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 2')
                                     ->required()
                                     ->maxLength(255)
+                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
 
@@ -285,6 +287,7 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 3')
                                     ->required()
                                     ->maxLength(255)
+                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
                             ]),
@@ -645,8 +648,12 @@ class SumarioForm
     public static function solicitudCompraOptions(): array
     {
         return SolicitudCompra::query()
+            ->where('estado', SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA)
             ->whereNotNull('fecha_receptor')
             ->where('estado', '!=', 'RECHAZADA')
+            ->whereHas('items', function ($query): void {
+                $query->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)');
+            })
             ->orderByDesc('fecha_receptor')
             ->orderByDesc('id')
             ->get(['id', 'codigo_control', 'numero_solicitud_usuario', 'departamento_solicitante', 'para_ser_usado_en'])
@@ -732,18 +739,18 @@ class SumarioForm
 
         return SolicitudCompraItem::query()
             ->where('solicitud_compra_id', $solicitudId)
-            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_comprada, 0)')
+            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
             ->orderBy('item')
             ->get()
             ->mapWithKeys(function (SolicitudCompraItem $item): array {
                 $cantidadPendiente = max(
                     round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2)
-                    - round((float) ($item->cantidad_comprada ?? 0), 2),
+                    - round((float) ($item->cantidad_en_sumario ?? 0), 2),
                     0
                 );
 
                 $label = sprintf(
-                    '#%s | %s | %s | Pendiente: %s',
+                    '#%s | %s | %s | Disponible para cotizar: %s',
                     (string) ($item->item ?: $item->id),
                     (string) $item->descripcion,
                     (string) $item->unidad_medida,
@@ -788,7 +795,7 @@ class SumarioForm
             $existing = $existingByItemId->get($selectedId, []);
             $cantidadPendiente = max(
                 round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2)
-                - round((float) ($item->cantidad_comprada ?? 0), 2),
+                - round((float) ($item->cantidad_en_sumario ?? 0), 2),
                 0
             );
 
