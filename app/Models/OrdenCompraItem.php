@@ -25,6 +25,12 @@ class OrdenCompraItem extends Model
         'estado_recepcion',
         'en_transicion_at',
         'entregado_at',
+        'decision_solicitante',
+        'motivo_rechazo_solicitante',
+        'conformidad_solicitante_at',
+        'procesado_almacen_at',
+        'modo_ingreso_almacen',
+        'product_id',
     ];
 
     protected $casts = [
@@ -33,6 +39,8 @@ class OrdenCompraItem extends Model
         'precio_total' => 'decimal:2',
         'en_transicion_at' => 'datetime',
         'entregado_at' => 'datetime',
+        'conformidad_solicitante_at' => 'datetime',
+        'procesado_almacen_at' => 'datetime',
     ];
 
     public function ordenCompra(): BelongsTo
@@ -48,5 +56,10 @@ class OrdenCompraItem extends Model
     public function solicitudCompraItem(): BelongsTo
     {
         return $this->belongsTo(SolicitudCompraItem::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\OrdenesCompra\Tables;
 
 use App\Models\Departamento;
+use App\Models\Product;
 use App\Models\SumarioItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
@@ -11,8 +12,11 @@ use App\Support\OrdenCompraRecepcionService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -61,8 +65,10 @@ class OrdenesCompraTable
                     ->color(fn (?string $state): string => match ((string) $state) {
                         'PENDIENTE_PAGO_FINANZAS' => 'warning',
                         'PAGO_REGISTRADO_FINANZAS' => 'info',
-                        'PAGO_CONFIRMADO_PROCURA', 'ESPERANDO_PRODUCTO' => 'info',
+                        'PAGO_CONFIRMADO_PROCURA', 'ESPERANDO_PRODUCTO', 'PAGADO_Y_EN_TRANSITO' => 'info',
+                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA' => 'warning',
                         'EN_TRANSICION_ALMACEN' => 'warning',
+                        'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'info',
                         'FACTURA_ENVIADA_ADMINISTRACION', 'BACKUP_FACTURA_COMPLETADO' => 'success',
                         'CERRADA_CONFORME' => 'success',
                         'RECHAZADA_SOLICITANTE' => 'danger',
@@ -218,11 +224,11 @@ class OrdenesCompraTable
                             ->send();
                     }),
 
-                Action::make('procesarRecepcion')
-                    ->label('Procesar Recepcion')
+                Action::make('cargarDocumentoRecepcionProcura')
+                    ->label('Procura: Cargar Factura/Nota')
                     ->icon(Heroicon::OutlinedArrowDownTray)
                     ->color('warning')
-                    ->visible(fn ($record): bool => self::canProcessReception($record))
+                    ->visible(fn ($record): bool => self::canUploadReceptionDocumentByProcura($record))
                     ->form([
                         Radio::make('tipo_documento_recepcion')
                             ->label('Llego con Factura o Nota de Entrega?')
@@ -244,7 +250,7 @@ class OrdenesCompraTable
                     ])
                     ->action(function (array $data, $record): void {
                         try {
-                            app(OrdenCompraRecepcionService::class)->procesarRecepcion(
+                            app(OrdenCompraRecepcionService::class)->cargarDocumentoProcura(
                                 $record,
                                 auth()->user(),
                                 (string) ($data['tipo_documento_recepcion'] ?? ''),
@@ -252,10 +258,10 @@ class OrdenesCompraTable
                             );
 
                             Notification::make()
-                                ->title('Recepcion procesada')
+                                ->title('Documento de recepcion cargado')
                                 ->body((string) ($data['tipo_documento_recepcion'] ?? '') === 'NOTA'
-                                    ? 'Items enviados a ZONA DE TRANSICION. Alerta activa: Factura Pendiente.'
-                                    : 'Items enviados a ZONA DE TRANSICION y factura enviada a bandeja de Administracion.')
+                                    ? 'Se cargo NOTA. Almacen ya puede recibir en el modulo Recepcion de Nuevos Materiales.'
+                                    : 'Se cargo FACTURA y se notifico a Finanzas para su bandeja de factura.')
                                 ->success()
                                 ->send();
 
@@ -268,6 +274,32 @@ class OrdenesCompraTable
                         } catch (\Throwable $exception) {
                             Notification::make()
                                 ->title('No se pudo procesar la recepcion')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+
+                Action::make('marcarZonaTransicionAlmacen')
+                    ->label('Almacen: Pasar a Zona de Transicion')
+                    ->icon(Heroicon::OutlinedInboxArrowDown)
+                    ->color('info')
+                    ->visible(fn ($record): bool => self::canMarkTransitionByWarehouse($record))
+                    ->requiresConfirmation()
+                    ->modalHeading('Confirmar recepcion en almacen')
+                    ->modalDescription('Esta accion habilita la conformidad por item para el solicitante.')
+                    ->action(function ($record): void {
+                        try {
+                            app(OrdenCompraRecepcionService::class)->marcarZonaTransicionAlmacen($record, auth()->user());
+
+                            Notification::make()
+                                ->title('Material enviado a zona de transicion')
+                                ->body('Se notifico al solicitante para conformidad por item.')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $exception) {
+                            Notification::make()
+                                ->title('No se pudo mover a zona de transicion')
                                 ->body($exception->getMessage())
                                 ->danger()
                                 ->send();
@@ -309,21 +341,62 @@ class OrdenesCompraTable
                             ->content('Proximamente: formulario contable con campos de factura, retenciones y comprobantes.'),
                     ]),
 
-                Action::make('aceptarConformidad')
-                    ->label('Aceptar Conformidad')
+                Action::make('conformidadMaterialesPorItem')
+                    ->label('Conformidad de Materiales')
                     ->icon(Heroicon::OutlinedCheckBadge)
                     ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Confirmar conformidad del solicitante')
-                    ->modalDescription('Al confirmar, se ejecuta la entrada oficial en inventario y el item se marca como entregado al solicitante.')
-                    ->visible(fn ($record): bool => self::canAcceptConformity($record))
-                    ->action(function ($record): void {
+                    ->visible(fn ($record): bool => self::canRegisterItemConformity($record))
+                    ->form([
+                        Repeater::make('items_conformidad')
+                            ->label('Decision por item')
+                            ->default(fn ($record): array => self::buildConformidadRows($record))
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->schema([
+                                Hidden::make('orden_compra_item_id')->required(),
+                                TextInput::make('item')
+                                    ->label('Item')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('descripcion')
+                                    ->label('Descripcion')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                Radio::make('decision')
+                                    ->label('Decision solicitante')
+                                    ->options([
+                                        'ACEPTADO' => 'Aceptar',
+                                        'RECHAZADO' => 'Rechazar',
+                                    ])
+                                    ->required()
+                                    ->live(),
+                                Textarea::make('motivo')
+                                    ->label('Motivo (si rechaza)')
+                                    ->rows(2)
+                                    ->required(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO')
+                                    ->visible(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO'),
+                            ])
+                            ->columns(2),
+                    ])
+                    ->action(function (array $data, $record): void {
                         try {
-                            app(OrdenCompraConformidadService::class)->aceptar($record, auth()->user());
+                            app(OrdenCompraConformidadService::class)->registrarConformidadPorItems(
+                                $record,
+                                auth()->user(),
+                                $data['items_conformidad'] ?? []
+                            );
+
+                            $hasRejected = collect($data['items_conformidad'] ?? [])
+                                ->contains(fn (array $row): bool => strtoupper((string) ($row['decision'] ?? '')) === 'RECHAZADO');
+
+                            if ($hasRejected) {
+                                self::notifyReturnRequested($record);
+                            }
 
                             Notification::make()
                                 ->title('Conformidad registrada')
-                                ->body('Se ejecuto la entrada oficial en inventario y se completo el ciclo.')
+                                ->body('Se guardo la decision por item. Almacen debe procesar ENTRADA o REGISTRO NUEVO para los aceptados.')
                                 ->success()
                                 ->send();
 
@@ -342,32 +415,72 @@ class OrdenesCompraTable
                         }
                     }),
 
-                Action::make('rechazarConformidad')
-                    ->label('Solicitante: Rechazar producto')
-                    ->icon(Heroicon::OutlinedXCircle)
-                    ->color('danger')
-                    ->visible(fn ($record): bool => self::canRequestReturn($record))
+                Action::make('procesarEntradaFinalPorItem')
+                    ->label('Almacen: Entrada/Registro Nuevo')
+                    ->icon(Heroicon::OutlinedArchiveBoxArrowDown)
+                    ->color('primary')
+                    ->visible(fn ($record): bool => self::canProcessWarehouseEntryByItem($record))
                     ->form([
-                        Textarea::make('devolucion_motivo')
-                            ->label('Motivo de rechazo')
-                            ->required()
-                            ->rows(4),
+                        Repeater::make('items_entrada')
+                            ->label('Ingreso por item aceptado')
+                            ->default(fn ($record): array => self::buildEntradaRows($record))
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->schema([
+                                Hidden::make('orden_compra_item_id')->required(),
+                                TextInput::make('item')
+                                    ->label('Item')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('descripcion')
+                                    ->label('Descripcion')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                Radio::make('modo')
+                                    ->label('Accion final de almacen')
+                                    ->options([
+                                        'ENTRADA' => 'Entrada (producto existente)',
+                                        'REGISTRO_NUEVO' => 'Registro Nuevo',
+                                    ])
+                                    ->required()
+                                    ->live(),
+                                Select::make('product_id')
+                                    ->label('Producto existente')
+                                    ->options(fn (): array => Product::query()
+                                        ->orderBy('descripcion')
+                                        ->limit(200)
+                                        ->get()
+                                        ->mapWithKeys(fn (Product $product): array => [
+                                            $product->id => (string) ($product->sku . ' | ' . $product->descripcion),
+                                        ])
+                                        ->all())
+                                    ->searchable()
+                                    ->required(fn (callable $get): bool => (string) ($get('modo') ?? '') === 'ENTRADA')
+                                    ->visible(fn (callable $get): bool => (string) ($get('modo') ?? '') === 'ENTRADA'),
+                            ])
+                            ->columns(2),
                     ])
                     ->action(function (array $data, $record): void {
-                        $record->forceFill([
-                            'devolucion_solicitada_at' => now(),
-                            'devolucion_solicitada_por_user_id' => auth()->id(),
-                            'devolucion_motivo' => (string) ($data['devolucion_motivo'] ?? ''),
-                            'workflow_post_compra' => 'RECHAZADA_SOLICITANTE',
-                        ])->save();
+                        try {
+                            app(OrdenCompraConformidadService::class)->procesarEntradaPorItems(
+                                $record,
+                                auth()->user(),
+                                $data['items_entrada'] ?? []
+                            );
 
-                        self::notifyReturnRequested($record);
-
-                        Notification::make()
-                            ->title('Rechazo registrado')
-                            ->body('Se notifico a Procura y Finanzas para gestionar devolucion con proveedor.')
-                            ->warning()
-                            ->send();
+                            Notification::make()
+                                ->title('Entrada final procesada')
+                                ->body('Se cerraron los items procesados en la solicitud original y se registro inventario.')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $exception) {
+                            Notification::make()
+                                ->title('No se pudo procesar la entrada por item')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
 
                 Action::make('marcarFacturaProcesada')
@@ -399,7 +512,7 @@ class OrdenesCompraTable
             ->defaultSort('created_at', 'desc');
     }
 
-    private static function canProcessReception(mixed $record): bool
+    private static function canUploadReceptionDocumentByProcura(mixed $record): bool
     {
         $user = auth()->user();
 
@@ -407,14 +520,13 @@ class OrdenesCompraTable
             return false;
         }
 
-        $canOperate = $user->can('ProcessReception:OrdenCompra');
-
-        return $canOperate
+        return $user->can('ProcessReception:OrdenCompra')
             && filled($record->confirmado_procura_at)
+            && blank($record->tipo_documento_recepcion)
             && ! filled($record->recepcion_procesada_at);
     }
 
-    private static function canAcceptConformity(mixed $record): bool
+    private static function canMarkTransitionByWarehouse(mixed $record): bool
     {
         $user = auth()->user();
 
@@ -422,13 +534,13 @@ class OrdenesCompraTable
             return false;
         }
 
-        $solicitanteId = (int) ($record->sumario?->solicitudCompra?->solicitado_por_user_id ?? 0);
+        $departamento = strtoupper((string) ($user->departamento?->nombre ?? ''));
+        $isWarehouse = str_contains($departamento, 'ALMAC');
 
-        return $solicitanteId > 0
-            && (int) $user->id === $solicitanteId
-            && filled($record->recepcion_procesada_at)
-            && blank($record->devolucion_solicitada_at)
-            && blank($record->conformidad_solicitante_at);
+        return $isWarehouse
+            && filled($record->confirmado_procura_at)
+            && filled($record->tipo_documento_recepcion)
+            && blank($record->recepcion_procesada_at);
     }
 
     private static function canRegisterFinancePayment(mixed $record): bool
@@ -488,7 +600,7 @@ class OrdenesCompraTable
             && filled($record->factura_enviada_administracion_at);
     }
 
-    private static function canRequestReturn(mixed $record): bool
+    private static function canRegisterItemConformity(mixed $record): bool
     {
         $user = auth()->user();
 
@@ -498,11 +610,81 @@ class OrdenesCompraTable
 
         $solicitanteId = (int) ($record->sumario?->solicitudCompra?->solicitado_por_user_id ?? 0);
 
+        $hasPendingItems = $record->items()
+            ->whereNull('decision_solicitante')
+            ->exists();
+
         return $solicitanteId > 0
             && (int) $user->id === $solicitanteId
             && filled($record->recepcion_procesada_at)
-            && blank($record->conformidad_solicitante_at)
-            && blank($record->devolucion_solicitada_at);
+            && $hasPendingItems;
+    }
+
+    private static function canProcessWarehouseEntryByItem(mixed $record): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $record) {
+            return false;
+        }
+
+        $departamento = strtoupper((string) ($user->departamento?->nombre ?? ''));
+        $isWarehouse = str_contains($departamento, 'ALMAC');
+
+        $hasAcceptedPending = $record->items()
+            ->where('decision_solicitante', 'ACEPTADO')
+            ->whereNull('procesado_almacen_at')
+            ->exists();
+
+        return $isWarehouse
+            && filled($record->recepcion_procesada_at)
+            && $hasAcceptedPending;
+    }
+
+    private static function buildConformidadRows(mixed $record): array
+    {
+        if (! $record) {
+            return [];
+        }
+
+        return $record->items()
+            ->orderBy('id')
+            ->get()
+            ->map(function ($item): array {
+                $decision = (string) ($item->decision_solicitante ?? '');
+
+                return [
+                    'orden_compra_item_id' => $item->id,
+                    'item' => (string) ($item->item ?? ('#' . $item->id)),
+                    'descripcion' => (string) ($item->descripcion ?? ''),
+                    'decision' => $decision === '' ? null : $decision,
+                    'motivo' => (string) ($item->motivo_rechazo_solicitante ?? ''),
+                ];
+            })
+            ->all();
+    }
+
+    private static function buildEntradaRows(mixed $record): array
+    {
+        if (! $record) {
+            return [];
+        }
+
+        return $record->items()
+            ->where('decision_solicitante', 'ACEPTADO')
+            ->whereNull('procesado_almacen_at')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($item): array {
+                return [
+                    'orden_compra_item_id' => $item->id,
+                    'item' => (string) ($item->item ?? ('#' . $item->id)),
+                    'descripcion' => (string) ($item->descripcion ?? ''),
+                    'modo' => null,
+                    'product_id' => null,
+                ];
+            })
+            ->all();
     }
 
     private static function canMarkInvoiceProcessed(mixed $record): bool

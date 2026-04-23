@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class OrdenCompraRecepcionService
 {
-    public function procesarRecepcion(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $facturaPath = null): OrdenCompra
+    public function cargarDocumentoProcura(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $facturaPath = null): OrdenCompra
     {
         $tipoDocumento = strtoupper(trim($tipoDocumento));
 
@@ -33,15 +33,44 @@ class OrdenCompraRecepcionService
                 return $ordenCompra;
             }
 
-            $now = now();
-
             $ordenCompra->forceFill([
                 'tipo_documento_recepcion' => $tipoDocumento,
                 'factura_path' => $tipoDocumento === 'FACTURA' ? $facturaPath : null,
                 'factura_pendiente' => $tipoDocumento === 'NOTA',
+                'estado' => 'RECIBIDA',
+                'workflow_post_compra' => 'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                'confirmado_por_user_id' => $user->id,
+            ])->save();
+
+            if ($tipoDocumento === 'FACTURA' && filled($facturaPath)) {
+                $this->notifyFinanzas($ordenCompra);
+            }
+
+            return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
+        });
+    }
+
+    public function marcarZonaTransicionAlmacen(OrdenCompra $ordenCompra, User $user): OrdenCompra
+    {
+        return DB::transaction(function () use ($ordenCompra, $user): OrdenCompra {
+            $ordenCompra = OrdenCompra::query()
+                ->with(['items', 'sumario.solicitudCompra.solicitadoPor'])
+                ->lockForUpdate()
+                ->findOrFail($ordenCompra->id);
+
+            if ($ordenCompra->recepcion_procesada_at) {
+                return $ordenCompra;
+            }
+
+            if (blank($ordenCompra->tipo_documento_recepcion)) {
+                throw new \RuntimeException('Procura debe cargar primero la factura o nota de entrega.');
+            }
+
+            $now = now();
+
+            $ordenCompra->forceFill([
                 'recepcion_procesada_at' => $now,
                 'recibido_por_user_id' => $user->id,
-                'estado' => 'RECIBIDA',
                 'workflow_post_compra' => 'EN_TRANSICION_ALMACEN',
             ])->save();
 
@@ -52,12 +81,15 @@ class OrdenCompraRecepcionService
 
             $this->notifySolicitante($ordenCompra);
 
-            if ($tipoDocumento === 'FACTURA' && filled($facturaPath)) {
-                $this->notifyFinanzas($ordenCompra);
-            }
-
             return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
         });
+    }
+
+    public function procesarRecepcion(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $facturaPath = null): OrdenCompra
+    {
+        $this->cargarDocumentoProcura($ordenCompra, $user, $tipoDocumento, $facturaPath);
+
+        return $this->marcarZonaTransicionAlmacen($ordenCompra, $user);
     }
 
     private function notifySolicitante(OrdenCompra $ordenCompra): void
@@ -70,7 +102,7 @@ class OrdenCompraRecepcionService
 
         Notification::make()
             ->title('Tu articulo ha llegado')
-            ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' ya esta en zona de transicion. Ingresa y presiona "Aceptar Conformidad" para registrar entrada oficial.')
+            ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' ya esta en zona de transicion. Ingresa y presiona "Conformidad de Materiales" para aceptar o rechazar cada item.')
             ->success()
             ->sendToDatabase($solicitante);
     }
