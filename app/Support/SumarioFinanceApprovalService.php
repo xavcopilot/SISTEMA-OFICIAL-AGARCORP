@@ -11,6 +11,7 @@ use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Models\User;
 use App\Support\ControlCodeGenerator;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -200,7 +201,7 @@ class SumarioFinanceApprovalService
                     'gastos_adicionales' => $gastosAdicionales,
                     'total_general' => round($subTotal + $iva + $gastosAdicionales + $montoExento, 2),
                     'estado' => 'PENDIENTE_APROBACION',
-                    'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
+                    'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
                 ]);
 
                 foreach ($group['items'] as $entry) {
@@ -248,6 +249,10 @@ class SumarioFinanceApprovalService
                     'revisado_por_user_id' => $user->id,
                     'workflow_estado' => 'ODC_GENERADA',
                 ])->save();
+            }
+
+            if ($createdOrders !== []) {
+                $this->notifyGerenciaFinanzasOdcsPendientes($createdOrders);
             }
 
             return $createdOrders;
@@ -310,5 +315,38 @@ class SumarioFinanceApprovalService
     private function nextCorrelativoOdc(): string
     {
         return ControlCodeGenerator::generate('OC', OrdenCompra::class, 'correlativo_odc');
+    }
+
+    /**
+     * @param  array<int, OrdenCompra>  $orders
+     */
+    private function notifyGerenciaFinanzasOdcsPendientes(array $orders): void
+    {
+        $usuarios = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('name', 'Gerencia de Finanzas'))
+            ->get();
+
+        if ($usuarios->isEmpty()) {
+            return;
+        }
+
+        $correlativos = collect($orders)
+            ->pluck('correlativo_odc')
+            ->filter()
+            ->map(fn ($value): string => (string) $value)
+            ->values()
+            ->all();
+
+        $resumen = $correlativos === []
+            ? 'Se generaron nuevas ODC pendientes de aprobacion de Gerencia de Finanzas.'
+            : 'ODC pendientes de aprobacion: ' . implode(', ', $correlativos) . '.';
+
+        $usuarios->each(function (User $user) use ($resumen): void {
+            Notification::make()
+                ->title('Nuevas ODC por aprobar')
+                ->body($resumen)
+                ->warning()
+                ->sendToDatabase($user);
+        });
     }
 }

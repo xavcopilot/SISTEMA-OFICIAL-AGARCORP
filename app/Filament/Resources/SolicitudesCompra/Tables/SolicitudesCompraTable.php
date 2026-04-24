@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SolicitudesCompra\Tables;
 
 use App\Filament\Resources\AprobacionesCompra\AprobacionesCompraResource;
+use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Filament\Resources\Sumarios\SumarioResource;
 use App\Models\OrdenCompra;
 use App\Models\OrdenCompraItem;
@@ -98,6 +99,15 @@ class SolicitudesCompraTable
                             ->dehydrated(false),
                     ]),
 
+                Action::make('conformidadMateriales')
+                    ->label('Conformidad de Materiales')
+                    ->icon(Heroicon::OutlinedCheckBadge)
+                    ->color('success')
+                    ->visible(fn (SolicitudCompra $record): bool => self::hasPendingConformidadForSolicitante($record))
+                    ->url(fn (SolicitudCompra $record): ?string => ($ordenCompraId = self::firstPendingConformidadOrdenCompraId($record))
+                        ? OrdenCompraResource::getUrl('edit', ['record' => $ordenCompraId])
+                        : null),
+
                 EditAction::make()
                     ->authorize(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record))
                     ->visible(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record)),
@@ -108,6 +118,29 @@ class SolicitudesCompraTable
             ])
             ->recordUrl(null)
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function hasPendingConformidadForSolicitante(SolicitudCompra $record): bool
+    {
+        $userId = (int) (auth()->id() ?? 0);
+
+        if ($userId <= 0 || (int) ($record->solicitado_por_user_id ?? 0) !== $userId) {
+            return false;
+        }
+
+        return self::firstPendingConformidadOrdenCompraId($record) !== null;
+    }
+
+    private static function firstPendingConformidadOrdenCompraId(SolicitudCompra $record): ?int
+    {
+        $ordenCompraId = OrdenCompra::query()
+            ->whereHas('sumario', fn ($query) => $query->where('solicitud_compra_id', $record->id))
+            ->whereNotNull('recepcion_procesada_at')
+            ->whereHas('items', fn ($query) => $query->whereNull('decision_solicitante'))
+            ->orderByDesc('id')
+            ->value('id');
+
+        return $ordenCompraId ? (int) $ordenCompraId : null;
     }
 
     private static function getViewSchema(): array
@@ -376,7 +409,8 @@ class SolicitudesCompraTable
                     ->label('Realizar Sumario')
                     ->icon(Heroicon::OutlinedDocumentPlus)
                     ->color('success')
-                    ->visible(fn (SolicitudCompra $record): bool => auth()->user()?->can('Create:Sumario')
+                    ->visible(fn (SolicitudCompra $record, $livewire): bool => ! self::isApprovalHistoryTab($livewire)
+                        && auth()->user()?->can('Create:Sumario')
                         && filled($record->fecha_receptor)
                         && (string) $record->estado !== 'RECHAZADA'
                         && self::hasPendingItemsForSumario($record))

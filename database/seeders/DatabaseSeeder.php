@@ -63,6 +63,7 @@ class DatabaseSeeder extends Seeder
             'Almacen'     => 'almacen',
             'Talento Humano' => 'talentohumano',
             'A.I.T'       => 'ait',
+            'Validador Finanzas' => 'validadorfinanzas',
             'Finanzas'    => 'finanzas',
             'Administracion' => 'administracion',
         ];
@@ -206,6 +207,7 @@ class DatabaseSeeder extends Seeder
             'Almacen' => 'ALMACEN',
             'Talento Humano' => 'TALENTO HUMANO',
             'A.I.T' => 'A.I.T',
+            'Validador Finanzas' => 'FINANZAS',
             'Finanzas' => 'FINANZAS',
             'Administracion' => 'ADMINISTRACIÓN',
         ];
@@ -222,9 +224,14 @@ class DatabaseSeeder extends Seeder
                 'cargo' => 'Almacenista',
             ],
             'Finanzas' => [
+                'name' => 'Finanzas Pagos',
+                'email' => 'finanzas@agarven.com',
+                'cargo' => 'Analista',
+            ],
+            'Validador Finanzas' => [
                 'name' => 'Vanessa',
                 'email' => 'vanessa@agarven.com',
-                'cargo' => 'Analista',
+                'cargo' => 'Validadora Finanzas',
             ],
             'Administracion' => [
                 'name' => 'administracion',
@@ -279,9 +286,15 @@ class DatabaseSeeder extends Seeder
 
             if ($rol === 'Finanzas') {
                 $roleModel->givePermissionTo(array_merge(
-                    $sumarioReviewPermissions,
                     $ordenCompraReadPermissions,
                     $ordenCompraEditPermissions,
+                ));
+            }
+
+            if ($rol === 'Validador Finanzas') {
+                $roleModel->givePermissionTo(array_merge(
+                    $sumarioReviewPermissions,
+                    $ordenCompraReadPermissions,
                 ));
 
                 $roleModel->givePermissionTo(['ValidateFinance:Sumario']);

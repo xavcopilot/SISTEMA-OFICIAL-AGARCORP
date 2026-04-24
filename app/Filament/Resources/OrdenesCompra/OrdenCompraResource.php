@@ -58,6 +58,11 @@ class OrdenCompraResource extends Resource
         return self::hasReadAccess();
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return self::hasOperationalReadAccess();
+    }
+
     public static function canView(Model $record): bool
     {
         $user = auth()->user();

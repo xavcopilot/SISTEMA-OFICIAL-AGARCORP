@@ -82,18 +82,18 @@ class SumariosTable
                     ->searchable(),
 
                 TextColumn::make('total_compra_prov1')
-                    ->label('Total Prov. A')
-                    ->money('VES')
+                    ->label('Total Prov. 1')
+                    ->money('USD')
                     ->sortable(),
 
                 TextColumn::make('total_compra_prov2')
-                    ->label('Total Prov. B')
-                    ->money('VES')
+                    ->label('Total Prov. 2')
+                    ->money('USD')
                     ->sortable(),
 
                 TextColumn::make('total_compra_prov3')
-                    ->label('Total Prov. C')
-                    ->money('VES')
+                    ->label('Total Prov. 3')
+                    ->money('USD')
                     ->sortable(),
             ])
             ->recordActions([
@@ -932,7 +932,7 @@ class SumariosTable
 
     private static function renderComparativeTable(mixed $record): string
     {
-        $sumario = $record->loadMissing(['items.opciones', 'proveedorGanador']);
+        $sumario = $record->loadMissing(['items.opciones']);
 
         $rows = '';
 
@@ -947,9 +947,11 @@ class SumariosTable
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($opciones->get(1)?->marca ?? '-')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(1)?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(1)?->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($opciones->get(2)?->proveedor_nombre ?? '-')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($opciones->get(2)?->marca ?? '-')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(2)?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(2)?->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($opciones->get(3)?->proveedor_nombre ?? '-')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($opciones->get(3)?->marca ?? '-')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(3)?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opciones->get(3)?->precio_total ?? 0), 2, ',', '.') . '</td>'
@@ -962,7 +964,7 @@ class SumariosTable
             . '<div><strong>Sumario:</strong> ' . e((string) $sumario->correlativo_sdc) . '</div>'
             . '<div><strong>Fecha:</strong> ' . e(optional($sumario->fecha)->format('d/m/Y')) . '</div>'
             . '<div><strong>Estado:</strong> ' . e(str_replace('_', ' ', (string) $sumario->estado)) . '</div>'
-            . '<div><strong>Ganador:</strong> ' . e((string) ($sumario->proveedorGanador?->nombre ?? '-')) . '</div>'
+            . '<div><strong>Moneda:</strong> $ USD</div>'
             . '</div>';
 
         $table = '<div style="overflow:auto;">'
@@ -972,16 +974,18 @@ class SumariosTable
             . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor A</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca A</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Unit A</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Total A</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca B</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Unit B</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Total B</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca C</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Unit C</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Total C</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Marca 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T 3</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Gerencia</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Motivo X</th>'
             . '</tr>'
@@ -989,12 +993,13 @@ class SumariosTable
             . '<tbody>' . $rows . '</tbody>'
             . '<tfoot>'
             . '<tr style="background:#f9fafb;font-weight:600;">'
-            . '<td colspan="6" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor A</td>'
-            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $sumario->total_compra_prov1, 2, ',', '.') . '</td>'
-            . '<td colspan="2" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor B</td>'
-            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $sumario->total_compra_prov2, 2, ',', '.') . '</td>'
-            . '<td colspan="2" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor C</td>'
-            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $sumario->total_compra_prov3, 2, ',', '.') . '</td>'
+            . '<td colspan="6" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor 1</td>'
+            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">$ ' . number_format((float) $sumario->total_compra_prov1, 2, ',', '.') . '</td>'
+            . '<td colspan="3" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor 2</td>'
+            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">$ ' . number_format((float) $sumario->total_compra_prov2, 2, ',', '.') . '</td>'
+            . '<td colspan="3" style="border:1px solid #d1d5db;padding:8px;text-align:right;">Total compra Proveedor 3</td>'
+            . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">$ ' . number_format((float) $sumario->total_compra_prov3, 2, ',', '.') . '</td>'
+            . '<td colspan="2" style="border:1px solid #d1d5db;padding:8px;"></td>'
             . '</tr>'
             . '</tfoot>'
             . '</table>'

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\OrdenesCompra\Pages;
 
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
+use App\Models\OrdenCompra;
 use App\Models\Sumario;
 use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
@@ -19,9 +20,13 @@ class ListOrdenesCompra extends ListRecords
     public function getTabs(): array
     {
         return [
+            'bandeja_gerencia_finanzas' => Tab::make('Bandeja Gerencia Finanzas')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')),
             'bandeja_finanzas' => Tab::make('Bandeja Finanzas')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')),
+                    ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')
+                    ->where('estado', 'APROBADA')),
             'pagadas_transito' => Tab::make('Pagadas y en transito')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')),
@@ -41,6 +46,15 @@ class ListOrdenesCompra extends ListRecords
                 ->modalWidth('7xl')
                 ->modalContent(fn (): HtmlString => new HtmlString($this->renderPendingSumariosHtml()))
                 ->visible(fn (): bool => auth()->user()?->can('GenerateOdcs:Sumario')),
+            Action::make('conformidadesUsuarios')
+                ->label('Conformidades de Usuarios')
+                ->color('warning')
+                ->modalHeading('Conformidades agrupadas por departamento')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Cerrar')
+                ->modalWidth('7xl')
+                ->modalContent(fn (): HtmlString => new HtmlString($this->renderConformidadesUsuariosHtml()))
+                ->visible(fn (): bool => auth()->user()?->can('ViewAny:OrdenCompra')),
         ];
     }
 
@@ -137,5 +151,89 @@ class ListOrdenesCompra extends ListRecords
             . '<tbody>' . $rows . '</tbody>'
             . '</table>'
             . '</div>';
+    }
+
+    private function renderConformidadesUsuariosHtml(): string
+    {
+        $ordenes = OrdenCompra::query()
+            ->with(['sumario.solicitudCompra', 'items'])
+            ->whereNotNull('recepcion_procesada_at')
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get();
+
+        if ($ordenes->isEmpty()) {
+            return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No hay conformidades registradas aun.</div>';
+        }
+
+        $groupedRows = [];
+
+        foreach ($ordenes as $orden) {
+            $department = (string) ($orden->sumario?->solicitudCompra?->departamento_solicitante ?: $orden->departamento_solicitante ?: 'SIN DEPARTAMENTO');
+            $solicitud = (string) ($orden->sumario?->solicitudCompra?->codigo_control ?: ($orden->sumario?->solicitud_compra_id ?: '-'));
+
+            $items = $orden->items;
+            $accepted = (int) $items->where('decision_solicitante', 'ACEPTADO')->count();
+            $rejected = (int) $items->where('decision_solicitante', 'RECHAZADO')->count();
+            $pending = (int) $items->whereNull('decision_solicitante')->count();
+            $total = (int) $items->count();
+
+            if (! isset($groupedRows[$department])) {
+                $groupedRows[$department] = [];
+            }
+
+            $groupedRows[$department][] = [
+                'odc' => (string) ($orden->correlativo_odc ?: ('#' . $orden->id)),
+                'solicitud' => $solicitud,
+                'workflow' => (string) ($orden->workflow_post_compra ?: '-'),
+                'accepted' => $accepted,
+                'rejected' => $rejected,
+                'pending' => $pending,
+                'total' => $total,
+                'url' => OrdenCompraResource::getUrl('edit', ['record' => $orden]),
+            ];
+        }
+
+        ksort($groupedRows);
+
+        $html = '<div style="display:flex;flex-direction:column;gap:16px;">';
+
+        foreach ($groupedRows as $department => $rows) {
+            $html .= '<div style="border:1px solid #d1d5db;border-radius:8px;overflow:hidden;">';
+            $html .= '<div style="padding:10px 12px;background:#f3f4f6;font-weight:600;">Departamento: ' . e((string) $department) . '</div>';
+            $html .= '<div style="overflow:auto;">';
+            $html .= '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+            $html .= '<thead><tr style="background:#fafafa;">'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">ODC</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Solicitud</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Flujo</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Aceptados</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Rechazados</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Pendientes</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Total items</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Accion</th>'
+                . '</tr></thead><tbody>';
+
+            foreach ($rows as $row) {
+                $html .= '<tr>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['odc']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['solicitud']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e(str_replace('_', ' ', $row['workflow'])) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['accepted']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['rejected']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['pending']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['total']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">'
+                    . '<a href="' . e((string) $row['url']) . '" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;">Abrir ODC</a>'
+                    . '</td>'
+                    . '</tr>';
+            }
+
+            $html .= '</tbody></table></div></div>';
+        }
+
+        $html .= '</div>';
+
+        return $html;
     }
 }

@@ -217,10 +217,30 @@ class SumarioForm
                                     ->afterStateUpdated(function ($state, callable $set): void {
                                         $solicitud = filled($state) ? SolicitudCompra::find($state) : null;
 
+                                        $solicitudId = (int) ($state ?? 0);
+                                        $selectedIds = $solicitudId > 0
+                                            ? SolicitudCompraItem::query()
+                                                ->where('solicitud_compra_id', $solicitudId)
+                                                ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
+                                                ->orderBy('item')
+                                                ->pluck('id')
+                                                ->map(fn ($id): int => (int) $id)
+                                                ->values()
+                                                ->all()
+                                            : [];
+
                                         $set('departamento_solicitante', $solicitud?->departamento_solicitante);
-                                        $set('selected_item_ids', []);
-                                        $set('comparativo_items', []);
-                                        self::setColumnTotals([], $set);
+
+                                        if ($selectedIds === []) {
+                                            $set('selected_item_ids', []);
+                                            $set('comparativo_items', []);
+                                            self::setColumnTotals([], $set);
+
+                                            return;
+                                        }
+
+                                        $set('selected_item_ids', array_map(fn (int $id): string => (string) $id, $selectedIds));
+                                        self::syncRowsFromSelectedItems($selectedIds, [], $solicitudId, $set);
                                     })
                                     ->columnSpan(6),
 
@@ -269,7 +289,6 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 1')
                                     ->required()
                                     ->maxLength(255)
-                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
 
@@ -278,7 +297,6 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 2')
                                     ->required()
                                     ->maxLength(255)
-                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
 
@@ -287,7 +305,6 @@ class SumarioForm
                                     ->placeholder('Nombre proveedor 3')
                                     ->required()
                                     ->maxLength(255)
-                                    ->helperText('Puede repetirse en otra columna si la marca cotizada es distinta.')
                                     ->live()
                                     ->columnSpan(4),
                             ]),
@@ -469,27 +486,44 @@ class SumarioForm
 
                                         TextInput::make('cantidad')
                                             ->label('CANT')
-                                            ->disabled()
+                                            ->required()
                                             ->dehydrated()
                                             ->numeric()
+                                            ->live(debounce: 200)
+                                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                                $cantidad = (float) ($state ?? 0);
+
+                                                foreach ([1, 2, 3] as $providerNumber) {
+                                                    $precioRaw = $get('precio_unitario_prov' . $providerNumber);
+                                                    $hasPrecio = filled($precioRaw);
+                                                    $precioUnitario = (float) ($precioRaw ?? 0);
+
+                                                    $set(
+                                                        'precio_total_prov' . $providerNumber,
+                                                        $hasPrecio ? round($cantidad * $precioUnitario, 2) : null
+                                                    );
+                                                }
+                                            })
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov1')
                                             ->label('MARCA')
                                             ->maxLength(255)
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov1')
                                             ->label('P/U')
                                             ->numeric()
-                                            ->default(0)
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);
+                                                $hasPrecio = filled($state);
                                                 $precioUnitario = (float) ($state ?? 0);
 
-                                                $set('precio_total_prov1', round($cantidad * $precioUnitario, 2));
+                                                $set('precio_total_prov1', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov1')
@@ -497,24 +531,27 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov2')
                                             ->label('MARCA')
                                             ->maxLength(255)
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov2')
                                             ->label('P/U')
                                             ->numeric()
-                                            ->default(0)
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);
+                                                $hasPrecio = filled($state);
                                                 $precioUnitario = (float) ($state ?? 0);
 
-                                                $set('precio_total_prov2', round($cantidad * $precioUnitario, 2));
+                                                $set('precio_total_prov2', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov2')
@@ -522,24 +559,27 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov3')
                                             ->label('MARCA')
                                             ->maxLength(255)
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov3')
                                             ->label('P/U')
                                             ->numeric()
-                                            ->default(0)
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);
+                                                $hasPrecio = filled($state);
                                                 $precioUnitario = (float) ($state ?? 0);
 
-                                                $set('precio_total_prov3', round($cantidad * $precioUnitario, 2));
+                                                $set('precio_total_prov3', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov3')
@@ -547,6 +587,7 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
                                             ->columnSpan(1),
 
                                         Select::make('proveedor_seleccionado')
@@ -808,14 +849,14 @@ class SumarioForm
                 'unidad_medida' => $item->unidad_medida,
                 'cantidad' => $cantidad,
                 'marca_prov1' => $existing['marca_prov1'] ?? null,
-                'precio_unitario_prov1' => (float) ($existing['precio_unitario_prov1'] ?? 0),
-                'precio_total_prov1' => (float) ($existing['precio_total_prov1'] ?? 0),
+                'precio_unitario_prov1' => filled($existing['precio_unitario_prov1'] ?? null) ? (float) $existing['precio_unitario_prov1'] : null,
+                'precio_total_prov1' => filled($existing['precio_total_prov1'] ?? null) ? (float) $existing['precio_total_prov1'] : null,
                 'marca_prov2' => $existing['marca_prov2'] ?? null,
-                'precio_unitario_prov2' => (float) ($existing['precio_unitario_prov2'] ?? 0),
-                'precio_total_prov2' => (float) ($existing['precio_total_prov2'] ?? 0),
+                'precio_unitario_prov2' => filled($existing['precio_unitario_prov2'] ?? null) ? (float) $existing['precio_unitario_prov2'] : null,
+                'precio_total_prov2' => filled($existing['precio_total_prov2'] ?? null) ? (float) $existing['precio_total_prov2'] : null,
                 'marca_prov3' => $existing['marca_prov3'] ?? null,
-                'precio_unitario_prov3' => (float) ($existing['precio_unitario_prov3'] ?? 0),
-                'precio_total_prov3' => (float) ($existing['precio_total_prov3'] ?? 0),
+                'precio_unitario_prov3' => filled($existing['precio_unitario_prov3'] ?? null) ? (float) $existing['precio_unitario_prov3'] : null,
+                'precio_total_prov3' => filled($existing['precio_total_prov3'] ?? null) ? (float) $existing['precio_total_prov3'] : null,
                 'proveedor_seleccionado' => $existing['proveedor_seleccionado'] ?? 'A',
             ];
         }
@@ -833,13 +874,17 @@ class SumarioForm
             ->map(function (array $row): array {
                 $cantidad = (float) ($row['cantidad'] ?? 0);
 
+                $hasProv1 = filled($row['precio_unitario_prov1'] ?? null);
+                $hasProv2 = filled($row['precio_unitario_prov2'] ?? null);
+                $hasProv3 = filled($row['precio_unitario_prov3'] ?? null);
+
                 $precioUnitario1 = (float) ($row['precio_unitario_prov1'] ?? 0);
                 $precioUnitario2 = (float) ($row['precio_unitario_prov2'] ?? 0);
                 $precioUnitario3 = (float) ($row['precio_unitario_prov3'] ?? 0);
 
-                $row['precio_total_prov1'] = round($cantidad * $precioUnitario1, 2);
-                $row['precio_total_prov2'] = round($cantidad * $precioUnitario2, 2);
-                $row['precio_total_prov3'] = round($cantidad * $precioUnitario3, 2);
+                $row['precio_total_prov1'] = $hasProv1 ? round($cantidad * $precioUnitario1, 2) : null;
+                $row['precio_total_prov2'] = $hasProv2 ? round($cantidad * $precioUnitario2, 2) : null;
+                $row['precio_total_prov3'] = $hasProv3 ? round($cantidad * $precioUnitario3, 2) : null;
 
                 return $row;
             })
@@ -858,13 +903,37 @@ class SumarioForm
                 continue;
             }
 
-            $totalProv1 += (float) ($row['precio_total_prov1'] ?? 0);
-            $totalProv2 += (float) ($row['precio_total_prov2'] ?? 0);
-            $totalProv3 += (float) ($row['precio_total_prov3'] ?? 0);
+            $totalProv1 += filled($row['precio_total_prov1'] ?? null) ? (float) $row['precio_total_prov1'] : 0;
+            $totalProv2 += filled($row['precio_total_prov2'] ?? null) ? (float) $row['precio_total_prov2'] : 0;
+            $totalProv3 += filled($row['precio_total_prov3'] ?? null) ? (float) $row['precio_total_prov3'] : 0;
         }
 
         $set('total_compra_prov1', round($totalProv1, 2));
         $set('total_compra_prov2', round($totalProv2, 2));
         $set('total_compra_prov3', round($totalProv3, 2));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function providerCellAttributes(string $selectedProvider, string $providerKey): array
+    {
+        $selected = strtoupper(trim($selectedProvider));
+
+        if ($selected === '1') {
+            $selected = 'A';
+        } elseif ($selected === '2') {
+            $selected = 'B';
+        } elseif ($selected === '3') {
+            $selected = 'C';
+        }
+
+        if ($selected !== $providerKey) {
+            return [];
+        }
+
+        return [
+            'style' => 'background:#dcfce7;border-color:#86efac;',
+        ];
     }
 }

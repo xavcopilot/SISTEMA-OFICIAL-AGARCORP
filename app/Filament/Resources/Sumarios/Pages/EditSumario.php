@@ -12,10 +12,12 @@ use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
 class EditSumario extends EditRecord
@@ -52,8 +54,18 @@ class EditSumario extends EditRecord
                     ->label('Enviar a validacion')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->action(function (): void {
-                        $this->submitForFinanceValidation();
+                    ->form([
+                        TextInput::make('password')
+                            ->label('Clave de firma')
+                            ->password()
+                            ->required(),
+                        TextInput::make('password_confirmation')
+                            ->label('Repetir clave de firma')
+                            ->password()
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        $this->submitForFinanceValidation($data);
                     }),
             ];
         }
@@ -159,7 +171,7 @@ class EditSumario extends EditRecord
             ->send();
     }
 
-    private function submitForFinanceValidation(): void
+    private function submitForFinanceValidation(array $authData): void
     {
         $record = $this->getRecord();
 
@@ -174,6 +186,10 @@ class EditSumario extends EditRecord
                 ->danger()
                 ->send();
 
+            return;
+        }
+
+        if (! $this->validateSignaturePassword($authData)) {
             return;
         }
 
@@ -215,6 +231,36 @@ class EditSumario extends EditRecord
             ->send();
 
         $this->redirect(SumarioResource::getUrl('index'));
+    }
+
+    private function validateSignaturePassword(array $data): bool
+    {
+        $password = (string) ($data['password'] ?? '');
+        $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
+
+        if ($password === '' || $password !== $passwordConfirmation) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Debes escribir la misma clave de firma dos veces antes de enviar.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+
+        if (Hash::check($password, $signatureHash)) {
+            return true;
+        }
+
+        Notification::make()
+            ->title('No se pudo firmar')
+            ->body('La firma no se registro porque la clave de firma no coincide.')
+            ->danger()
+            ->send();
+
+        return false;
     }
 
     protected function handleRecordUpdate(Model $record, array $data): Model

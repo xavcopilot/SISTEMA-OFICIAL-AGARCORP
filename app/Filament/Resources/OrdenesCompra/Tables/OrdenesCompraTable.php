@@ -65,6 +65,7 @@ class OrdenesCompraTable
                     ->state(fn ($record): string => (string) ($record->workflow_post_compra ?: 'PENDIENTE_PAGO_FINANZAS'))
                     ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state))
                     ->color(fn (?string $state): string => match ((string) $state) {
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS' => 'warning',
                         'PENDIENTE_PAGO_FINANZAS' => 'warning',
                         'PAGO_REGISTRADO_FINANZAS' => 'info',
                         'PAGO_CONFIRMADO_PROCURA', 'ESPERANDO_PRODUCTO', 'PAGADO_Y_EN_TRANSITO' => 'info',
@@ -132,6 +133,27 @@ class OrdenesCompraTable
                     ->icon(Heroicon::OutlinedPrinter)
                     ->url(fn ($record) => route('ordenes-compra.formato.print', ['ordenCompra' => $record]))
                     ->openUrlInNewTab(),
+
+                Action::make('aprobarGerenciaFinanzas')
+                    ->label('Gerencia Finanzas: Aprobar para pago')
+                    ->icon(Heroicon::OutlinedCheckCircle)
+                    ->color('warning')
+                    ->visible(fn ($record): bool => self::canApproveByGerenciaFinanzas($record))
+                    ->requiresConfirmation()
+                    ->action(function ($record): void {
+                        $record->forceFill([
+                            'estado' => 'APROBADA',
+                            'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
+                        ])->save();
+
+                        self::notifyFinanzasPaymentEnabled($record);
+
+                        Notification::make()
+                            ->title('ODC aprobada por Gerencia de Finanzas')
+                            ->body('La ODC fue aprobada y ya esta disponible en la bandeja de pago de Finanzas.')
+                            ->success()
+                            ->send();
+                    }),
 
                 Action::make('registrarPagoFinanzas')
                     ->label('Finanzas: Registrar Pago')
@@ -635,7 +657,21 @@ class OrdenesCompraTable
 
         return $user->can('Update:OrdenCompra')
             && (string) ($user->departamento?->nombre ?? '') === 'FINANZAS'
+            && (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_PAGO_FINANZAS'
+            && in_array((string) ($record->estado ?? ''), ['APROBADA', 'PAGADA', 'EN_ESPERA_DE_PRODUCTO'], true)
             && blank($record->pago_registrado_at);
+    }
+
+    private static function canApproveByGerenciaFinanzas(mixed $record): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $record) {
+            return false;
+        }
+
+        return $user->hasRole('Gerencia de Finanzas')
+            && (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_APROBACION_GERENCIA_FINANZAS';
     }
 
     private static function canConfirmPaymentByProcura(mixed $record): bool
@@ -808,6 +844,29 @@ class OrdenesCompraTable
             Notification::make()
                 ->title('Factura pendiente de carga manual')
                 ->body('La ODC ' . (string) $record->correlativo_odc . ' fue enviada por Finanzas para respaldo contable en Administracion.')
+                ->warning()
+                ->sendToDatabase($user);
+        });
+    }
+
+    private static function notifyFinanzasPaymentEnabled(mixed $record): void
+    {
+        $departamentoId = Departamento::query()
+            ->where('nombre', 'FINANZAS')
+            ->value('id');
+
+        $users = User::query()
+            ->when($departamentoId, fn ($query) => $query->where('departamento_id', $departamentoId))
+            ->get();
+
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        $users->each(function (User $user) use ($record): void {
+            Notification::make()
+                ->title('ODC aprobada para pago')
+                ->body('La ODC ' . (string) $record->correlativo_odc . ' fue aprobada por Gerencia de Finanzas y esta lista para registrar pago.')
                 ->warning()
                 ->sendToDatabase($user);
         });

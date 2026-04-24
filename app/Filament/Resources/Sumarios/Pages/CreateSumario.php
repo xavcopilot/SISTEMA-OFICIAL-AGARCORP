@@ -12,10 +12,12 @@ use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use App\Support\ControlCodeGenerator;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -79,7 +81,17 @@ class CreateSumario extends CreateRecord
             ->label('Enviar')
             ->color('primary')
             ->keyBindings(['mod+s'])
-            ->action(function (): void {
+            ->form([
+                TextInput::make('password')
+                    ->label('Clave de firma')
+                    ->password()
+                    ->required(),
+                TextInput::make('password_confirmation')
+                    ->label('Repetir clave de firma')
+                    ->password()
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
                 if (! auth()->user()?->can('SubmitValidation:Sumario')) {
                     Notification::make()
                         ->title('Sin permisos')
@@ -87,6 +99,10 @@ class CreateSumario extends CreateRecord
                         ->danger()
                         ->send();
 
+                    return;
+                }
+
+                if (! $this->validateSignaturePassword($data)) {
                     return;
                 }
 
@@ -98,6 +114,15 @@ class CreateSumario extends CreateRecord
                     $this->isSubmittingForValidation = false;
                 }
             });
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        if ($this->isSubmittingForValidation) {
+            return SumarioResource::getUrl('index');
+        }
+
+        return parent::getRedirectUrl();
     }
 
     protected Width | string | null $maxWidth = Width::Full;
@@ -289,6 +314,36 @@ class CreateSumario extends CreateRecord
     private function generateDraftCorrelativo(): string
     {
         return ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
+    }
+
+    private function validateSignaturePassword(array $data): bool
+    {
+        $password = (string) ($data['password'] ?? '');
+        $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
+
+        if ($password === '' || $password !== $passwordConfirmation) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Debes escribir la misma clave de firma dos veces antes de enviar.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+
+        if (Hash::check($password, $signatureHash)) {
+            return true;
+        }
+
+        Notification::make()
+            ->title('No se pudo firmar')
+            ->body('La firma no se registro porque la clave de firma no coincide.')
+            ->danger()
+            ->send();
+
+        return false;
     }
 
     /**
