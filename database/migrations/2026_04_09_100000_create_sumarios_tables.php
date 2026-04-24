@@ -33,6 +33,18 @@ return new class extends Migration
 
             $table->foreignId('elaborado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('revisado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('estado', 50)->default('BORRADOR');
+            $table->string('workflow_estado', 50)->default('BORRADOR');
+            $table->timestamp('enviado_validacion_finanzas_at')->nullable();
+            $table->foreignId('enviado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('validado_finanzas_at')->nullable();
+            $table->foreignId('validado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('validacion_finanzas_resultado', 30)->nullable();
+            $table->text('validacion_finanzas_comentario')->nullable();
+            $table->timestamp('decision_gerencia_finanzas_at')->nullable();
+            $table->foreignId('decision_gerencia_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('decision_gerencia_resultado', 30)->nullable();
+            $table->text('decision_gerencia_comentario')->nullable();
 
             $table->timestamps();
         });
@@ -46,6 +58,9 @@ return new class extends Migration
             $table->string('descripcion');
             $table->string('unidad_medida', 20)->default('UND');
             $table->decimal('cantidad', 12, 2);
+            $table->string('validacion_gerencia_resultado', 20)->nullable();
+            $table->text('validacion_gerencia_comentario')->nullable();
+            $table->string('sub_estado', 60)->default('PENDIENTE_OC');
 
             $table->timestamps();
 
@@ -63,6 +78,7 @@ return new class extends Migration
             $table->string('marca')->nullable();
             $table->decimal('precio_unitario', 14, 2)->default(0);
             $table->decimal('precio_total', 14, 2)->default(0);
+            $table->boolean('seleccionada')->default(false);
 
             $table->timestamps();
 

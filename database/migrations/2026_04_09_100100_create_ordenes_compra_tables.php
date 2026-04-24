@@ -17,8 +17,13 @@ return new class extends Migration
 
             $table->string('correlativo_odc')->unique();
             $table->foreignId('proveedor_id')->constrained('proveedores')->restrictOnDelete();
+            $table->string('rif_proveedor')->nullable();
+            $table->string('direccion_proveedor')->nullable();
+            $table->string('email_proveedor')->nullable();
+            $table->string('contacto_proveedor')->nullable();
             $table->decimal('tasa_bcv', 14, 6)->nullable();
             $table->string('condicion_pago')->nullable();
+            $table->string('departamento_solicitante')->nullable();
 
             $table->decimal('monto_exento', 14, 2)->default(0);
             $table->decimal('sub_total', 14, 2)->default(0);
@@ -26,12 +31,42 @@ return new class extends Migration
             $table->decimal('gastos_adicionales', 14, 2)->default(0);
             $table->decimal('total_general', 14, 2)->default(0);
 
-            $table->enum('estado', [
-                'PENDIENTE_APROBACION',
-                'PAGADA',
-                'EN_ESPERA_DE_PRODUCTO',
-                'RECIBIDA',
-            ])->default('PENDIENTE_APROBACION');
+            $table->string('estado', 80)->default('PENDIENTE_APROBACION');
+            $table->string('workflow_post_compra', 80)->default('PENDIENTE_PAGO_FINANZAS');
+            $table->timestamp('pago_registrado_at')->nullable();
+            $table->foreignId('pago_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('comprobante_pago_path')->nullable();
+            $table->string('referencia_pago')->nullable();
+            $table->decimal('monto_pagado', 14, 2)->nullable();
+            $table->text('observacion_pago')->nullable();
+            $table->timestamp('confirmado_procura_at')->nullable();
+            $table->foreignId('confirmado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('tipo_documento_recepcion', 20)->nullable();
+            $table->string('factura_path')->nullable();
+            $table->string('factura_numero')->nullable();
+            $table->string('factura_numero_control')->nullable();
+            $table->date('factura_fecha_emision')->nullable();
+            $table->decimal('factura_base_imponible', 14, 2)->nullable();
+            $table->decimal('factura_monto_iva', 14, 2)->nullable();
+            $table->decimal('factura_monto_total', 14, 2)->nullable();
+            $table->decimal('retencion_iva_monto', 14, 2)->nullable();
+            $table->decimal('retencion_islr_monto', 14, 2)->nullable();
+            $table->json('comprobantes_retencion_paths')->nullable();
+            $table->text('observacion_administracion')->nullable();
+            $table->timestamp('factura_cargada_administracion_at')->nullable();
+            $table->foreignId('factura_cargada_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('factura_enviada_administracion_at')->nullable();
+            $table->foreignId('factura_enviada_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->boolean('factura_pendiente')->default(false);
+            $table->timestamp('recepcion_procesada_at')->nullable();
+            $table->foreignId('recibido_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('conformidad_solicitante_at')->nullable();
+            $table->foreignId('conformidad_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('devolucion_solicitada_at')->nullable();
+            $table->foreignId('devolucion_solicitada_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->text('devolucion_motivo')->nullable();
+            $table->foreignId('inventario_movimiento_id')->nullable()->constrained('inventory_movements')->nullOnDelete();
+            $table->timestamp('factura_procesada_administracion_at')->nullable();
 
             $table->timestamps();
         });
@@ -48,6 +83,15 @@ return new class extends Migration
             $table->decimal('cantidad', 12, 2);
             $table->decimal('precio_unitario', 14, 2)->default(0);
             $table->decimal('precio_total', 14, 2)->default(0);
+            $table->string('estado_recepcion', 40)->default('PENDIENTE_RECEPCION');
+            $table->timestamp('en_transicion_at')->nullable();
+            $table->timestamp('entregado_at')->nullable();
+            $table->string('decision_solicitante', 20)->nullable();
+            $table->text('motivo_rechazo_solicitante')->nullable();
+            $table->timestamp('conformidad_solicitante_at')->nullable();
+            $table->timestamp('procesado_almacen_at')->nullable();
+            $table->string('modo_ingreso_almacen', 30)->nullable();
+            $table->foreignId('product_id')->nullable()->constrained('products')->nullOnDelete();
 
             $table->timestamps();
         });

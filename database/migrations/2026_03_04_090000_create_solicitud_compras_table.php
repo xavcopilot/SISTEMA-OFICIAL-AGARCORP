@@ -14,13 +14,14 @@ return new class extends Migration
         Schema::create('solicitud_compras', function (Blueprint $table) {
             $table->id();
             $table->string('codigo_control')->nullable();
+            $table->unsignedBigInteger('numero_solicitud_usuario')->nullable()->index('solicitud_compras_numero_usuario_idx');
             $table->string('codigo_control_procura')->nullable();
             $table->date('fecha_solicitud')->nullable();
 
-            $table->enum('tipo_solicitud', ['Consumo', 'Repuesto', 'Servicio']);
-            $table->enum('prioridad', ['Alta', 'Media', 'Baja'])->default('Media');
+            $table->string('tipo_solicitud')->nullable();
+            $table->string('prioridad')->nullable();
 
-            $table->string('departamento_solicitante');
+            $table->string('departamento_solicitante')->nullable();
             $table->text('para_ser_usado_en')->nullable();
 
             $table->string('centro')->nullable();
@@ -57,17 +58,7 @@ return new class extends Migration
 
             $table->boolean('recepcion_conforme')->default(false);
 
-            $table->enum('estado', [
-                'RECHAZADA',
-                'EN_ESPERA_DE_COTIZACION',
-                'SUMARIO_EN_REVISION',
-                'OC_PENDIENTE_APROBACION',
-                'ORDEN_APROBADA',
-                'PAGADO',
-                'EN_CREDITO',
-                'MATERIAL_RECIBIDO',
-                'CERRADA',
-            ])->default('EN_ESPERA_DE_COTIZACION');
+            $table->string('estado')->default('BORRADOR');
 
             $table->timestamps();
         });

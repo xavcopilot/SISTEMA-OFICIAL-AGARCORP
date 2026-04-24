@@ -39,10 +39,6 @@ if errorlevel 1 goto artisan_error
 
 echo Shield se genera desde DatabaseSeeder con panel agarcorp y sin interaccion.
 
-echo Sincronizando permisos en roles de gestion...
-call php artisan db:seed --force --no-interaction
-if errorlevel 1 goto artisan_error
-
 echo Limpiando Cache...
 call php artisan permission:cache-reset
 if errorlevel 1 goto artisan_error
