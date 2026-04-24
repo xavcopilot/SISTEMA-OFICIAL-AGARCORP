@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Sumarios\Tables;
 
 use App\Models\Sumario;
 use App\Models\SumarioItem;
+use App\Models\SumarioItemOpcion;
 use App\Support\ActivityNotification;
+use App\Support\SolicitudItemTrackingService;
 use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -23,6 +25,8 @@ use Illuminate\Support\Facades\DB;
 
 class SumariosTable
 {
+    private const SUBESTADO_PENDIENTE_REVALIDACION = 'PENDIENTE_REVALIDACION_GERENCIA';
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -102,6 +106,17 @@ class SumariosTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record) => new HtmlString(self::renderComparativeTable($record))),
+
+                Action::make('sumarioCorreccion')
+                    ->label('Sumario en correccion')
+                    ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
+                    ->color('warning')
+                    ->modalHeading(fn ($record): string => 'Correccion inteligente | Sumario ' . (string) $record->correlativo_sdc)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderCorrectionBoard($record)))
+                    ->visible(fn ($record): bool => self::canUseCorrectionBoard($record)),
 
                 Action::make('enviarValidacionFinanzas')
                     ->label('Enviar a Validacion Finanzas')
@@ -251,7 +266,8 @@ class SumariosTable
                             ->label('Comentario general de Gerencia (opcional)')
                             ->rows(3),
                     ])
-                    ->visible(fn ($record): bool => self::canGerenciaFinanceDecision($record) && (string) ($record->workflow_estado ?? '') === 'VALIDADO_FINANZAS')
+                    ->visible(fn ($record): bool => self::canGerenciaFinanceDecision($record)
+                        && in_array((string) ($record->workflow_estado ?? ''), ['VALIDADO_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL'], true))
                     ->fillForm(fn ($record): array => [
                         'items_revision' => self::buildGerenciaItemRevisionPayload($record),
                     ])
@@ -296,6 +312,9 @@ class SumariosTable
                                         'validacion_gerencia_comentario' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
                                             ? trim((string) ($row['comentario'] ?? ''))
                                             : null,
+                                        'sub_estado' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
+                                            ? 'RECHAZADO_GERENCIA'
+                                            : 'PENDIENTE_OC',
                                     ]);
                             }
 
@@ -360,6 +379,164 @@ class SumariosTable
                             'Se generaron ' . count($orders) . ' ODC desde el sumario ' . (string) $record->correlativo_sdc . '.',
                             'success'
                         );
+                    }),
+
+                Action::make('editarItemRechazado')
+                    ->label('Editar item rechazado')
+                    ->icon(Heroicon::OutlinedPencilSquare)
+                    ->color('info')
+                    ->form([
+                        Select::make('sumario_item_id')
+                            ->label('Item rechazado')
+                            ->options(fn ($record): array => self::rejectedItemOptions($record))
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, callable $set, $record): void {
+                                self::hydrateRejectedItemOption($record, (int) ($state ?? 0), 1, $set);
+                            }),
+
+                        Select::make('opcion_numero')
+                            ->label('Proveedor a corregir (columna)')
+                            ->options([
+                                1 => 'Proveedor 1',
+                                2 => 'Proveedor 2',
+                                3 => 'Proveedor 3',
+                            ])
+                            ->default(1)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, callable $set, callable $get, $record): void {
+                                self::hydrateRejectedItemOption(
+                                    $record,
+                                    (int) ($get('sumario_item_id') ?? 0),
+                                    (int) ($state ?? 1),
+                                    $set
+                                );
+                            }),
+
+                        TextInput::make('proveedor_nombre')
+                            ->label('Proveedor')
+                            ->required()
+                            ->maxLength(255),
+
+                        TextInput::make('marca')
+                            ->label('Marca')
+                            ->maxLength(255),
+
+                        TextInput::make('precio_unitario')
+                            ->label('Precio unitario')
+                            ->numeric()
+                            ->required(),
+
+                        Select::make('marcar_seleccionada')
+                            ->label('Usar esta opcion para ODC')
+                            ->options([
+                                '1' => 'Si',
+                                '0' => 'No',
+                            ])
+                            ->default('1')
+                            ->required(),
+                    ])
+                    ->fillForm(fn ($record): array => self::defaultCorrectionEditData($record))
+                    ->visible(fn ($record): bool => self::canEditRejectedItems($record))
+                    ->action(function (array $data, $record): void {
+                        DB::transaction(function () use ($data, $record): void {
+                            $sumario = Sumario::query()
+                                ->with('items.opciones')
+                                ->lockForUpdate()
+                                ->findOrFail($record->id);
+
+                            $sumarioItem = SumarioItem::query()
+                                ->where('sumario_id', $sumario->id)
+                                ->whereKey((int) ($data['sumario_item_id'] ?? 0))
+                                ->firstOrFail();
+
+                            $opcionNumero = (int) ($data['opcion_numero'] ?? 1);
+                            if (! in_array($opcionNumero, [1, 2, 3], true)) {
+                                $opcionNumero = 1;
+                            }
+
+                            $opcion = SumarioItemOpcion::query()->firstOrNew([
+                                'sumario_item_id' => $sumarioItem->id,
+                                'opcion_numero' => $opcionNumero,
+                            ]);
+
+                            $precioUnitario = round((float) ($data['precio_unitario'] ?? 0), 2);
+                            $cantidad = round((float) ($sumarioItem->cantidad ?? 0), 2);
+
+                            $opcion->fill([
+                                'proveedor_nombre' => trim((string) ($data['proveedor_nombre'] ?? '')),
+                                'marca' => trim((string) ($data['marca'] ?? '')),
+                                'precio_unitario' => $precioUnitario,
+                                'precio_total' => round($cantidad * $precioUnitario, 2),
+                            ]);
+                            $opcion->save();
+
+                            if ((string) ($data['marcar_seleccionada'] ?? '1') === '1') {
+                                SumarioItemOpcion::query()
+                                    ->where('sumario_item_id', $sumarioItem->id)
+                                    ->update(['seleccionada' => false]);
+
+                                $opcion->forceFill(['seleccionada' => true])->save();
+                            }
+
+                            $sumarioItem->forceFill([
+                                'sub_estado' => self::SUBESTADO_PENDIENTE_REVALIDACION,
+                            ])->save();
+
+                            self::refreshWorkflowAfterCorrection($sumario);
+                        });
+
+                        Notification::make()
+                            ->title('Item en correccion actualizado')
+                            ->body('El item quedo en estado Pendiente de Validacion para una nueva revision de Gerencia.')
+                            ->success()
+                            ->send();
+                    }),
+
+                Action::make('retornarItemRechazado')
+                    ->label('Eliminar/Retornar item')
+                    ->icon(Heroicon::OutlinedArrowUturnLeft)
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->form([
+                        Select::make('sumario_item_id')
+                            ->label('Item rechazado a retornar')
+                            ->options(fn ($record): array => self::rejectedItemOptions($record))
+                            ->searchable()
+                            ->required(),
+                        Textarea::make('motivo_retorno')
+                            ->label('Motivo de retorno (opcional)')
+                            ->rows(2),
+                    ])
+                    ->visible(fn ($record): bool => self::canEditRejectedItems($record))
+                    ->action(function (array $data, $record): void {
+                        DB::transaction(function () use ($data, $record): void {
+                            $sumario = Sumario::query()
+                                ->with('items')
+                                ->lockForUpdate()
+                                ->findOrFail($record->id);
+
+                            $sumarioItem = SumarioItem::query()
+                                ->where('sumario_id', $sumario->id)
+                                ->whereKey((int) ($data['sumario_item_id'] ?? 0))
+                                ->firstOrFail();
+
+                            $solicitudCompraItemId = (int) $sumarioItem->solicitud_compra_item_id;
+
+                            $sumarioItem->opciones()->delete();
+                            $sumarioItem->delete();
+
+                            SolicitudItemTrackingService::syncByItemIds([$solicitudCompraItemId]);
+                            self::refreshWorkflowAfterCorrection($sumario);
+                        });
+
+                        Notification::make()
+                            ->title('Item retornado a bandeja pendiente')
+                            ->body('El item fue removido del sumario y su cantidad quedo liberada para nuevo sumario.')
+                            ->success()
+                            ->send();
                     }),
 
                 EditAction::make()
@@ -471,7 +648,264 @@ class SumariosTable
                     ->whereNull('validacion_gerencia_resultado')
                     ->orWhere('validacion_gerencia_resultado', 'CORRECTO');
             })
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('sub_estado')
+                    ->orWhere('sub_estado', '!=', self::SUBESTADO_PENDIENTE_REVALIDACION);
+            })
             ->exists();
+    }
+
+    private static function canUseCorrectionBoard(mixed $record): bool
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $record) {
+            return false;
+        }
+
+        if (! $user->can('Update:Sumario')) {
+            return false;
+        }
+
+        return in_array((string) ($record->workflow_estado ?? ''), [
+            'RECHAZADO_GERENCIA_FINANZAS',
+            'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
+            'APROBADO_GERENCIA_FINANZAS',
+        ], true);
+    }
+
+    private static function canEditRejectedItems(mixed $record): bool
+    {
+        if (! self::canUseCorrectionBoard($record)) {
+            return false;
+        }
+
+        return SumarioItem::query()
+            ->where('sumario_id', (int) $record->id)
+            ->where(function ($query): void {
+                $query
+                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
+                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
+            })
+            ->exists();
+    }
+
+    private static function renderCorrectionBoard(mixed $record): string
+    {
+        $sumario = $record->loadMissing(['items.opciones']);
+
+        $validos = $sumario->items->filter(function ($item): bool {
+            return (string) ($item->validacion_gerencia_resultado ?? '') === 'CORRECTO'
+                && (string) ($item->sub_estado ?? '') !== self::SUBESTADO_PENDIENTE_REVALIDACION;
+        })->values();
+
+        $rechazados = $sumario->items->filter(function ($item): bool {
+            $resultado = (string) ($item->validacion_gerencia_resultado ?? '');
+            $subEstado = (string) ($item->sub_estado ?? '');
+
+            return $resultado === 'RECHAZADO' || $subEstado === self::SUBESTADO_PENDIENTE_REVALIDACION;
+        })->values();
+
+        $head = '<div style="margin-bottom:12px;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">'
+            . '<strong>Regla activa:</strong> Los items CORRECTOS estan habilitados para generar ODC de inmediato. '
+            . 'Los items del grupo rechazado/correccion se gestionan con las acciones "Editar item rechazado" y "Eliminar/Retornar item" sin bloquear el Grupo A.'
+            . '</div>';
+
+        $rowsA = $validos->map(function ($item): string {
+            return '<tr>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item->descripcion) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">Correcto</td>'
+                . '</tr>';
+        })->implode('');
+
+        if ($rowsA === '') {
+            $rowsA = '<tr><td colspan="4" style="border:1px solid #d1d5db;padding:8px;">No hay items validados actualmente.</td></tr>';
+        }
+
+        $rowsB = $rechazados->map(function ($item): string {
+            $estadoCorreccion = (string) ($item->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION
+                ? 'Pendiente de revalidacion'
+                : 'X (Rechazado)';
+
+            return '<tr>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item->descripcion) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e($estadoCorreccion) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->validacion_gerencia_comentario ?: 'Sin comentario registrado')) . '</td>'
+                . '</tr>';
+        })->implode('');
+
+        if ($rowsB === '') {
+            $rowsB = '<tr><td colspan="4" style="border:1px solid #d1d5db;padding:8px;">No hay items rechazados o en correccion.</td></tr>';
+        }
+
+        return $head
+            . '<div style="display:grid;grid-template-columns:1fr;gap:12px;">'
+            . '<div style="overflow:auto;">'
+            . '<div style="font-weight:700;margin-bottom:6px;">Grupo A | Items Validados</div>'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead><tr style="background:#ecfdf5;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado</th>'
+            . '</tr></thead><tbody>' . $rowsA . '</tbody></table>'
+            . '</div>'
+            . '<div style="overflow:auto;">'
+            . '<div style="font-weight:700;margin-bottom:6px;">Grupo B | Rechazados y en Correccion</div>'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead><tr style="background:#fff7ed;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Motivo de rechazo / historial visible</th>'
+            . '</tr></thead><tbody>' . $rowsB . '</tbody></table>'
+            . '</div>'
+            . '</div>';
+    }
+
+    private static function rejectedItemOptions(mixed $record): array
+    {
+        return SumarioItem::query()
+            ->where('sumario_id', (int) $record->id)
+            ->where(function ($query): void {
+                $query
+                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
+                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
+            })
+            ->orderBy('item')
+            ->orderBy('id')
+            ->get(['id', 'item', 'descripcion', 'validacion_gerencia_comentario'])
+            ->mapWithKeys(function (SumarioItem $item): array {
+                $label = '#' . (string) ($item->item ?: $item->id)
+                    . ' | ' . (string) $item->descripcion
+                    . ' | Motivo: ' . (string) ($item->validacion_gerencia_comentario ?: 'Sin comentario');
+
+                return [$item->id => $label];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function defaultCorrectionEditData(mixed $record): array
+    {
+        $firstRejectedItemId = SumarioItem::query()
+            ->where('sumario_id', (int) $record->id)
+            ->where(function ($query): void {
+                $query
+                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
+                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
+            })
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $firstRejectedItemId) {
+            return [
+                'opcion_numero' => 1,
+                'marcar_seleccionada' => '1',
+            ];
+        }
+
+        $result = [
+            'sumario_item_id' => (int) $firstRejectedItemId,
+            'opcion_numero' => 1,
+            'marcar_seleccionada' => '1',
+        ];
+
+        $item = SumarioItem::query()
+            ->with(['opciones' => fn ($query) => $query->orderBy('opcion_numero')])
+            ->find((int) $firstRejectedItemId);
+
+        $option = $item?->opciones->firstWhere('seleccionada', true) ?: $item?->opciones->first();
+
+        if ($option) {
+            $result['opcion_numero'] = (int) ($option->opcion_numero ?: 1);
+            $result['proveedor_nombre'] = (string) ($option->proveedor_nombre ?? '');
+            $result['marca'] = (string) ($option->marca ?? '');
+            $result['precio_unitario'] = round((float) ($option->precio_unitario ?? 0), 2);
+            $result['marcar_seleccionada'] = (bool) ($option->seleccionada ?? false) ? '1' : '0';
+        }
+
+        return $result;
+    }
+
+    private static function hydrateRejectedItemOption(mixed $record, int $sumarioItemId, int $optionNumber, callable $set): void
+    {
+        if ($sumarioItemId <= 0) {
+            return;
+        }
+
+        $item = SumarioItem::query()
+            ->with('opciones')
+            ->where('sumario_id', (int) $record->id)
+            ->find($sumarioItemId);
+
+        if (! $item) {
+            return;
+        }
+
+        if (! in_array($optionNumber, [1, 2, 3], true)) {
+            $optionNumber = 1;
+        }
+
+        $option = $item->opciones->firstWhere('opcion_numero', $optionNumber)
+            ?: $item->opciones->firstWhere('seleccionada', true)
+            ?: $item->opciones->first();
+
+        if (! $option) {
+            return;
+        }
+
+        $set('opcion_numero', (int) ($option->opcion_numero ?? $optionNumber));
+        $set('proveedor_nombre', (string) ($option->proveedor_nombre ?? ''));
+        $set('marca', (string) ($option->marca ?? ''));
+        $set('precio_unitario', round((float) ($option->precio_unitario ?? 0), 2));
+        $set('marcar_seleccionada', (bool) ($option->seleccionada ?? false) ? '1' : '0');
+    }
+
+    private static function refreshWorkflowAfterCorrection(Sumario $sumario): void
+    {
+        $sumario = $sumario->fresh()->load('items');
+
+        $items = $sumario->items;
+
+        $hasCorrect = $items->contains(fn ($item): bool => (string) ($item->validacion_gerencia_resultado ?? '') === 'CORRECTO');
+        $hasRejected = $items->contains(fn ($item): bool => (string) ($item->validacion_gerencia_resultado ?? '') === 'RECHAZADO');
+        $hasPendingRevalidation = $items->contains(fn ($item): bool => (string) ($item->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION);
+
+        $workflow = (string) ($sumario->workflow_estado ?? '');
+        $decision = (string) ($sumario->decision_gerencia_resultado ?? '');
+
+        if ($hasRejected) {
+            if ($hasCorrect || $hasPendingRevalidation) {
+                $workflow = 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL';
+                $decision = 'PARCIAL';
+            } else {
+                $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
+                $decision = 'RECHAZADO';
+            }
+        } elseif ($hasPendingRevalidation) {
+            if ($hasCorrect) {
+                $workflow = 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL';
+                $decision = 'PARCIAL';
+            } else {
+                $workflow = 'VALIDADO_FINANZAS';
+                $decision = 'PENDIENTE_REVALIDACION';
+            }
+        } elseif ($hasCorrect) {
+            $workflow = 'APROBADO_GERENCIA_FINANZAS';
+            $decision = 'APROBADO';
+        }
+
+        $sumario->forceFill([
+            'workflow_estado' => $workflow,
+            'decision_gerencia_resultado' => $decision,
+        ])->save();
     }
 
     /**

@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class SumarioFinanceApprovalService
 {
+    private const SUBESTADO_PENDIENTE_REVALIDACION = 'PENDIENTE_REVALIDACION_GERENCIA';
+
     /**
      * @return array<int, OrdenCompra>
      */
@@ -79,6 +81,10 @@ class SumarioFinanceApprovalService
 
             $itemsForOc = $sumario->items
                 ->filter(function (SumarioItem $sumarioItem): bool {
+                    if ((string) ($sumarioItem->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION) {
+                        return false;
+                    }
+
                     $resultado = (string) ($sumarioItem->validacion_gerencia_resultado ?? '');
 
                     if ($resultado === '') {
@@ -260,6 +266,10 @@ class SumarioFinanceApprovalService
         $groups = collect();
 
         foreach ($sumario->items as $sumarioItem) {
+            if ((string) ($sumarioItem->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION) {
+                continue;
+            }
+
             $resultado = (string) ($sumarioItem->validacion_gerencia_resultado ?? '');
             if ($resultado !== '' && $resultado !== 'CORRECTO') {
                 continue;
