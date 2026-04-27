@@ -18,6 +18,9 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/Comprobantes-ODC
+/Facturas
+/Notas de Entrega
 /vendor
 Homestead.json
 Homestead.yaml
