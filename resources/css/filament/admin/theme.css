@@ -462,6 +462,36 @@
     font-weight: 700;
 }
 
+.ag-desktop-rate-tag {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    min-width: 280px;
+    border-radius: 1rem !important;
+    background: linear-gradient(135deg, rgba(20, 73, 157, 0.08), rgba(15, 35, 73, 0.12)) !important;
+}
+
+.ag-desktop-rate-tag__label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #2756a5;
+}
+
+.ag-desktop-rate-tag__value {
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-weight: 900;
+    color: #0f2349;
+}
+
+.ag-desktop-rate-tag__meta {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #4c6488;
+}
+
 .ag-desktop-hero__panel {
     display: flex;
     align-items: stretch;
@@ -724,6 +754,17 @@
 
 .dark .ag-desktop-tags span {
     color: #ffffff;
+}
+
+.dark .ag-desktop-rate-tag {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.24), rgba(30, 58, 138, 0.2)) !important;
+    border-color: rgba(147, 197, 253, 0.24) !important;
+}
+
+.dark .ag-desktop-rate-tag__label,
+.dark .ag-desktop-rate-tag__value,
+.dark .ag-desktop-rate-tag__meta {
+    color: #eff6ff;
 }
 
 @media (max-width: 1024px) {

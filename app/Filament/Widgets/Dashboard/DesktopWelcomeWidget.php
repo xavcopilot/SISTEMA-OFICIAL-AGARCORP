@@ -9,6 +9,7 @@ use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Filament\Resources\Sumarios\SumarioResource;
 use App\Filament\Resources\Tickets\TicketResource;
+use App\Support\BcvRateService;
 use App\Models\User;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Cache;
@@ -93,6 +94,13 @@ class DesktopWelcomeWidget extends Widget
             ? Cache::get('agarcorp:last-module:' . $user->getAuthIdentifier())
             : null;
 
+        $bcvRateService = app(BcvRateService::class);
+        $displayBcvRate = $bcvRateService->businessDayRate() ?: $bcvRateService->latestRate();
+
+        $bcvRateValue = $displayBcvRate
+            ? number_format((float) $displayBcvRate->rate, 4, ',', '.')
+            : null;
+
         return [
             'greeting' => $greeting,
             'userName' => $user?->name ?? 'Usuario',
@@ -103,6 +111,7 @@ class DesktopWelcomeWidget extends Widget
             'lastVisitedModule' => $lastVisitedModule,
             'highlights' => $highlights,
             'quickLinks' => $quickLinks,
+            'bcvRateValue' => $bcvRateValue,
         ];
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Models\User;
+use App\Support\BcvRateService;
 use App\Support\ControlCodeGenerator;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
@@ -148,6 +149,7 @@ class SumarioFinanceApprovalService
             $createdOrders = [];
             $affectedSolicitudItemIds = [];
             $affectedSumarioItemIds = [];
+            $defaultBcvRate = app(BcvRateService::class)->rateForOrderCreation();
 
             foreach ($grouped as $group) {
                 $provider = null;
@@ -174,6 +176,14 @@ class SumarioFinanceApprovalService
                     ->first();
 
                 if ($existingOrder) {
+                    $isDraftOrder = (string) ($existingOrder->workflow_post_compra ?? '') === 'BORRADOR_ODC';
+
+                    if ($isDraftOrder && $defaultBcvRate !== null) {
+                        $existingOrder->forceFill([
+                            'tasa_bcv' => $defaultBcvRate,
+                        ])->save();
+                    }
+
                     $createdOrders[] = $existingOrder;
 
                     continue;
@@ -192,7 +202,7 @@ class SumarioFinanceApprovalService
                     'direccion_proveedor' => (string) ($provider?->direccion ?? ''),
                     'email_proveedor' => (string) ($provider?->email ?? ''),
                     'contacto_proveedor' => (string) ($provider?->contacto ?? ''),
-                    'tasa_bcv' => null,
+                    'tasa_bcv' => $defaultBcvRate,
                     'condicion_pago' => $sumario->condiciones_pago,
                     'departamento_solicitante' => (string) $group['departamento_solicitante'],
                     'sitio_entrega' => null,

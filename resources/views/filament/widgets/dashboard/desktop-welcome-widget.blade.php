@@ -10,6 +10,13 @@
 
                 <div class="ag-desktop-tags">
                     <span>{{ $today }}</span>
+                    <span>
+                        @if ($bcvRateValue)
+                            Tasa BCV del dia ({{ $bcvRateValue }})
+                        @else
+                            Tasa BCV del dia (sin tasa cargada)
+                        @endif
+                    </span>
                 </div>
             </div>
 

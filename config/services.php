@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'bcv' => [
+        // bcv_website: scrape simple desde BCV oficial
+        // dolarapi_ve: integra DolarApi Venezuela (oficial) con fallback historico si viene fecha futura
+        // json_api: usa BCV_API_URL + BCV_API_TOKEN opcional
+        'source' => env('BCV_SOURCE', 'bcv_website'),
+        'website_url' => env('BCV_WEBSITE_URL', 'https://www.bcv.org.ve/estadisticas/tipo-cambio-de-referencia-smc'),
+        'api_url' => env('BCV_API_URL'),
+        'api_token' => env('BCV_API_TOKEN'),
+        'verify_ssl' => env('BCV_VERIFY_SSL', true),
+        'dolarapi_current_url' => env('BCV_DOLARAPI_CURRENT_URL', 'https://ve.dolarapi.com/v1/dolares/oficial'),
+        'dolarapi_history_url' => env('BCV_DOLARAPI_HISTORY_URL', 'https://ve.dolarapi.com/v1/historicos/dolares/oficial'),
+    ],
+
 ];

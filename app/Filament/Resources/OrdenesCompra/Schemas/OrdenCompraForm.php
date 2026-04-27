@@ -4,6 +4,7 @@ namespace App\Filament\Resources\OrdenesCompra\Schemas;
 
 use App\Models\Proveedor;
 use App\Models\User;
+use App\Support\BcvRateService;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Placeholder;
@@ -307,6 +308,17 @@ class OrdenCompraForm
                                     ->label('TASA BCV')
                                     ->numeric()
                                     ->step('0.000001')
+                                    ->afterStateHydrated(function ($state, callable $set): void {
+                                        if (filled($state)) {
+                                            return;
+                                        }
+
+                                        $rate = app(BcvRateService::class)->rateForOrderCreation();
+
+                                        if ($rate !== null) {
+                                            $set('tasa_bcv', round($rate, 6));
+                                        }
+                                    })
                                     ->columnSpan(3),
 
                                 Placeholder::make('solicitado_por_preview')
