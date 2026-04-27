@@ -1,0 +1,1 @@
+global-search.field.input<?php /**PATH C:\laragon\www\SISTEMA-OFICIAL-AGARCORP\storage\framework\views/4ceff65f1f94134cafd393a4cc9cdf1d.blade.php ENDPATH**/ ?>
