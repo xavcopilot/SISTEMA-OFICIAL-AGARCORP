@@ -5,23 +5,30 @@ namespace App\Filament\Resources\SolicitudesCompra\Tables;
 use App\Filament\Resources\AprobacionesCompra\AprobacionesCompraResource;
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Filament\Resources\Sumarios\SumarioResource;
+use App\Models\Sumario;
 use App\Models\OrdenCompra;
 use App\Models\OrdenCompraItem;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
+use App\Models\User;
+use App\Support\ActivityNotification;
+use App\Support\ControlCodeGenerator;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Hash;
 
 class SolicitudesCompraTable
 {
@@ -438,10 +445,358 @@ class SolicitudesCompraTable
                     ->label('Ver')
                     ->icon(Heroicon::OutlinedEye)
                     ->color('gray')
-                    ->url(fn (SolicitudCompra $record): string => AprobacionesCompraResource::getUrl('view', ['record' => $record])),
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Solicitud #' . ($record->numero_solicitud_usuario ?: $record->id))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->fillForm(fn (SolicitudCompra $record): array => self::getViewFormData($record))
+                    ->schema(self::getViewSchema())
+                    ->extraModalFooterActions(fn (SolicitudCompra $record): array => self::approvalModalFooterActions($record)),
             ])
             ->recordUrl(null)
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function approvalModalFooterActions(SolicitudCompra $record): array
+    {
+        return [
+            Action::make('firmarAlmacenDesdeModal')
+                ->label('Firmar almacén')
+                ->icon(Heroicon::OutlinedCheckBadge)
+                ->color('warning')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record->fresh()))
+                ->schema(self::signatureSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::signAlmacenFromModal($record, $data);
+                }),
+
+            Action::make('rechazarAlmacenDesdeModal')
+                ->label('Rechazar almacén')
+                ->icon(Heroicon::OutlinedXCircle)
+                ->color('danger')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record->fresh()))
+                ->schema(self::rejectionSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::rejectFromModal($record, $data, 'almacen');
+                }),
+
+            Action::make('firmarAprobacionDesdeModal')
+                ->label('Firmar aprobación')
+                ->icon(Heroicon::OutlinedCheckBadge)
+                ->color('success')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignApprover(auth()->user(), $record->fresh()))
+                ->schema(self::approverSignatureSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::signApproverFromModal($record, $data);
+                }),
+
+            Action::make('rechazarAprobacionDesdeModal')
+                ->label('Rechazar aprobación')
+                ->icon(Heroicon::OutlinedXCircle)
+                ->color('danger')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignApprover(auth()->user(), $record->fresh()))
+                ->schema(self::rejectionSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::rejectFromModal($record, $data, 'aprobador');
+                }),
+
+            Action::make('firmarProcuraDesdeModal')
+                ->label('Firmar recepción procura')
+                ->icon(Heroicon::OutlinedCheckBadge)
+                ->color('info')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
+                ->schema(self::procuraSignatureSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::signProcuraFromModal($record, $data);
+                }),
+
+            Action::make('rechazarProcuraDesdeModal')
+                ->label('Rechazar procura')
+                ->icon(Heroicon::OutlinedXCircle)
+                ->color('danger')
+                ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
+                ->schema(self::rejectionSchema())
+                ->action(function (array $data) use ($record): void {
+                    self::rejectFromModal($record, $data, 'procura');
+                }),
+        ];
+    }
+
+    private static function signatureSchema(): array
+    {
+        return [
+            TextInput::make('password')
+                ->label('Clave de firma')
+                ->password()
+                ->required(),
+            TextInput::make('password_confirmation')
+                ->label('Repetir clave de firma')
+                ->password()
+                ->required(),
+        ];
+    }
+
+    private static function approverSignatureSchema(): array
+    {
+        return [
+            Select::make('prioridad')
+                ->label('Prioridad')
+                ->options([
+                    'Alta' => 'Alta',
+                    'Media' => 'Media',
+                    'Baja' => 'Baja',
+                ])
+                ->required(),
+            ...self::signatureSchema(),
+        ];
+    }
+
+    private static function procuraSignatureSchema(): array
+    {
+        return [
+            Select::make('crear_sumario_ahora')
+                ->label('¿Deseas realizar el sumario ahora?')
+                ->options([
+                    'SI' => 'Sí, abrir pestaña Creación de Sumarios en Sumarios Cotizaciones',
+                    'NO' => 'No, continuar luego',
+                ])
+                ->default('NO')
+                ->required(),
+            ...self::signatureSchema(),
+        ];
+    }
+
+    private static function rejectionSchema(): array
+    {
+        return [
+            Textarea::make('comentario_rechazo')
+                ->label('Comentario de rechazo')
+                ->rows(4)
+                ->required()
+                ->maxLength(2000),
+            ...self::signatureSchema(),
+        ];
+    }
+
+    private static function signAlmacenFromModal(SolicitudCompra $record, array $data): void
+    {
+        $record = $record->fresh();
+
+        if (! SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record) || ! self::validatePassword($data)) {
+            return;
+        }
+
+        $record->forceFill([
+            'por_almacen_user_id' => $record->por_almacen_user_id ?: auth()->id(),
+            'cargo_almacen' => auth()->user()?->cargo?->nombre,
+            'firma_almacen' => $record->firma_almacen,
+            'fecha_almacen' => now()->toDateString(),
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_APROBADOR,
+        ])->save();
+
+        Notification::make()
+            ->title('Firma de almacén registrada')
+            ->success()
+            ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Firma de almacen registrada',
+            'Se firmo en etapa almacen la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
+    }
+
+    private static function signApproverFromModal(SolicitudCompra $record, array $data): void
+    {
+        $record = $record->fresh();
+
+        if (! SolicitudCompraFlow::canSignApprover(auth()->user(), $record) || ! self::validatePassword($data)) {
+            return;
+        }
+
+        $prioridad = (string) ($data['prioridad'] ?? '');
+        if (! in_array($prioridad, ['Alta', 'Media', 'Baja'], true)) {
+            Notification::make()
+                ->title('Prioridad requerida')
+                ->body('Debes seleccionar la prioridad antes de firmar la aprobacion.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $record->forceFill([
+            'aprobado_por_user_id' => $record->aprobado_por_user_id ?: auth()->id(),
+            'cargo_aprobador' => auth()->user()?->cargo?->nombre,
+            'prioridad' => $prioridad,
+            'firma_aprobador' => $record->firma_aprobador,
+            'fecha_aprobador' => now()->toDateString(),
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_PROCURA,
+        ])->save();
+
+        Notification::make()
+            ->title('Aprobación registrada')
+            ->success()
+            ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Aprobacion registrada',
+            'Se firmo en etapa aprobacion la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
+    }
+
+    private static function signProcuraFromModal(SolicitudCompra $record, array $data): void
+    {
+        $record = $record->fresh();
+
+        if (! SolicitudCompraFlow::canSignProcura(auth()->user(), $record) || ! self::validatePassword($data)) {
+            return;
+        }
+
+        $record->forceFill([
+            'recibido_por_user_id' => $record->recibido_por_user_id ?: auth()->id(),
+            'cargo_receptor' => auth()->user()?->cargo?->nombre,
+            'codigo_control_procura' => $record->codigo_control_procura ?: ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
+            'firma_receptor' => $record->firma_receptor,
+            'fecha_receptor' => now()->toDateString(),
+            'hora_receptor' => now()->format('H:i:s'),
+            'estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA,
+        ])->save();
+
+        Notification::make()
+            ->title('Recepción de procura registrada')
+            ->success()
+            ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Recepcion de procura registrada',
+            'Se firmo en etapa procura la solicitud #' . (string) $record->id . '.',
+            'success'
+        );
+
+        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI' && self::hasPendingItemsForSumario($record)) {
+            self::ensureDraftSumarioForSolicitud($record);
+        }
+    }
+
+    private static function rejectFromModal(SolicitudCompra $record, array $data, string $etapa): void
+    {
+        $record = $record->fresh();
+
+        $canReject = match ($etapa) {
+            'almacen' => SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record),
+            'aprobador' => SolicitudCompraFlow::canSignApprover(auth()->user(), $record),
+            'procura' => SolicitudCompraFlow::canSignProcura(auth()->user(), $record),
+            default => false,
+        };
+
+        if (! $canReject || ! self::validatePassword($data)) {
+            return;
+        }
+
+        $comentario = trim((string) ($data['comentario_rechazo'] ?? ''));
+
+        if ($comentario === '') {
+            return;
+        }
+
+        $destinatarioUserId = $record->solicitado_por_user_id;
+
+        $record->forceFill([
+            'estado' => 'RECHAZADA',
+            'rechazo_etapa' => $etapa,
+            'rechazo_comentario' => $comentario,
+            'rechazo_por_user_id' => auth()->id(),
+            'rechazo_destinatario_user_id' => $destinatarioUserId,
+            'rechazo_en' => now(),
+        ])->save();
+
+        $destinatario = $destinatarioUserId ? User::query()->find($destinatarioUserId) : null;
+
+        if ($destinatario) {
+            $rechazadoPor = auth()->user()?->name ?? 'Usuario';
+
+            Notification::make()
+                ->title('Solicitud rechazada en etapa ' . strtoupper($etapa))
+                ->body('Solicitud #' . $record->id . ' rechazada por ' . $rechazadoPor . '. Motivo: ' . $comentario)
+                ->danger()
+                ->sendToDatabase($destinatario);
+        }
+
+        Notification::make()
+            ->title('Rechazo registrado')
+            ->body('Se notifico al solicitante con el comentario de rechazo.')
+            ->success()
+            ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            'Rechazo registrado',
+            'Se rechazo la solicitud #' . (string) $record->id . ' en etapa ' . strtoupper($etapa) . '.',
+            'warning'
+        );
+    }
+
+    private static function validatePassword(array $data): bool
+    {
+        $password = (string) ($data['password'] ?? '');
+        $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
+
+        if ($password === '' || $password !== $passwordConfirmation) {
+            Notification::make()
+                ->title('Verificacion fallida')
+                ->body('Debes escribir la misma clave de firma dos veces antes de enviar.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+
+        if (Hash::check($password, $signatureHash)) {
+            return true;
+        }
+
+        Notification::make()
+            ->title('Clave incorrecta')
+            ->body('La firma no se registro porque la clave de firma no coincide.')
+            ->danger()
+            ->send();
+
+        return false;
+    }
+
+    private static function ensureDraftSumarioForSolicitud(SolicitudCompra $record): void
+    {
+        $existingDraft = Sumario::query()
+            ->where('solicitud_compra_id', $record->id)
+            ->where('workflow_estado', 'BORRADOR')
+            ->exists();
+
+        if ($existingDraft) {
+            return;
+        }
+
+        $tipoOrden = str_contains(strtoupper((string) ($record->tipo_solicitud ?? '')), 'SERVICIO')
+            ? 'SERVICIO'
+            : 'COMPRA';
+
+        Sumario::query()->create([
+            'solicitud_compra_id' => $record->id,
+            'correlativo_sdc' => ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc'),
+            'fecha' => now()->toDateString(),
+            'procedencia' => 'LOCAL',
+            'tipo_orden' => $tipoOrden,
+            'departamento_solicitante' => (string) ($record->departamento_solicitante ?: 'PENDIENTE'),
+            'estado' => 'BORRADOR',
+            'workflow_estado' => 'BORRADOR',
+            'elaborado_por_user_id' => auth()->id(),
+        ]);
     }
 
     private static function isApprovalHistoryTab(mixed $livewire = null): bool

@@ -53,6 +53,27 @@ class SumarioResource extends Resource
         return self::hasReadAccess();
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $isOnlyInspectionProfile = $user->can('ValidateFinance:Sumario')
+            && ! $user->can('SubmitValidation:Sumario')
+            && ! $user->can('ApprovePayment:Sumario')
+            && ! $user->can('GenerateOdcs:Sumario')
+            && ! $user->can('Create:Sumario');
+
+        if ($isOnlyInspectionProfile) {
+            return false;
+        }
+
+        return self::hasReadAccess();
+    }
+
     public static function canCreate(): bool
     {
         return self::hasCreateAccess();

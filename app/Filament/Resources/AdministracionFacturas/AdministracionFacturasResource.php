@@ -70,7 +70,7 @@ class AdministracionFacturasResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return static::canAccess();
     }
 
     public static function canViewAny(): bool

@@ -135,13 +135,35 @@ class CreateSumario extends CreateRecord
     {
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
 
+        $totals = [
+            'A' => 0.0,
+            'B' => 0.0,
+            'C' => 0.0,
+        ];
+
+        foreach ($rows as $row) {
+            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
+
+            if (! in_array($selected, ['A', 'B', 'C'], true)) {
+                continue;
+            }
+
+            $key = 'precio_total_prov' . match ($selected) {
+                'A' => '1',
+                'B' => '2',
+                'C' => '3',
+            };
+
+            $totals[$selected] += filled($row[$key] ?? null) ? (float) $row[$key] : 0.0;
+        }
+
         $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
             ? trim((string) $data['correlativo_sdc'])
             : ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
 
-        $data['total_compra_prov1'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov1'] ?? 0)), 2);
-        $data['total_compra_prov2'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov2'] ?? 0)), 2);
-        $data['total_compra_prov3'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov3'] ?? 0)), 2);
+        $data['total_compra_prov1'] = round($totals['A'], 2);
+        $data['total_compra_prov2'] = round($totals['B'], 2);
+        $data['total_compra_prov3'] = round($totals['C'], 2);
 
         if ($this->isSubmittingForValidation) {
             $data['estado'] = 'PENDIENTE_REVISION_FINANZAS';
@@ -207,7 +229,7 @@ class CreateSumario extends CreateRecord
 
                 $itemIds[] = (int) $row['solicitud_compra_item_id'];
 
-                $selectedColumn = strtoupper((string) ($row['proveedor_seleccionado'] ?? 'A'));
+                $selectedColumn = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
 
                 $this->createOption($sumarioItem, 1, $proveedorA, $row['marca_prov1'] ?? null, (float) ($row['precio_unitario_prov1'] ?? 0), (float) ($row['precio_total_prov1'] ?? 0), $selectedColumn === 'A');
                 $this->createOption($sumarioItem, 2, $proveedorB, $row['marca_prov2'] ?? null, (float) ($row['precio_unitario_prov2'] ?? 0), (float) ($row['precio_total_prov2'] ?? 0), $selectedColumn === 'B');

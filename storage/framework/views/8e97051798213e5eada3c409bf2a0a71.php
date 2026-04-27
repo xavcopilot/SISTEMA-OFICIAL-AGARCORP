@@ -1,1 +1,0 @@
-<?php echo e($this->getId()); ?>.table.bulk-select-page.checkbox.<?php echo e(\Illuminate\Support\Str::random()); ?><?php /**PATH C:\laragon\www\SISTEMA-OFICIAL-AGARCORP\storage\framework\views/ea80dffac119befd6f645f91537ca2e2.blade.php ENDPATH**/ ?>

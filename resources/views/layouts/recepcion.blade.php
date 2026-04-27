@@ -100,6 +100,7 @@
             .kiosk-brand {
                 display: flex;
                 align-items: center;
+                gap: 12px;
                 justify-content: center;
                 justify-self: start;
             }
@@ -110,9 +111,23 @@
                 height: 98px;
             }
 
+            .kiosk-brand-title {
+                margin: 0;
+                font-size: 26px;
+                font-weight: 800;
+                letter-spacing: 0.01em;
+                color: var(--k-primary);
+                text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+                white-space: nowrap;
+            }
+
             @media (min-width: 1500px) {
                 .kiosk-brand img {
                     height: 110px;
+                }
+
+                .kiosk-brand-title {
+                    font-size: 30px;
                 }
 
                 .kiosk-clock {
@@ -217,6 +232,11 @@
                     height: 82px;
                 }
 
+                .kiosk-brand-title {
+                    font-size: 20px;
+                    white-space: normal;
+                }
+
                 .kiosk-actions {
                     width: 100%;
                     justify-content: center;
@@ -238,6 +258,10 @@
                 .kiosk-clock-value {
                     font-size: 22px;
                 }
+
+                .kiosk-brand-title {
+                    font-size: 18px;
+                }
             }
         </style>
     </head>
@@ -246,6 +270,7 @@
             <div class="kiosk-topbar">
                 <div class="kiosk-brand">
                     <img src="{{ asset('images/logo-agarcorp.png') }}" alt="AGARCORP">
+                    <h1 class="kiosk-brand-title">Sistema de Gestión AGARCORP</h1>
                 </div>
 
                 <div class="kiosk-clock">

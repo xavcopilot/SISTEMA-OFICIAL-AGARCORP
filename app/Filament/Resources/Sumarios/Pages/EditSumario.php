@@ -51,7 +51,29 @@ class EditSumario extends EditRecord
             return [
                 $this->getSaveFormAction(),
                 Action::make('submitForFinanceValidation')
-                    ->label('Enviar a validacion')
+                    ->label('Enviar a Validacion Finanzas')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->form([
+                        TextInput::make('password')
+                            ->label('Clave de firma')
+                            ->password()
+                            ->required(),
+                        TextInput::make('password_confirmation')
+                            ->label('Repetir clave de firma')
+                            ->password()
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        $this->submitForFinanceValidation($data);
+                    }),
+            ];
+        }
+
+        if ($this->isRejectedWorkflow((string) ($this->record->workflow_estado ?? ''))) {
+            return [
+                Action::make('submitForFinanceValidation')
+                    ->label('Enviar a Validacion Finanzas')
                     ->color('success')
                     ->requiresConfirmation()
                     ->form([
@@ -76,7 +98,13 @@ class EditSumario extends EditRecord
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var Sumario $sumario */
-        $sumario = $this->record->load('items.opciones');
+        $sumario = $this->record->load([
+            'items.opciones',
+            'elaboradoPor.cargo',
+            'revisadoPor.cargo',
+        ]);
+        $workflow = (string) ($sumario->workflow_estado ?? '');
+        $isRejectedWorkflow = $this->isRejectedWorkflow($workflow);
 
         $rows = [];
 
@@ -112,20 +140,62 @@ class EditSumario extends EditRecord
         $data['proveedor_a_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 1)?->proveedor_nombre;
         $data['proveedor_b_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 2)?->proveedor_nombre;
         $data['proveedor_c_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 3)?->proveedor_nombre;
+        $data['elaborado_por_preview'] = (string) ($sumario->elaboradoPor?->name ?? auth()->user()?->name ?? 'N/A');
+        $data['elaborado_cargo_preview'] = (string) ($sumario->elaboradoPor?->cargo?->nombre ?? auth()->user()?->cargo?->nombre ?? 'Sin cargo');
+        $data['firma_procura_preview'] = ! $isRejectedWorkflow && filled($sumario->enviado_validacion_finanzas_at)
+            ? 'Registrada'
+            : 'Se registra al enviar';
+        $data['fecha_elaborado_preview'] = (string) ($sumario->fecha?->format('d/m/Y') ?? now()->format('d/m/Y'));
+        $data['revisado_cargo_preview'] = (string) ($sumario->revisadoPor?->cargo?->nombre ?? 'Sin cargo');
+        $data['firma_revisado_preview'] = ! $isRejectedWorkflow && filled($sumario->validado_finanzas_at)
+            ? 'Registrada'
+            : 'Se registra al validar en Finanzas';
+        $data['fecha_revisado_preview'] = (string) (! $isRejectedWorkflow && $sumario->validado_finanzas_at
+            ? $sumario->validado_finanzas_at->format('d/m/Y')
+            : '-');
 
         return $data;
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $currentWorkflow = (string) ($this->record->workflow_estado ?? 'BORRADOR');
+        $currentEstado = (string) ($this->record->estado ?? 'BORRADOR');
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
 
-        $data['total_compra_prov1'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov1'] ?? 0)), 2);
-        $data['total_compra_prov2'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov2'] ?? 0)), 2);
-        $data['total_compra_prov3'] = round(collect($rows)->sum(fn (array $row): float => (float) ($row['precio_total_prov3'] ?? 0)), 2);
+        $totals = [
+            'A' => 0.0,
+            'B' => 0.0,
+            'C' => 0.0,
+        ];
 
-        $data['estado'] = 'BORRADOR';
-        $data['workflow_estado'] = 'BORRADOR';
+        foreach ($rows as $row) {
+            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
+
+            if (! in_array($selected, ['A', 'B', 'C'], true)) {
+                continue;
+            }
+
+            $key = 'precio_total_prov' . match ($selected) {
+                'A' => '1',
+                'B' => '2',
+                'C' => '3',
+            };
+
+            $totals[$selected] += filled($row[$key] ?? null) ? (float) $row[$key] : 0.0;
+        }
+
+        $data['total_compra_prov1'] = round($totals['A'], 2);
+        $data['total_compra_prov2'] = round($totals['B'], 2);
+        $data['total_compra_prov3'] = round($totals['C'], 2);
+
+        if ($currentWorkflow === 'BORRADOR') {
+            $data['estado'] = 'BORRADOR';
+            $data['workflow_estado'] = 'BORRADOR';
+        } else {
+            $data['estado'] = $currentEstado;
+            $data['workflow_estado'] = $currentWorkflow;
+        }
         $data['elaborado_por_user_id'] = $data['elaborado_por_user_id'] ?? auth()->id();
         $data['proveedor_ganador_id'] = null;
 
@@ -165,8 +235,10 @@ class EditSumario extends EditRecord
         $this->fillForm();
 
         Notification::make()
-            ->title('Borrador guardado')
-            ->body('Borrador guardado exitosamente.')
+            ->title((string) $record->workflow_estado === 'BORRADOR' ? 'Borrador guardado' : 'Cambios guardados')
+            ->body((string) $record->workflow_estado === 'BORRADOR'
+                ? 'Borrador guardado exitosamente.'
+                : 'El sumario se mantuvo en correccion. Usa "Enviar a Validacion Finanzas" cuando este listo.')
             ->success()
             ->send();
     }
@@ -175,7 +247,7 @@ class EditSumario extends EditRecord
     {
         $record = $this->getRecord();
 
-        if (! $record instanceof Sumario || (string) $record->workflow_estado !== 'BORRADOR') {
+        if (! $record instanceof Sumario || ! $this->isSubmittableWorkflow((string) $record->workflow_estado)) {
             return;
         }
 
@@ -304,7 +376,7 @@ class EditSumario extends EditRecord
                 $itemId = (int) $row['solicitud_compra_item_id'];
                 $newItemIds[] = $itemId;
 
-                $selectedColumn = strtoupper((string) ($row['proveedor_seleccionado'] ?? 'A'));
+                $selectedColumn = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
 
                 $this->createOption($sumarioItem, 1, $proveedorA, $row['marca_prov1'] ?? null, (float) ($row['precio_unitario_prov1'] ?? 0), (float) ($row['precio_total_prov1'] ?? 0), $selectedColumn === 'A');
                 $this->createOption($sumarioItem, 2, $proveedorB, $row['marca_prov2'] ?? null, (float) ($row['precio_unitario_prov2'] ?? 0), (float) ($row['precio_total_prov2'] ?? 0), $selectedColumn === 'B');
@@ -353,7 +425,7 @@ class EditSumario extends EditRecord
             }
         }
 
-        return 'A';
+        return '';
     }
 
     private function syncSolicitudItemStatus(int $solicitudCompraItemId): void
@@ -394,6 +466,20 @@ class EditSumario extends EditRecord
         $data['comparativo_items'] = $rows;
 
         return $data;
+    }
+
+    private function isSubmittableWorkflow(string $workflow): bool
+    {
+        return $workflow === 'BORRADOR' || $this->isRejectedWorkflow($workflow);
+    }
+
+    private function isRejectedWorkflow(string $workflow): bool
+    {
+        return in_array($workflow, [
+            'RECHAZADO_VALIDACION_FINANZAS',
+            'RECHAZADO_GERENCIA_FINANZAS',
+            'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
+        ], true);
     }
 
     private function resolveDepartamentoSolicitante(mixed $solicitudCompraId): string

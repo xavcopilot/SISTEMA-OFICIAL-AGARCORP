@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\SolicitudesCompra\Pages;
 
+use App\Filament\Resources\Sumarios\SumarioResource;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Models\User;
+use App\Models\SolicitudCompraItem;
+use App\Models\Sumario;
 use App\Support\ActivityNotification;
 use App\Support\ControlCodeGenerator;
 use App\Support\SolicitudCompraFlow;
@@ -79,7 +82,7 @@ class ViewSolicitudCompra extends ViewRecord
                 ->label('Firmar recepción procura')
                 ->color('info')
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $this->getRecord()))
-                ->schema($this->getSignatureSchema())
+                ->schema($this->getProcuraSignatureSchema())
                 ->action(function (array $data): void {
                     $this->signProcura($data);
                 }),
@@ -123,6 +126,21 @@ class ViewSolicitudCompra extends ViewRecord
                 ->required(),
 
             ...$this->getSignatureSchema(),
+        ];
+    }
+
+    private function getProcuraSignatureSchema(): array
+    {
+        return [
+            ...$this->getSignatureSchema(),
+            Select::make('crear_sumario_ahora')
+                ->label('¿Deseas realizar el sumario ahora?')
+                ->options([
+                    'SI' => 'Sí, abrir pestaña Creación de Sumarios en Sumarios Cotizaciones',
+                    'NO' => 'No, continuar luego',
+                ])
+                ->default('NO')
+                ->required(),
         ];
     }
 
@@ -313,6 +331,60 @@ class ViewSolicitudCompra extends ViewRecord
             'Se firmo en etapa procura la solicitud #' . (string) $record->id . '.',
             'success'
         );
+
+        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI') {
+            if ($this->hasPendingItemsForSumario($record)) {
+                $this->ensureDraftSumarioForSolicitud($record);
+
+                $this->redirect(SumarioResource::getUrl('index', [
+                    'activeTab' => 'creacion_sumarios',
+                ]), navigate: true);
+
+                return;
+            }
+
+            Notification::make()
+                ->title('Sin items pendientes para sumario')
+                ->body('Todos los items ya fueron llevados a sumario para esta solicitud.')
+                ->warning()
+                ->send();
+        }
+    }
+
+    private function hasPendingItemsForSumario(SolicitudCompra $record): bool
+    {
+        return SolicitudCompraItem::query()
+            ->where('solicitud_compra_id', $record->id)
+            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
+            ->exists();
+    }
+
+    private function ensureDraftSumarioForSolicitud(SolicitudCompra $record): void
+    {
+        $existingDraft = Sumario::query()
+            ->where('solicitud_compra_id', $record->id)
+            ->where('workflow_estado', 'BORRADOR')
+            ->exists();
+
+        if ($existingDraft) {
+            return;
+        }
+
+        $tipoOrden = str_contains(strtoupper((string) ($record->tipo_solicitud ?? '')), 'SERVICIO')
+            ? 'SERVICIO'
+            : 'COMPRA';
+
+        Sumario::query()->create([
+            'solicitud_compra_id' => $record->id,
+            'correlativo_sdc' => ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc'),
+            'fecha' => now()->toDateString(),
+            'procedencia' => 'LOCAL',
+            'tipo_orden' => $tipoOrden,
+            'departamento_solicitante' => (string) ($record->departamento_solicitante ?: 'PENDIENTE'),
+            'estado' => 'BORRADOR',
+            'workflow_estado' => 'BORRADOR',
+            'elaborado_por_user_id' => auth()->id(),
+        ]);
     }
 
     private function validatePassword(array $data): bool

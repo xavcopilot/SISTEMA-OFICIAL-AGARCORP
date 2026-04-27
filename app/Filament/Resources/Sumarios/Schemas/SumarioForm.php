@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sumarios\Schemas;
 
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
+use App\Models\User;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -66,7 +67,7 @@ class SumarioForm
                         .sdc-sheet .fi-section-header-heading { font-weight: 800; letter-spacing: .05em; text-transform: uppercase; font-size: 12px; color: var(--sdc-text); }
                         .sdc-header, .sdc-proveedores, .sdc-items, .sdc-cuadro, .sdc-footer { border: 1px solid var(--sdc-border); background: transparent; }
                         .sdc-header .fi-section-content, .sdc-proveedores .fi-section-content, .sdc-items .fi-section-content, .sdc-cuadro .fi-section-content, .sdc-footer .fi-section-content { padding: 12px; background: transparent; }
-                        .sdc-cuadro .fi-section-content { overflow-x: auto; }
+                        .sdc-cuadro .fi-section-content { overflow-x: auto; padding: 8px; }
                         .sdc-sheet .fi-grid { width: 100%; }
                         .sdc-header .fi-input-wrp, .sdc-proveedores .fi-input-wrp, .sdc-items .fi-input-wrp, .sdc-cuadro .fi-input-wrp, .sdc-footer .fi-input-wrp {
                             border-radius: 12px !important;
@@ -128,22 +129,70 @@ class SumarioForm
                             background: linear-gradient(180deg, color-mix(in srgb, var(--sdc-surface-soft) 86%, var(--sdc-accent-soft) 14%) 0%, var(--sdc-surface-soft) 100%);
                             color: var(--sdc-text);
                         }
-                        .sdc-table-wide { width: max(1900px, 100%); }
-                        .sdc-cuadro [data-field-wrapper] { border: 0; padding: 4px; background: transparent; }
-                        .sdc-cuadro .fi-fo-repeater { gap: 10px; }
+                        .sdc-table-wide {
+                            width: 100%;
+                            min-width: 0;
+                        }
+                        .sdc-cuadro [data-field-wrapper] { border: 0; padding: 0; background: transparent; }
+                        .sdc-cuadro .fi-fo-repeater { gap: 0; margin-top: 0; }
                         .sdc-cuadro .fi-fo-repeater-item {
-                            border: 1px solid var(--sdc-border);
-                            border-radius: 16px !important;
+                            border: 0;
+                            border-radius: 0 !important;
                             margin-bottom: 0;
-                            background: var(--sdc-surface-soft);
-                            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03), 0 4px 14px rgba(37, 99, 235, .08);
+                            background: transparent;
+                            box-shadow: none;
                         }
                         .sdc-cuadro .fi-fo-repeater-item-header { display: none; }
-                        .sdc-cuadro .fi-fo-repeater-item-content { padding: 10px !important; background: transparent; }
-                        .sdc-cuadro .fi-input { font-size: 13px; }
-                        .sdc-cuadro .fi-select-input { font-size: 13px; min-width: 120px; }
-                        .sdc-edge-right-cell { margin-right: -6px; }
-                        .sdc-edge-right-cell .sdc-label-box { width: calc(100% + 6px); }
+                        .sdc-cuadro .fi-fo-repeater-item-content { padding: 0 !important; background: transparent; }
+                        .sdc-cuadro .fi-fo-repeater-item .fi-fo-field-wrp-label { display: none; }
+                        .sdc-cuadro .fi-input { font-size: 12px; }
+                        .sdc-cuadro .fi-select-input { font-size: 12px; min-width: 120px; }
+                        .sdc-cuadro .sdc-label-box {
+                            border: 1px solid var(--sdc-border-strong);
+                            border-radius: 0;
+                            background: color-mix(in srgb, var(--sdc-surface-soft) 72%, white 28%);
+                            padding: 6px 8px;
+                            font-size: 10px;
+                            font-weight: 700;
+                        }
+                        .sdc-cuadro .fi-input-wrp {
+                            border: 1px solid var(--sdc-border) !important;
+                            border-radius: 0 !important;
+                            min-height: 34px;
+                            background: #fff;
+                            box-shadow: none;
+                        }
+                        .sdc-cuadro .fi-input-wrp:focus-within {
+                            border-color: var(--sdc-accent) !important;
+                            box-shadow: 0 0 0 2px var(--sdc-ring);
+                        }
+                        .sdc-cuadro .sdc-cant-cell .fi-input {
+                            min-width: 5ch;
+                        }
+                        .sdc-cuadro .sdc-pu-cell .fi-input {
+                            min-width: 4ch;
+                        }
+                        .sdc-edge-right-cell { margin-right: 0; }
+                        .sdc-edge-right-cell .sdc-label-box { width: 100%; }
+                        .sdc-divider-a,
+                        .sdc-divider-b,
+                        .sdc-divider-c,
+                        .sdc-divider-sel {
+                            border-left: 2px solid color-mix(in srgb, var(--sdc-accent) 62%, var(--sdc-border) 38%) !important;
+                            padding-left: 0 !important;
+                        }
+                        .sdc-cuadro .sdc-provider-grid {
+                            position: relative;
+                        }
+                        .sdc-cuadro .sdc-provider-grid::before {
+                            content: none;
+                        }
+                        .dark .sdc-divider-a,
+                        .dark .sdc-divider-b,
+                        .dark .sdc-divider-c,
+                        .dark .sdc-divider-sel {
+                            border-left-color: color-mix(in srgb, var(--sdc-accent-soft) 60%, var(--sdc-border) 40%);
+                        }
                         .sdc-cuadro .fi-fo-field-wrp-label,
                         .sdc-footer .fi-fo-field-wrp-label,
                         .sdc-header .fi-fo-field-wrp-label,
@@ -154,10 +203,28 @@ class SumarioForm
                             text-transform: uppercase;
                         }
                         .sdc-items .fi-fo-checkbox-list-option-label { font-size: 12px; }
-                        .sdc-footer .fi-ta { min-height: 86px; }
+                        .sdc-footer .fi-ta {
+                            min-height: 42px;
+                            resize: vertical;
+                        }
+                        .sdc-total-caption-offset {
+                            margin-top: 24px;
+                        }
+
+                        /* Oculta flechas de incremento/decremento en campos numericos del sumario */
+                        .sdc-sheet input[type=number]::-webkit-outer-spin-button,
+                        .sdc-sheet input[type=number]::-webkit-inner-spin-button {
+                            -webkit-appearance: none;
+                            margin: 0;
+                        }
+
+                        .sdc-sheet input[type=number] {
+                            -moz-appearance: textfield;
+                            appearance: textfield;
+                        }
                     </style>')),
 
-                Section::make('SUMARIO DE COTIZACIONES')
+                Section::make('Encabezado')
                     ->extraAttributes(['class' => 'sdc-sheet sdc-header'])
                     ->schema([
                         Grid::make(12)
@@ -217,30 +284,11 @@ class SumarioForm
                                     ->afterStateUpdated(function ($state, callable $set): void {
                                         $solicitud = filled($state) ? SolicitudCompra::find($state) : null;
 
-                                        $solicitudId = (int) ($state ?? 0);
-                                        $selectedIds = $solicitudId > 0
-                                            ? SolicitudCompraItem::query()
-                                                ->where('solicitud_compra_id', $solicitudId)
-                                                ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
-                                                ->orderBy('item')
-                                                ->pluck('id')
-                                                ->map(fn ($id): int => (int) $id)
-                                                ->values()
-                                                ->all()
-                                            : [];
-
                                         $set('departamento_solicitante', $solicitud?->departamento_solicitante);
-
-                                        if ($selectedIds === []) {
-                                            $set('selected_item_ids', []);
-                                            $set('comparativo_items', []);
-                                            self::setColumnTotals([], $set);
-
-                                            return;
-                                        }
-
-                                        $set('selected_item_ids', array_map(fn (int $id): string => (string) $id, $selectedIds));
-                                        self::syncRowsFromSelectedItems($selectedIds, [], $solicitudId, $set);
+                                        // Al cambiar la solicitud base, los items deben iniciar desmarcados.
+                                        $set('selected_item_ids', []);
+                                        $set('comparativo_items', []);
+                                        self::setColumnTotals([], $set);
                                     })
                                     ->columnSpan(6),
 
@@ -357,34 +405,36 @@ class SumarioForm
                     ->extraAttributes(['class' => 'sdc-sheet sdc-cuadro'])
                     ->description('Bloque principal del formato: item, descripcion, UND, cantidad y 3 proveedores con precios.')
                     ->schema([
-                        Grid::make(22)
-                            ->extraAttributes(['class' => 'sdc-table-wide'])
+                        Grid::make(21)
+                            ->extraAttributes(['class' => 'sdc-table-wide sdc-provider-grid'])
                             ->schema([
                                 Placeholder::make('head_blank_a')
                                     ->hiddenLabel()
                                     ->content('')
-                                    ->columnSpan(8),
+                                    ->columnSpan(7),
                                 Placeholder::make('head_proveedor_a')
                                     ->hiddenLabel()
                                     ->content(fn (callable $get): HtmlString => new HtmlString('<div class="sdc-label-box">' . e((string) ($get('proveedor_a_nombre') ?: 'PROVEEDOR 1')) . '</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-a'])
                                     ->columnSpan(4),
                                 Placeholder::make('head_proveedor_b')
                                     ->hiddenLabel()
                                     ->content(fn (callable $get): HtmlString => new HtmlString('<div class="sdc-label-box">' . e((string) ($get('proveedor_b_nombre') ?: 'PROVEEDOR 2')) . '</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-b'])
                                     ->columnSpan(4),
                                 Placeholder::make('head_proveedor_c')
                                     ->hiddenLabel()
                                     ->content(fn (callable $get): HtmlString => new HtmlString('<div class="sdc-label-box">' . e((string) ($get('proveedor_c_nombre') ?: 'PROVEEDOR 3')) . '</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-c'])
                                     ->columnSpan(4),
-                                Placeholder::make('head_sel')
+                                Placeholder::make('head_blank_sel_top')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">SEL</div>'))
-                                    ->extraAttributes(['class' => 'sdc-edge-right-cell'])
+                                    ->content('')
                                     ->columnSpan(2),
                             ]),
 
-                        Grid::make(22)
-                            ->extraAttributes(['class' => 'sdc-table-wide'])
+                        Grid::make(21)
+                            ->extraAttributes(['class' => 'sdc-table-wide sdc-provider-grid'])
                             ->schema([
                                 Placeholder::make('head_item')
                                     ->hiddenLabel()
@@ -393,7 +443,7 @@ class SumarioForm
                                 Placeholder::make('head_descripcion')
                                     ->hiddenLabel()
                                     ->content(new HtmlString('<div class="sdc-label-box">DESCRIPCION</div>'))
-                                    ->columnSpan(5),
+                                    ->columnSpan(4),
                                 Placeholder::make('head_und')
                                     ->hiddenLabel()
                                     ->content(new HtmlString('<div class="sdc-label-box">UND</div>'))
@@ -405,6 +455,7 @@ class SumarioForm
                                 Placeholder::make('head_marca_a')
                                     ->hiddenLabel()
                                     ->content(new HtmlString('<div class="sdc-label-box">MARCA</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-a'])
                                     ->columnSpan(2),
                                 Placeholder::make('head_unit_a')
                                     ->hiddenLabel()
@@ -417,6 +468,7 @@ class SumarioForm
                                 Placeholder::make('head_marca_b')
                                     ->hiddenLabel()
                                     ->content(new HtmlString('<div class="sdc-label-box">MARCA</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-b'])
                                     ->columnSpan(2),
                                 Placeholder::make('head_unit_b')
                                     ->hiddenLabel()
@@ -429,6 +481,7 @@ class SumarioForm
                                 Placeholder::make('head_marca_c')
                                     ->hiddenLabel()
                                     ->content(new HtmlString('<div class="sdc-label-box">MARCA</div>'))
+                                    ->extraAttributes(['class' => 'sdc-divider-c'])
                                     ->columnSpan(2),
                                 Placeholder::make('head_unit_c')
                                     ->hiddenLabel()
@@ -440,13 +493,13 @@ class SumarioForm
                                     ->columnSpan(1),
                                 Placeholder::make('head_seleccion')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">SEL</div>'))
-                                    ->extraAttributes(['class' => 'sdc-edge-right-cell'])
+                                    ->content(new HtmlString('<div class="sdc-label-box">SELECCION</div>'))
+                                    ->extraAttributes(['class' => 'sdc-edge-right-cell sdc-divider-sel'])
                                     ->columnSpan(2),
                             ]),
 
                         Repeater::make('comparativo_items')
-                            ->label('Matriz comparativa de items')
+                            ->hiddenLabel()
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
@@ -463,8 +516,8 @@ class SumarioForm
                                 self::setColumnTotals($rows, $set);
                             })
                             ->schema([
-                                Grid::make(22)
-                                    ->extraAttributes(['class' => 'sdc-table-wide'])
+                                Grid::make(21)
+                                    ->extraAttributes(['class' => 'sdc-table-wide sdc-provider-grid'])
                                     ->schema([
                                         TextInput::make('item')
                                             ->label('ITEM')
@@ -476,7 +529,7 @@ class SumarioForm
                                             ->label('DESCRIPCION')
                                             ->disabled()
                                             ->dehydrated()
-                                            ->columnSpan(5),
+                                            ->columnSpan(4),
 
                                         TextInput::make('unidad_medida')
                                             ->label('UND')
@@ -489,6 +542,7 @@ class SumarioForm
                                             ->required()
                                             ->dehydrated()
                                             ->numeric()
+                                            ->extraAttributes(['class' => 'sdc-cant-cell'])
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($state ?? 0);
@@ -509,7 +563,10 @@ class SumarioForm
                                         TextInput::make('marca_prov1')
                                             ->label('MARCA')
                                             ->maxLength(255)
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-divider-a'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'A')
+                                            ))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov1')
@@ -523,7 +580,10 @@ class SumarioForm
 
                                                 $set('precio_total_prov1', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-pu-cell'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'A')
+                                            ))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov1')
@@ -531,13 +591,16 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'A'))
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'A'))
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov2')
                                             ->label('MARCA')
                                             ->maxLength(255)
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-divider-b'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'B')
+                                            ))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov2')
@@ -551,7 +614,10 @@ class SumarioForm
 
                                                 $set('precio_total_prov2', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-pu-cell'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'B')
+                                            ))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov2')
@@ -559,13 +625,16 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'B'))
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'B'))
                                             ->columnSpan(1),
 
                                         TextInput::make('marca_prov3')
                                             ->label('MARCA')
                                             ->maxLength(255)
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-divider-c'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'C')
+                                            ))
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario_prov3')
@@ -579,7 +648,10 @@ class SumarioForm
 
                                                 $set('precio_total_prov3', $hasPrecio ? round($cantidad * $precioUnitario, 2) : null);
                                             })
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
+                                            ->extraAttributes(fn (callable $get): array => array_merge(
+                                                ['class' => 'sdc-pu-cell'],
+                                                self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'C')
+                                            ))
                                             ->columnSpan(1),
 
                                         TextInput::make('precio_total_prov3')
@@ -587,18 +659,19 @@ class SumarioForm
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated()
-                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? 'A'), 'C'))
+                                            ->extraAttributes(fn (callable $get): array => self::providerCellAttributes((string) ($get('proveedor_seleccionado') ?? ''), 'C'))
                                             ->columnSpan(1),
 
                                         Select::make('proveedor_seleccionado')
-                                            ->label('SEL')
+                                            ->label('SELECCION')
                                             ->options(fn (callable $get): array => [
+                                                '' => 'Sin seleccionar',
                                                 'A' => (string) ($get('../../proveedor_a_nombre') ?: 'Proveedor 1'),
                                                 'B' => (string) ($get('../../proveedor_b_nombre') ?: 'Proveedor 2'),
                                                 'C' => (string) ($get('../../proveedor_c_nombre') ?: 'Proveedor 3'),
                                             ])
-                                            ->required()
-                                            ->default('A')
+                                            ->default('')
+                                            ->extraAttributes(['class' => 'sdc-divider-sel'])
                                             ->columnSpan(2),
 
                                         Hidden::make('solicitud_compra_item_id'),
@@ -615,7 +688,7 @@ class SumarioForm
                             ->schema([
                                 Placeholder::make('total_compra_caption')
                                     ->hiddenLabel()
-                                    ->content(new HtmlString('<div class="sdc-label-box">TOTAL COMPRA</div>'))
+                                    ->content(new HtmlString('<div class="sdc-label-box sdc-total-caption-offset">TOTAL COMPRA</div>'))
                                     ->columnSpan(3),
 
                                 TextInput::make('total_compra_prov1')
@@ -653,29 +726,65 @@ class SumarioForm
 
                                 Textarea::make('observaciones')
                                     ->label('OBSERVACIONES')
-                                    ->rows(3)
+                                    ->rows(1)
                                     ->columnSpan(8),
 
-                                TextInput::make('elaborado_por_preview')
-                                    ->label('Elaborado por')
-                                    ->default(fn (): string => (string) (auth()->user()?->name ?? 'N/A'))
-                                    ->readOnly()
-                                    ->dehydrated(false)
-                                    ->columnSpan(6),
+                                Grid::make(2)
+                                    ->schema([
+                                        Section::make('Elaborado por')
+                                            ->schema([
+                                                TextInput::make('elaborado_por_preview')
+                                                    ->label('Elaborado por')
+                                                    ->default(fn (): string => (string) (auth()->user()?->name ?? 'N/A'))
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                                TextInput::make('elaborado_cargo_preview')
+                                                    ->label('Cargo')
+                                                    ->default(fn (): string => (string) (auth()->user()?->cargo?->nombre ?? 'Sin cargo'))
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                                TextInput::make('firma_procura_preview')
+                                                    ->label('Firma procura')
+                                                    ->default('Se registra al enviar')
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                                TextInput::make('fecha_elaborado_preview')
+                                                    ->label('Fecha')
+                                                    ->default(fn (): string => now()->format('d/m/Y'))
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                            ]),
 
-                                TextInput::make('revisado_por_preview')
-                                    ->label('Revisado por')
-                                    ->default('Pendiente de revision de Finanzas')
-                                    ->readOnly()
-                                    ->dehydrated(false)
-                                    ->columnSpan(6),
-
-                                TextInput::make('firma_preview')
-                                    ->label('Firma')
-                                    ->placeholder('Click en Enviar para realizar la firma')
-                                    ->helperText('La firma se registra automaticamente al enviar el sumario.')
-                                    ->readOnly()
-                                    ->dehydrated(false)
+                                        Section::make('Revisado por')
+                                            ->schema([
+                                                Select::make('revisado_por_user_id')
+                                                    ->label('Aprobado por')
+                                                    ->options(fn (): array => self::financeReviewerOptions())
+                                                    ->searchable()
+                                                    ->preload()
+                                                    ->live()
+                                                    ->afterStateHydrated(function ($state, callable $set): void {
+                                                        $set('revisado_cargo_preview', self::userCargoById($state));
+                                                    })
+                                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                                        $set('revisado_cargo_preview', self::userCargoById($state));
+                                                    }),
+                                                TextInput::make('revisado_cargo_preview')
+                                                    ->label('Cargo')
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                                TextInput::make('firma_revisado_preview')
+                                                    ->label('Firma')
+                                                    ->default('Se registra al validar en Finanzas')
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                                TextInput::make('fecha_revisado_preview')
+                                                    ->label('Fecha')
+                                                    ->default('-')
+                                                    ->readOnly()
+                                                    ->dehydrated(false),
+                                            ]),
+                                    ])
                                     ->columnSpanFull(),
 
                                 Hidden::make('proveedor_ganador_id'),
@@ -712,6 +821,25 @@ class SumarioForm
                 return [$solicitud->id => $label];
             })
             ->all();
+    }
+
+    public static function financeReviewerOptions(): array
+    {
+        return User::query()
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Validador Finanzas', 'Gerencia de Finanzas']))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (User $user): array => [$user->id => $user->name])
+            ->all();
+    }
+
+    private static function userCargoById(mixed $userId): string
+    {
+        if (! filled($userId)) {
+            return 'Sin cargo';
+        }
+
+        return (string) (User::query()->whereKey((int) $userId)->with('cargo')->first()?->cargo?->nombre ?? 'Sin cargo');
     }
 
     private static function hydrateSolicitudSelection(mixed $state, callable $set, callable $get): void
@@ -756,15 +884,11 @@ class SumarioForm
         $selectedIds = $existingSelected;
 
         if ($selectedIds === []) {
-            $selectedIds = SolicitudCompraItem::query()
-                ->where('solicitud_compra_id', $solicitudId)
-                ->orderBy('item')
-                ->pluck('id')
-                ->map(fn ($id): int => (int) $id)
-                ->values()
-                ->all();
+            $set('selected_item_ids', []);
+            $set('comparativo_items', []);
+            self::setColumnTotals([], $set);
 
-            $set('selected_item_ids', array_map(fn (int $id): string => (string) $id, $selectedIds));
+            return;
         }
 
         if ($selectedIds !== []) {
@@ -857,7 +981,7 @@ class SumarioForm
                 'marca_prov3' => $existing['marca_prov3'] ?? null,
                 'precio_unitario_prov3' => filled($existing['precio_unitario_prov3'] ?? null) ? (float) $existing['precio_unitario_prov3'] : null,
                 'precio_total_prov3' => filled($existing['precio_total_prov3'] ?? null) ? (float) $existing['precio_total_prov3'] : null,
-                'proveedor_seleccionado' => $existing['proveedor_seleccionado'] ?? 'A',
+                'proveedor_seleccionado' => $existing['proveedor_seleccionado'] ?? '',
             ];
         }
 
@@ -903,9 +1027,23 @@ class SumarioForm
                 continue;
             }
 
-            $totalProv1 += filled($row['precio_total_prov1'] ?? null) ? (float) $row['precio_total_prov1'] : 0;
-            $totalProv2 += filled($row['precio_total_prov2'] ?? null) ? (float) $row['precio_total_prov2'] : 0;
-            $totalProv3 += filled($row['precio_total_prov3'] ?? null) ? (float) $row['precio_total_prov3'] : 0;
+            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
+
+            if ($selected === '1') {
+                $selected = 'A';
+            } elseif ($selected === '2') {
+                $selected = 'B';
+            } elseif ($selected === '3') {
+                $selected = 'C';
+            }
+
+            if ($selected === 'A') {
+                $totalProv1 += filled($row['precio_total_prov1'] ?? null) ? (float) $row['precio_total_prov1'] : 0;
+            } elseif ($selected === 'B') {
+                $totalProv2 += filled($row['precio_total_prov2'] ?? null) ? (float) $row['precio_total_prov2'] : 0;
+            } elseif ($selected === 'C') {
+                $totalProv3 += filled($row['precio_total_prov3'] ?? null) ? (float) $row['precio_total_prov3'] : 0;
+            }
         }
 
         $set('total_compra_prov1', round($totalProv1, 2));

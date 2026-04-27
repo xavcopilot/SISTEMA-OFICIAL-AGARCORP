@@ -27,6 +27,16 @@ class ListOrdenesCompra extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')
                     ->where('estado', 'APROBADA')),
+            'facturas_finanzas' => Tab::make('Facturas en Finanzas')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('tipo_documento_recepcion', 'FACTURA')
+                    ->whereNotNull('factura_path')
+                    ->whereNull('factura_enviada_administracion_at')),
+            'facturas_enviadas_adm' => Tab::make('Facturas enviadas a Administracion')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('tipo_documento_recepcion', 'FACTURA')
+                    ->whereNotNull('factura_path')
+                    ->whereNotNull('factura_enviada_administracion_at')),
             'pagadas_transito' => Tab::make('Pagadas y en transito')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')),
