@@ -82,7 +82,21 @@ class OrdenCompraResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return self::hasEditAccess();
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if (self::hasEditAccess()) {
+            return true;
+        }
+
+        return $user->can('GenerateOdcs:Sumario')
+            && in_array((string) ($record->workflow_post_compra ?? ''), [
+                'BORRADOR_ODC',
+                'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+            ], true);
     }
 
     public static function getEloquentQuery(): Builder

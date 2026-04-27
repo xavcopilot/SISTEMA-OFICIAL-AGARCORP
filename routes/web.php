@@ -148,6 +148,6 @@ Route::get('/ordenes-compra/{ordenCompra}/formato/impresion', [\App\Http\Control
     ->middleware(['auth'])
     ->name('ordenes-compra.formato.print');
 
-Route::post('/ordenes-compra/sumarios/{sumario}/generar', \App\Http\Controllers\OrdenCompraGenerateFromSumarioController::class)
+Route::match(['get', 'post'], '/ordenes-compra/sumarios/{sumario}/generar', \App\Http\Controllers\OrdenCompraGenerateFromSumarioController::class)
     ->middleware(['auth'])
     ->name('ordenes-compra.generar-desde-sumario');

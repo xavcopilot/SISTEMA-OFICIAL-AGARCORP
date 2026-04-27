@@ -42,7 +42,15 @@ class OrdenCompraFormatoController extends Controller
             abort(401);
         }
 
-        $ordenCompra->loadMissing(['items', 'proveedor', 'sumario.solicitudCompra']);
+        $ordenCompra->loadMissing([
+            'items',
+            'proveedor',
+            'elaboradoPor.cargo',
+            'aprobadoPor.cargo',
+            'sumario.solicitudCompra',
+            'sumario.elaboradoPor.cargo',
+            'sumario.revisadoPor.cargo',
+        ]);
 
         $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
 
@@ -177,17 +185,27 @@ class OrdenCompraFormatoController extends Controller
     private function fillFooters(Worksheet $sheet, OrdenCompra $ordenCompra): void
     {
         $sumario = $ordenCompra->sumario;
+        $elaboradoPor = $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor;
+        $aprobadoPor = $ordenCompra->aprobadoPor ?: $sumario?->revisadoPor;
 
-        $sheet->setCellValue('B50', 'SITIO DE ENTREGA: ALMACEN AGARCORP');
+        $sheet->setCellValue('B50', 'SITIO DE ENTREGA: ' . (string) ($ordenCompra->sitio_entrega ?: 'ALMACEN AGARCORP'));
         $sheet->setCellValue('B51', 'CONDICION DE PAGO: ' . (string) ($ordenCompra->condicion_pago ?? ''));
-        $sheet->setCellValue('B53', 'COMENTARIOS: ' . (string) ($sumario?->observaciones ?? ''));
+        $sheet->setCellValue('B53', 'COMENTARIOS: ' . (string) ($ordenCompra->comentarios ?? $sumario?->observaciones ?? ''));
         $sheet->setCellValue('C56', (float) ($ordenCompra->tasa_bcv ?? 0));
+        $sheet->setCellValue('C57', (string) ($ordenCompra->departamento_solicitante ?? ''));
         $sheet->setCellValue('C58', (string) ($sumario?->correlativo_sdc ?? ''));
 
-        $sheet->setCellValue('C60', (string) ($sumario?->elaboradoPor?->name ?? ''));
-        $sheet->setCellValue('C61', (string) ($sumario?->elaboradoPor?->cargo?->nombre ?? ''));
-        $sheet->setCellValue('G60', (string) ($sumario?->revisadoPor?->name ?? ''));
-        $sheet->setCellValue('G61', (string) ($sumario?->revisadoPor?->cargo?->nombre ?? ''));
+        $sheet->setCellValue('C60', (string) ($elaboradoPor?->name ?? ''));
+        $sheet->setCellValue('C61', (string) ($elaboradoPor?->cargo?->nombre ?? ''));
+        $sheet->setCellValue('C62', (string) ($ordenCompra->elaborado_firmado_at
+            ? 'Registrada el ' . $ordenCompra->elaborado_firmado_at->format('d/m/Y H:i')
+            : 'Pendiente por registrar'));
+
+        $sheet->setCellValue('G60', (string) ($aprobadoPor?->name ?? ''));
+        $sheet->setCellValue('G61', (string) ($aprobadoPor?->cargo?->nombre ?? ''));
+        $sheet->setCellValue('G62', (string) ($ordenCompra->aprobado_firmado_at
+            ? 'Registrada el ' . $ordenCompra->aprobado_firmado_at->format('d/m/Y H:i')
+            : 'Pendiente por validacion de Gerencia de Finanzas'));
     }
 
     private function normalizeSheetForPdf(Worksheet $sheet): void

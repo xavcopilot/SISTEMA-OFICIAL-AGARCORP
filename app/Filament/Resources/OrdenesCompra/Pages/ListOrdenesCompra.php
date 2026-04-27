@@ -11,6 +11,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
 class ListOrdenesCompra extends ListRecords
@@ -20,42 +21,52 @@ class ListOrdenesCompra extends ListRecords
     public function getTabs(): array
     {
         return [
-            'bandeja_gerencia_finanzas' => Tab::make('Bandeja Gerencia Finanzas')
+            'creacion_odc' => Tab::make('Creacion de ODC')
+                ->badge((string) $this->pendingSumariosCount())
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')),
-            'bandeja_finanzas' => Tab::make('Bandeja Finanzas')
+                    ->from('sumarios as ordenes_compra')
+                    ->leftJoin('solicitud_compras', 'solicitud_compras.id', '=', 'ordenes_compra.solicitud_compra_id')
+                    ->where('ordenes_compra.workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
+                    ->select([
+                        'ordenes_compra.id',
+                        'ordenes_compra.created_at',
+                        'ordenes_compra.updated_at',
+                        'ordenes_compra.correlativo_sdc',
+                        'ordenes_compra.fecha',
+                        'ordenes_compra.solicitud_compra_id',
+                        'ordenes_compra.procedencia',
+                        'ordenes_compra.tipo_orden',
+                        'ordenes_compra.workflow_estado',
+                        'ordenes_compra.estado',
+                        DB::raw('solicitud_compras.codigo_control as solicitud_codigo_control'),
+                        DB::raw('1 as is_sumario_pending_odc_row'),
+                    ])),
+            'odc_en_correcciones' => Tab::make('ODC en correcciones')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')
-                    ->where('estado', 'APROBADA')),
-            'facturas_finanzas' => Tab::make('Facturas en Finanzas')
+                    ->whereIn('workflow_post_compra', [
+                        'BORRADOR_ODC',
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                        'PENDIENTE_PAGO_FINANZAS',
+                        'PAGO_REGISTRADO_FINANZAS',
+                        'PAGADO_Y_EN_TRANSITO',
+                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                        'EN_TRANSICION_ALMACEN',
+                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
+                        'FACTURA_ENVIADA_ADMINISTRACION',
+                        'BACKUP_FACTURA_COMPLETADO',
+                    ])),
+            'historial_odc' => Tab::make('Historial de ODC')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('tipo_documento_recepcion', 'FACTURA')
-                    ->whereNotNull('factura_path')
-                    ->whereNull('factura_enviada_administracion_at')),
-            'facturas_enviadas_adm' => Tab::make('Facturas enviadas a Administracion')
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('tipo_documento_recepcion', 'FACTURA')
-                    ->whereNotNull('factura_path')
-                    ->whereNotNull('factura_enviada_administracion_at')),
-            'pagadas_transito' => Tab::make('Pagadas y en transito')
-                ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')),
-            'todas' => Tab::make('Todas'),
+                    ->whereIn('workflow_post_compra', [
+                        'CERRADA_CONFORME',
+                        'RECHAZADA_SOLICITANTE',
+                    ])),
         ];
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('sumariosPendientesOc')
-                ->label('Sumarios pendientes de ODC')
-                ->color('info')
-                ->modalHeading('Generacion manual por proveedor')
-                ->modalSubmitAction(false)
-                ->modalCancelActionLabel('Cerrar')
-                ->modalWidth('7xl')
-                ->modalContent(fn (): HtmlString => new HtmlString($this->renderPendingSumariosHtml()))
-                ->visible(fn (): bool => auth()->user()?->can('GenerateOdcs:Sumario')),
             Action::make('conformidadesUsuarios')
                 ->label('Conformidades de Usuarios')
                 ->color('warning')
@@ -91,8 +102,8 @@ class ListOrdenesCompra extends ListRecords
     private function renderPendingSumariosHtml(): string
     {
         $sumarios = Sumario::query()
-            ->with(['solicitudCompra', 'ordenesCompra'])
-            ->whereIn('workflow_estado', ['APROBADO_GERENCIA_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL'])
+            ->with(['solicitudCompra', 'ordenesCompra', 'items.opciones'])
+            ->whereIn('workflow_estado', ['APROBADO_GERENCIA_FINANZAS'])
             ->orderByDesc('id')
             ->get();
 
@@ -138,11 +149,24 @@ class ListOrdenesCompra extends ListRecords
                 $providerButtons .= '<div style="margin-bottom:8px;">' . $form . '</div>';
             }
 
+            $providerTotals = $this->resolveSelectedProviderTotals($sumario);
+            $dynamicMessage = $this->buildPendingOdcMessage($groups);
+
             $rows .= '<tr>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $sumario->correlativo_sdc) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) optional($sumario->fecha)->format('d/m/Y')) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($sumario->solicitudCompra?->codigo_control ?: $sumario->solicitud_compra_id)) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($sumario->departamento_solicitante ?: '-')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . $providerButtons . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($sumario->procedencia ?: '-')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($sumario->tipo_orden ?: '-')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e($dynamicMessage) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e($this->humanReadableWorkflowState((string) ($sumario->workflow_estado ?: $sumario->estado))) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">'
+                . '<div style="margin-bottom:8px;font-weight:600;">Faltan ' . e((string) $groups->count()) . '</div>'
+                . $providerButtons
+                . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($providerTotals[1] ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($providerTotals[2] ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($providerTotals[3] ?? 0), 2, ',', '.') . '</td>'
                 . '</tr>';
         }
 
@@ -153,14 +177,95 @@ class ListOrdenesCompra extends ListRecords
         return '<div style="overflow:auto;">'
             . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
             . '<thead><tr style="background:#f3f4f6;">'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Sumario</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Correlativo SDC</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Fecha</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Solicitud</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Departamento</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedores ganadores</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Procedencia</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Tipo orden</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Mensaje dinamico</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">ODC faltantes</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Total Prov. 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Total Prov. 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Total Prov. 3</th>'
             . '</tr></thead>'
             . '<tbody>' . $rows . '</tbody>'
             . '</table>'
             . '</div>';
+    }
+
+    private function buildPendingOdcMessage($groups): string
+    {
+        if (! method_exists($groups, 'isEmpty') || $groups->isEmpty()) {
+            return 'Sin items';
+        }
+
+        $providerNames = $groups
+            ->map(fn (array $group): string => trim((string) ($group['provider_name'] ?? '')))
+            ->filter(fn (string $name): bool => $name !== '')
+            ->unique()
+            ->values();
+
+        if ($providerNames->isEmpty()) {
+            return 'Pendiente por generar ODC';
+        }
+
+        return 'Pendiente con: ' . $providerNames->implode(', ');
+    }
+
+    private function pendingSumariosCount(): int
+    {
+        return Sumario::query()
+            ->where('workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
+            ->count();
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function resolveSelectedProviderTotals(Sumario $sumario): array
+    {
+        $totals = [
+            1 => 0.0,
+            2 => 0.0,
+            3 => 0.0,
+        ];
+
+        foreach ($sumario->items ?? [] as $item) {
+            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+            $selectedProvider = (int) ($selectedOption?->opcion_numero ?? 0);
+
+            if (! in_array($selectedProvider, [1, 2, 3], true)) {
+                continue;
+            }
+
+            $totals[$selectedProvider] += (float) ($selectedOption?->precio_total ?? 0);
+        }
+
+        return $totals;
+    }
+
+    private function humanReadableWorkflowState(string $state): string
+    {
+        return match ($state) {
+            'VALIDADO_FINANZAS' => 'EN ESPERA DE APROBACION GERENCIA',
+            'APROBADO_GERENCIA_FINANZAS' => 'PENDIENTE POR ORDENES DE COMPRA',
+            default => str_replace('_', ' ', $state),
+        };
+    }
+
+    private function isCreationOdcTab(): bool
+    {
+        return $this->resolveActiveTab() === 'creacion_odc';
+    }
+
+    private function resolveActiveTab(): string
+    {
+        if (method_exists($this, 'getActiveTab')) {
+            return (string) $this->getActiveTab();
+        }
+
+        return (string) ($this->activeTab ?? '');
     }
 
     private function renderConformidadesUsuariosHtml(): string

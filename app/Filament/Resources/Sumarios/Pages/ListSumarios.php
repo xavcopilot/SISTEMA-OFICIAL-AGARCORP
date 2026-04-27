@@ -40,14 +40,13 @@ class ListSumarios extends ListRecords
                         'PENDIENTE_VALIDACION_FINANZAS',
                         'RECHAZADO_VALIDACION_FINANZAS',
                         'RECHAZADO_GERENCIA_FINANZAS',
-                        'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
                     ])),
             'sumarios' => Tab::make('Historial de sumarios')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('workflow_estado', [
                     'APROBADO_GERENCIA_FINANZAS',
                     'ODC_GENERADA',
+                    'RECHAZADO',
                     'RECHAZADO_GERENCIA_FINANZAS',
-                    'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
                 ])),
             'borradores' => Tab::make('Borradores')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->where('workflow_estado', 'BORRADOR')),

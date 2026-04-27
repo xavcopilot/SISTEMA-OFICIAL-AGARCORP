@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sumarios\Tables;
 
+use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
@@ -19,6 +20,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -343,11 +345,17 @@ class SumariosTable
                         'VALIDADO_FINANZAS' => 'info',
                         'APROBADO_GERENCIA_FINANZAS' => 'success',
                         'ODC_GENERADA' => 'success',
-                        'RECHAZADO_GERENCIA_FINANZAS_PARCIAL' => 'warning',
                         'RECHAZADO_VALIDACION_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS' => 'danger',
                         default => 'gray',
                     })
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
+
+                TextColumn::make('odc_faltantes')
+                    ->label('ODC faltantes')
+                    ->state(fn ($record): string => self::odcPendingCounterLabel($record))
+                    ->badge()
+                    ->color(fn ($record): string => self::odcPendingCounterColor($record))
+                    ->visible(fn ($livewire): bool => self::isHistoryTab($livewire)),
 
                 TextColumn::make('estado_creacion')
                     ->label('Estado de creación')
@@ -360,20 +368,20 @@ class SumariosTable
 
                 TextColumn::make('total_compra_prov1')
                     ->label('Total Prov. 1')
+                    ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 1))
                     ->money('USD')
-                    ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('total_compra_prov2')
                     ->label('Total Prov. 2')
+                    ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 2))
                     ->money('USD')
-                    ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('total_compra_prov3')
                     ->label('Total Prov. 3')
+                    ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 3))
                     ->money('USD')
-                    ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
             ])
             ->recordActions([
@@ -455,7 +463,9 @@ class SumariosTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderCorrectionBoard($record)))
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canUseCorrectionBoard($record)),
+                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
+                        && self::canUseCorrectionBoard($record)),
 
                 Action::make('enviarValidacionFinanzas')
                     ->label('Enviar a Validacion Finanzas')
@@ -471,7 +481,9 @@ class SumariosTable
                             ->password()
                             ->required(),
                     ])
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canSubmitForFinanceValidation($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
+                        && self::canSubmitForFinanceValidation($record))
                     ->action(function (array $data, $record): void {
                         if (! self::validatePasswordForCreationModal($data)) {
                             return;
@@ -511,6 +523,7 @@ class SumariosTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
                         && self::canValidateFinance($record)
                         && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
                     ->action(function ($record): void {
@@ -548,6 +561,7 @@ class SumariosTable
                             ->rows(4),
                     ])
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
                         && self::canValidateFinance($record)
                         && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
                     ->action(function (array $data, $record): void {
@@ -579,187 +593,11 @@ class SumariosTable
                     ->label('Generar ODC por proveedor')
                     ->icon(Heroicon::OutlinedDocumentDuplicate)
                     ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Generar ODC por proveedor seleccionado')
-                    ->modalDescription('Se creara una ODC por proveedor segun la seleccion por item en el comparativo.')
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canGenerateOdcs($record))
-                    ->action(function ($record): void {
-                        $orders = app(SumarioFinanceApprovalService::class)
-                            ->generateOrdersFromSelections($record, auth()->user());
-
-                        Notification::make()
-                            ->title('ODC generadas')
-                            ->body('Se generaron ' . count($orders) . ' orden(es) de compra por proveedor.')
-                            ->success()
-                            ->send();
-
-                        ActivityNotification::record(
-                            auth()->user(),
-                            'ODC generadas',
-                            'Se generaron ' . count($orders) . ' ODC desde el sumario ' . (string) $record->correlativo_sdc . '.',
-                            'success'
-                        );
-                    }),
-
-                Action::make('editarItemRechazado')
-                    ->label('Editar item rechazado')
-                    ->icon(Heroicon::OutlinedPencilSquare)
-                    ->color('info')
-                    ->modalSubmitActionLabel('Guardar correccion')
-                    ->form([
-                        Select::make('sumario_item_id')
-                            ->label('Item rechazado')
-                            ->options(fn ($record): array => self::rejectedItemOptions($record))
-                            ->searchable()
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function ($state, callable $set, $record): void {
-                                self::hydrateRejectedItemOption($record, (int) ($state ?? 0), 1, $set);
-                            }),
-
-                        Placeholder::make('estado_correccion_item')
-                            ->label('Estado del item')
-                            ->content(fn (callable $get): string => (string) ($get('estado_correccion_text') ?? 'Sin estado'))
-                            ->dehydrated(false),
-
-                        Hidden::make('estado_correccion_text')
-                            ->dehydrated(false),
-
-                        Select::make('opcion_numero')
-                            ->label('Proveedor a corregir (columna)')
-                            ->options([
-                                1 => 'Proveedor 1',
-                                2 => 'Proveedor 2',
-                                3 => 'Proveedor 3',
-                            ])
-                            ->default(1)
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function ($state, callable $set, callable $get, $record): void {
-                                self::hydrateRejectedItemOption(
-                                    $record,
-                                    (int) ($get('sumario_item_id') ?? 0),
-                                    (int) ($state ?? 1),
-                                    $set
-                                );
-                            }),
-
-                        TextInput::make('proveedor_nombre')
-                            ->label('Proveedor')
-                            ->required()
-                            ->maxLength(255),
-
-                        TextInput::make('marca')
-                            ->label('Marca')
-                            ->maxLength(255),
-
-                        TextInput::make('precio_unitario')
-                            ->label('Precio unitario')
-                            ->numeric()
-                            ->live()
-                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
-                                $cantidad = round((float) ($get('cantidad') ?? 0), 2);
-                                $precioUnitario = round((float) ($state ?? 0), 2);
-                                $set('precio_total', round($cantidad * $precioUnitario, 2));
-                            })
-                            ->required(),
-
-                        TextInput::make('cantidad')
-                            ->label('Cantidad')
-                            ->numeric()
-                            ->disabled()
-                            ->dehydrated(false),
-
-                        TextInput::make('precio_total')
-                            ->label('Precio total')
-                            ->numeric()
-                            ->disabled()
-                            ->dehydrated(false),
-                    ])
-                    ->fillForm(fn ($record): array => self::defaultCorrectionEditData($record))
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canEditRejectedItems($record))
-                    ->extraModalFooterActions([
-                        Action::make('retornarItemDesdeEditar')
-                            ->label('Eliminar/Retornar item')
-                            ->icon(Heroicon::OutlinedArrowUturnLeft)
-                            ->color('danger')
-                            ->requiresConfirmation()
-                            ->modalHeading('Eliminar/Retornar item del sumario')
-                            ->modalDescription('El item se removera del sumario actual y su cantidad volvera a pendiente para nuevo sumario.')
-                            ->action(function (array $data, $record): void {
-                                $sumarioItemId = (int) ($data['sumario_item_id'] ?? 0);
-
-                                if ($sumarioItemId <= 0) {
-                                    Notification::make()
-                                        ->title('Seleccione un item')
-                                        ->body('Primero seleccione el item rechazado que desea retornar.')
-                                        ->warning()
-                                        ->send();
-
-                                    return;
-                                }
-
-                                self::returnRejectedItemFromSumario($record, $sumarioItemId);
-
-                                Notification::make()
-                                    ->title('Item retornado a bandeja pendiente')
-                                    ->body('El item fue removido del sumario y su cantidad quedo liberada para nuevo sumario.')
-                                    ->success()
-                                    ->send();
-                            }),
-                    ])
-                    ->action(function (array $data, $record): void {
-                        DB::transaction(function () use ($data, $record): void {
-                            $sumario = Sumario::query()
-                                ->with('items.opciones')
-                                ->lockForUpdate()
-                                ->findOrFail($record->id);
-
-                            $sumarioItem = SumarioItem::query()
-                                ->where('sumario_id', $sumario->id)
-                                ->whereKey((int) ($data['sumario_item_id'] ?? 0))
-                                ->firstOrFail();
-
-                            $opcionNumero = (int) ($data['opcion_numero'] ?? 1);
-                            if (! in_array($opcionNumero, [1, 2, 3], true)) {
-                                $opcionNumero = 1;
-                            }
-
-                            $opcion = SumarioItemOpcion::query()->firstOrNew([
-                                'sumario_item_id' => $sumarioItem->id,
-                                'opcion_numero' => $opcionNumero,
-                            ]);
-
-                            $precioUnitario = round((float) ($data['precio_unitario'] ?? 0), 2);
-                            $cantidad = round((float) ($sumarioItem->cantidad ?? 0), 2);
-
-                            $opcion->fill([
-                                'proveedor_nombre' => trim((string) ($data['proveedor_nombre'] ?? '')),
-                                'marca' => trim((string) ($data['marca'] ?? '')),
-                                'precio_unitario' => $precioUnitario,
-                                'precio_total' => round($cantidad * $precioUnitario, 2),
-                            ]);
-                            $opcion->save();
-
-                            SumarioItemOpcion::query()
-                                ->where('sumario_item_id', $sumarioItem->id)
-                                ->update(['seleccionada' => false]);
-
-                            $opcion->forceFill(['seleccionada' => true])->save();
-
-                            $sumarioItem->forceFill([
-                                'sub_estado' => self::SUBESTADO_PENDIENTE_REVALIDACION,
-                            ])->save();
-
-                            self::refreshWorkflowAfterCorrection($sumario);
-                        });
-
-                        Notification::make()
-                            ->title('Item en correccion actualizado')
-                            ->body('La correccion del item fue guardada. Puede seguir corrigiendo otros items y luego enviar el sumario a Gerencia Finanzas.')
-                            ->success()
-                            ->send();
-                    }),
+                    ->url(fn (): string => OrdenCompraResource::getUrl('index'))
+                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
+                        && self::canGenerateOdcs($record))
+                    ->openUrlInNewTab(false),
 
                 Action::make('enviarCorregidoGerenciaFila')
                     ->label('Enviar a Gerencia Finanzas')
@@ -769,6 +607,7 @@ class SumariosTable
                     ->modalHeading('Enviar sumario corregido a Gerencia Finanzas')
                     ->modalDescription('Solo se habilita cuando todos los items rechazados ya fueron corregidos.')
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
                         && self::canUseCorrectionBoard($record)
                         && self::canSendCorrectedSumarioToGerencia($record))
                     ->action(function ($record): void {
@@ -798,10 +637,14 @@ class SumariosTable
 
                 EditAction::make()
                     ->label('Editar Sumario')
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canEditDraftOrRejected($record)),
+                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
+                        && self::canEditDraftOrRejected($record)),
 
                 DeleteAction::make()
-                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire) && self::canDeleteDraft($record)),
+                    ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isHistoryTab($livewire)
+                        && self::canDeleteDraft($record)),
             ])
             ->defaultSort('created_at', 'desc');
     }
@@ -809,13 +652,21 @@ class SumariosTable
     private static function gerenciaFinanzasValidarItemsAction(bool $forApprovalModule = false): Action
     {
         return Action::make($forApprovalModule ? 'gerenciaFinanzasValidarItemsAprobacion' : 'gerenciaFinanzasValidarItems')
-            ->label('Gerencia Finanzas: Validar items')
+            ->label('Aprobacion de Sumario')
             ->icon(Heroicon::OutlinedCheckCircle)
-            ->color('info')
+            ->color('success')
             ->modalWidth('7xl')
-            ->form(array_merge([
+            ->form([
+                Hidden::make('sumario_encabezado_html')
+                    ->dehydrated(false),
+
+                Placeholder::make('sumario_encabezado_preview')
+                    ->label('Encabezado')
+                    ->content(fn (callable $get): HtmlString => new HtmlString((string) ($get('sumario_encabezado_html') ?: '<div style="padding:8px;color:#6b7280;">Sin datos del encabezado.</div>')))
+                    ->dehydrated(false),
+
                 Repeater::make('items_revision')
-                    ->label('Revision por item (Correcto / X)')
+                    ->label('Revision de items (Correcto / X)')
                     ->default([])
                     ->addable(false)
                     ->deletable(false)
@@ -829,7 +680,7 @@ class SumariosTable
                             ->label('Cuadro comparativo del item')
                             ->content(fn (callable $get): HtmlString => new HtmlString((string) ($get('comparativo_html') ?: '<div style="padding:8px;color:#6b7280;">Sin datos comparativos.</div>')))
                             ->dehydrated(false)
-                            ->columnSpan(8),
+                            ->columnSpan(11),
 
                         Select::make('resultado')
                             ->label('Decision Gerencia')
@@ -839,25 +690,47 @@ class SumariosTable
                             ])
                             ->required()
                             ->live()
-                            ->columnSpan(2),
-
-                        Textarea::make('comentario')
-                            ->label('Motivo (si marco X)')
-                            ->rows(2)
-                            ->required(fn (callable $get): bool => (string) ($get('resultado') ?? '') === 'RECHAZADO')
-                            ->visible(fn (callable $get): bool => (string) ($get('resultado') ?? '') === 'RECHAZADO')
-                            ->columnSpan(2),
+                            ->columnSpan(3),
                     ])
-                    ->columns(12),
-            ], $forApprovalModule ? [
+                    ->columns(14),
+
+                Hidden::make('sumario_pie_html')
+                    ->dehydrated(false),
+
+                Placeholder::make('sumario_pie_preview')
+                    ->label('Pie del formato')
+                    ->content(fn (callable $get): HtmlString => new HtmlString((string) ($get('sumario_pie_html') ?: '<div style="padding:8px;color:#6b7280;">Sin datos del pie del formato.</div>')))
+                    ->dehydrated(false),
+
+                Radio::make('error_formato')
+                    ->label('Hay algun error en formato?')
+                    ->options([
+                        'SI' => 'Si',
+                        'NO' => 'No',
+                    ])
+                    ->default('NO')
+                    ->required()
+                    ->inline()
+                    ->live(),
                 Textarea::make('comentario_gerencia')
-                    ->label('Comentario general de Gerencia (opcional)')
-                    ->rows(3),
-            ] : []))
-            ->visible(fn ($record, $livewire): bool => ($forApprovalModule || ! self::isCreationTab($livewire))
+                    ->label('Comentario general (obligatorio si marca alguna X o detecta error de formato)')
+                    ->rows(3)
+                    ->live()
+                    ->visible(fn (callable $get): bool => collect($get('items_revision') ?? [])
+                        ->contains(fn ($row): bool => is_array($row) && (string) ($row['resultado'] ?? '') === 'RECHAZADO')
+                        || (string) ($get('error_formato') ?? 'NO') === 'SI')
+                    ->required(fn (callable $get): bool => collect($get('items_revision') ?? [])
+                        ->contains(fn ($row): bool => is_array($row) && (string) ($row['resultado'] ?? '') === 'RECHAZADO')
+                        || (string) ($get('error_formato') ?? 'NO') === 'SI'),
+            ])
+            ->modalSubmitActionLabel('Enviar a Procura')
+            ->visible(fn ($record, $livewire): bool => ($forApprovalModule || (! self::isCreationTab($livewire) && ! self::isHistoryTab($livewire)))
                 && self::canGerenciaFinanceDecision($record)
-                && in_array((string) ($record->workflow_estado ?? ''), ['VALIDADO_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL'], true))
+                && in_array((string) ($record->workflow_estado ?? ''), ['VALIDADO_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS'], true))
             ->fillForm(fn ($record): array => [
+                'sumario_encabezado_html' => self::renderGerenciaHeaderSummary($record),
+                'sumario_pie_html' => self::renderGerenciaFooterSummary($record),
+                'error_formato' => 'NO',
                 'items_revision' => self::buildGerenciaItemRevisionPayload($record),
             ])
             ->action(function (array $data, $record): void {
@@ -874,22 +747,21 @@ class SumariosTable
                     return;
                 }
 
-                $rejectedRows = $rows->filter(function (array $row): bool {
-                    return (string) ($row['resultado'] ?? '') === 'RECHAZADO'
-                        && blank(trim((string) ($row['comentario'] ?? '')));
-                });
+                $hasRejectedRows = $rows->contains(fn (array $row): bool => (string) ($row['resultado'] ?? '') === 'RECHAZADO');
+                $hasFormatError = (string) ($data['error_formato'] ?? 'NO') === 'SI';
+                $generalComment = trim((string) ($data['comentario_gerencia'] ?? ''));
 
-                if ($rejectedRows->isNotEmpty()) {
+                if (($hasRejectedRows || $hasFormatError) && $generalComment === '') {
                     Notification::make()
-                        ->title('Motivo requerido')
-                        ->body('Cada item marcado con X debe llevar un motivo de rechazo.')
+                        ->title('Comentario requerido')
+                        ->body('Debes registrar un comentario general cuando marques una X o indiques error de formato.')
                         ->danger()
                         ->send();
 
                     return;
                 }
 
-                DB::transaction(function () use ($record, $rows, $data): void {
+                DB::transaction(function () use ($record, $rows, $data, $generalComment, $hasFormatError): void {
                     $sumario = Sumario::query()->lockForUpdate()->findOrFail($record->id);
 
                     foreach ($rows as $row) {
@@ -899,7 +771,7 @@ class SumariosTable
                             ->update([
                                 'validacion_gerencia_resultado' => (string) ($row['resultado'] ?? 'CORRECTO'),
                                 'validacion_gerencia_comentario' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
-                                    ? trim((string) ($row['comentario'] ?? ''))
+                                    ? $generalComment
                                     : null,
                                 'sub_estado' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
                                     ? 'RECHAZADO_GERENCIA'
@@ -910,12 +782,15 @@ class SumariosTable
                     $correctCount = $rows->where('resultado', 'CORRECTO')->count();
                     $rejectedCount = $rows->where('resultado', 'RECHAZADO')->count();
 
-                    if ($correctCount === 0) {
+                    if ($hasFormatError) {
+                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
+                        $resultado = 'RECHAZADO';
+                    } elseif ($correctCount === 0) {
                         $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
                         $resultado = 'RECHAZADO';
                     } elseif ($rejectedCount > 0) {
-                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL';
-                        $resultado = 'PARCIAL';
+                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
+                        $resultado = 'RECHAZADO';
                     } else {
                         $workflow = 'APROBADO_GERENCIA_FINANZAS';
                         $resultado = 'APROBADO';
@@ -1481,7 +1356,6 @@ class SumariosTable
             'BORRADOR',
             'RECHAZADO_VALIDACION_FINANZAS',
             'RECHAZADO_GERENCIA_FINANZAS',
-            'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
         ], true);
     }
 
@@ -1519,7 +1393,7 @@ class SumariosTable
 
         return match ($state) {
             'APROBADO_GERENCIA_FINANZAS', 'ODC_GENERADA' => 'APROBADO',
-            'RECHAZADO_GERENCIA_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL' => 'RECHAZADO',
+            'RECHAZADO_GERENCIA_FINANZAS' => 'RECHAZADO',
             default => $state,
         };
     }
@@ -1528,6 +1402,7 @@ class SumariosTable
     {
         return match ($state) {
             'VALIDADO_FINANZAS' => 'EN ESPERA DE APROBACION GERENCIA',
+            'APROBADO_GERENCIA_FINANZAS' => 'PENDIENTE POR ORDENES DE COMPRA',
             default => str_replace('_', ' ', $state),
         };
     }
@@ -1624,30 +1499,79 @@ class SumariosTable
             return false;
         }
 
-        if (! blank($record->ordenesCompra()->first())) {
-            return false;
+        return self::pendingOdcGroupsCount($record) > 0;
+    }
+
+    private static function pendingOdcGroupsCount(mixed $record): int
+    {
+        $sumario = $record instanceof Sumario
+            ? $record->loadMissing(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra'])
+            : Sumario::query()
+                ->with(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra'])
+                ->find((int) ($record->id ?? 0));
+
+        if (! $sumario) {
+            return 0;
         }
 
-        $hasRejectedItems = $record->items()
-            ->where('validacion_gerencia_resultado', 'RECHAZADO')
-            ->exists();
+        $service = app(SumarioFinanceApprovalService::class);
 
-        if ($hasRejectedItems) {
-            return false;
+        return $service->pendingProviderGroups($sumario)
+            ->filter(function (array $group) use ($sumario): bool {
+                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                if (filled($group['provider_id'])) {
+                    $query->where('proveedor_id', (int) $group['provider_id']);
+                }
+
+                return ! $query->exists();
+            })
+            ->count();
+    }
+
+    private static function odcPendingCounterLabel(mixed $record): string
+    {
+        $workflow = (string) ($record->workflow_estado ?? '');
+
+        if (! in_array($workflow, ['APROBADO_GERENCIA_FINANZAS', 'ODC_GENERADA'], true)) {
+            return '-';
         }
 
-        return $record->items()
-            ->where(function ($query): void {
-                $query
-                    ->whereNull('validacion_gerencia_resultado')
-                    ->orWhere('validacion_gerencia_resultado', 'CORRECTO');
-            })
-            ->where(function ($query): void {
-                $query
-                    ->whereNull('sub_estado')
-                    ->orWhere('sub_estado', '!=', self::SUBESTADO_PENDIENTE_REVALIDACION);
-            })
-            ->exists();
+        $sumario = $record instanceof Sumario
+            ? $record->loadMissing(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra'])
+            : Sumario::query()
+                ->with(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra'])
+                ->find((int) ($record->id ?? 0));
+
+        if (! $sumario) {
+            return '-';
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+        $totalGroups = $service->pendingProviderGroups($sumario)->count();
+
+        if ($totalGroups <= 0) {
+            return 'Completo';
+        }
+
+        $pending = self::pendingOdcGroupsCount($sumario);
+
+        return 'Faltan ' . $pending . ' de ' . $totalGroups;
+    }
+
+    private static function odcPendingCounterColor(mixed $record): string
+    {
+        $label = self::odcPendingCounterLabel($record);
+
+        if ($label === 'Completo') {
+            return 'success';
+        }
+
+        if (str_starts_with($label, 'Faltan')) {
+            return 'warning';
+        }
+
+        return 'gray';
     }
 
     private static function canUseCorrectionBoard(mixed $record): bool
@@ -1664,25 +1588,8 @@ class SumariosTable
 
         return in_array((string) ($record->workflow_estado ?? ''), [
             'RECHAZADO_GERENCIA_FINANZAS',
-            'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
             'APROBADO_GERENCIA_FINANZAS',
         ], true);
-    }
-
-    private static function canEditRejectedItems(mixed $record): bool
-    {
-        if (! self::canUseCorrectionBoard($record)) {
-            return false;
-        }
-
-        return SumarioItem::query()
-            ->where('sumario_id', (int) $record->id)
-            ->where(function ($query): void {
-                $query
-                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
-                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
-            })
-            ->exists();
     }
 
     private static function renderCorrectionBoard(mixed $record): string
@@ -1703,18 +1610,20 @@ class SumariosTable
 
         $head = '<div style="margin-bottom:12px;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">'
             . '<strong>Regla activa:</strong> Si hay items rechazados o pendientes de revalidacion, no se genera ODC hasta nueva decision de Gerencia. '
-            . 'Los items del grupo rechazado/correccion se gestionan con las acciones "Editar item rechazado" y "Eliminar/Retornar item" sin bloquear el Grupo A.'
+            . 'Los items del grupo rechazado/correccion se gestionan desde "Editar Sumario" sin bloquear el Grupo A.'
             . '</div>';
 
         $rowsA = $validos->map(function ($item): string {
-            $opcionSeleccionada = $item->opciones->firstWhere('seleccionada', true) ?: $item->opciones->first();
+            $opcionSeleccionada = $item->opciones->firstWhere('seleccionada', true);
+            $precioUnitarioSeleccionado = (float) ($opcionSeleccionada?->precio_unitario ?? 0);
+            $precioTotalSeleccionado = (float) ($opcionSeleccionada?->precio_total ?? 0);
 
             return '<tr>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item->descripcion) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opcionSeleccionada?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opcionSeleccionada?->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format($precioUnitarioSeleccionado, 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format($precioTotalSeleccionado, 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">Correcto</td>'
                 . '</tr>';
         })->implode('');
@@ -1727,28 +1636,49 @@ class SumariosTable
             $estadoCorreccion = (string) ($item->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION
                 ? 'Pendiente de revalidacion'
                 : 'X (Rechazado)';
-            $opcionSeleccionada = $item->opciones->firstWhere('seleccionada', true) ?: $item->opciones->first();
+            $opcionSeleccionada = $item->opciones->firstWhere('seleccionada', true);
+            $precioUnitarioSeleccionado = (float) ($opcionSeleccionada?->precio_unitario ?? 0);
+            $precioTotalSeleccionado = (float) ($opcionSeleccionada?->precio_total ?? 0);
 
             return '<tr>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item->descripcion) . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opcionSeleccionada?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($opcionSeleccionada?->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format($precioUnitarioSeleccionado, 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format($precioTotalSeleccionado, 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;">' . e($estadoCorreccion) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->validacion_gerencia_comentario ?: 'Sin comentario registrado')) . '</td>'
                 . '</tr>';
         })->implode('');
 
         if ($rowsB === '') {
-            $rowsB = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:8px;">No hay items rechazados o en correccion.</td></tr>';
+            $rowsB = '<tr><td colspan="6" style="border:1px solid #d1d5db;padding:8px;">No hay items rechazados o en correccion.</td></tr>';
         }
+
+        $comentarioGeneral = trim((string) ($sumario->decision_gerencia_comentario ?? ''));
+
+        if ($comentarioGeneral === '') {
+            $comentarioGeneral = (string) ($sumario->items
+                ->first(fn ($item): bool => filled($item->validacion_gerencia_comentario ?? null))?->validacion_gerencia_comentario ?? '');
+        }
+
+        $comentarioGeneralBlock = '<div style="border:1px solid #d1d5db;border-radius:8px;overflow:hidden;">'
+            . '<div style="padding:8px 10px;background:#eef2ff;font-weight:700;">Comentario general de Gerencia</div>'
+            . '<div style="padding:10px;">' . nl2br(e($comentarioGeneral !== '' ? $comentarioGeneral : 'Sin comentario general registrado.')) . '</div>'
+            . '</div>';
 
         return $head
             . '<div style="display:grid;grid-template-columns:1fr;gap:12px;">'
             . '<div style="overflow:auto;">'
             . '<div style="font-weight:700;margin-bottom:6px;">Grupo A | Items Validados</div>'
-            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;">'
+            . '<colgroup>'
+            . '<col style="width:11%;">'
+            . '<col style="width:29%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:18%;">'
+            . '</colgroup>'
             . '<thead><tr style="background:#ecfdf5;">'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
@@ -1760,7 +1690,15 @@ class SumariosTable
             . '</div>'
             . '<div style="overflow:auto;">'
             . '<div style="font-weight:700;margin-bottom:6px;">Grupo B | Rechazados y en Correccion</div>'
-            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;">'
+            . '<colgroup>'
+            . '<col style="width:11%;">'
+            . '<col style="width:29%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:14%;">'
+            . '<col style="width:18%;">'
+            . '</colgroup>'
             . '<thead><tr style="background:#fff7ed;">'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
@@ -1768,153 +1706,10 @@ class SumariosTable
             . '<th style="border:1px solid #d1d5db;padding:8px;">P/U</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">P/T</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Estado</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Motivo de rechazo / historial visible</th>'
             . '</tr></thead><tbody>' . $rowsB . '</tbody></table>'
             . '</div>'
+                . $comentarioGeneralBlock
             . '</div>';
-    }
-
-    private static function rejectedItemOptions(mixed $record): array
-    {
-        return SumarioItem::query()
-            ->where('sumario_id', (int) $record->id)
-            ->where(function ($query): void {
-                $query
-                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
-                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
-            })
-            ->orderBy('item')
-            ->orderBy('id')
-            ->get(['id', 'item', 'descripcion', 'validacion_gerencia_comentario', 'validacion_gerencia_resultado', 'sub_estado'])
-            ->mapWithKeys(function (SumarioItem $item): array {
-                $estado = self::itemCorrectionStateLabel($item);
-                $label = '#' . (string) ($item->item ?: $item->id)
-                    . ' | ' . (string) $item->descripcion
-                    . ' | Estado: ' . $estado
-                    . ' | Motivo: ' . (string) ($item->validacion_gerencia_comentario ?: 'Sin comentario');
-
-                return [$item->id => $label];
-            })
-            ->all();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function defaultCorrectionEditData(mixed $record): array
-    {
-        $firstRejectedItemId = SumarioItem::query()
-            ->where('sumario_id', (int) $record->id)
-            ->where(function ($query): void {
-                $query
-                    ->where('validacion_gerencia_resultado', 'RECHAZADO')
-                    ->orWhere('sub_estado', self::SUBESTADO_PENDIENTE_REVALIDACION);
-            })
-            ->orderBy('id')
-            ->value('id');
-
-        if (! $firstRejectedItemId) {
-            return [
-                'opcion_numero' => 1,
-            ];
-        }
-
-        $result = [
-            'sumario_item_id' => (int) $firstRejectedItemId,
-            'opcion_numero' => 1,
-        ];
-
-        $item = SumarioItem::query()
-            ->with(['opciones' => fn ($query) => $query->orderBy('opcion_numero')])
-            ->find((int) $firstRejectedItemId);
-
-        $option = $item?->opciones->firstWhere('seleccionada', true) ?: $item?->opciones->first();
-
-        if ($option) {
-            $result['opcion_numero'] = (int) ($option->opcion_numero ?: 1);
-            $result['proveedor_nombre'] = (string) ($option->proveedor_nombre ?? '');
-            $result['marca'] = (string) ($option->marca ?? '');
-            $result['precio_unitario'] = round((float) ($option->precio_unitario ?? 0), 2);
-            $result['cantidad'] = round((float) ($item->cantidad ?? 0), 2);
-            $result['precio_total'] = round((float) ($option->precio_total ?? ((float) ($item->cantidad ?? 0) * (float) ($option->precio_unitario ?? 0))), 2);
-            $result['estado_correccion_text'] = self::itemCorrectionStateLabel($item);
-        }
-
-        return $result;
-    }
-
-    private static function hydrateRejectedItemOption(mixed $record, int $sumarioItemId, int $optionNumber, callable $set): void
-    {
-        if ($sumarioItemId <= 0) {
-            return;
-        }
-
-        $item = SumarioItem::query()
-            ->with('opciones')
-            ->where('sumario_id', (int) $record->id)
-            ->find($sumarioItemId);
-
-        if (! $item) {
-            return;
-        }
-
-        if (! in_array($optionNumber, [1, 2, 3], true)) {
-            $optionNumber = 1;
-        }
-
-        $option = $item->opciones->firstWhere('opcion_numero', $optionNumber)
-            ?: $item->opciones->firstWhere('seleccionada', true)
-            ?: $item->opciones->first();
-
-        if (! $option) {
-            return;
-        }
-
-        $set('opcion_numero', (int) ($option->opcion_numero ?? $optionNumber));
-        $set('proveedor_nombre', (string) ($option->proveedor_nombre ?? ''));
-        $set('marca', (string) ($option->marca ?? ''));
-        $set('precio_unitario', round((float) ($option->precio_unitario ?? 0), 2));
-        $cantidad = round((float) ($item->cantidad ?? 0), 2);
-        $precioUnitario = round((float) ($option->precio_unitario ?? 0), 2);
-        $set('cantidad', $cantidad);
-        $set('precio_total', round($cantidad * $precioUnitario, 2));
-        $set('estado_correccion_text', self::itemCorrectionStateLabel($item));
-    }
-
-    private static function itemCorrectionStateLabel(SumarioItem $item): string
-    {
-        if ((string) ($item->sub_estado ?? '') === self::SUBESTADO_PENDIENTE_REVALIDACION) {
-            return 'CORREGIDO - EN ESPERA DE REVALIDACION';
-        }
-
-        if ((string) ($item->validacion_gerencia_resultado ?? '') === 'RECHAZADO') {
-            return 'RECHAZADO - PENDIENTE DE CORRECCION';
-        }
-
-        return 'SIN OBSERVACIONES';
-    }
-
-    private static function returnRejectedItemFromSumario(mixed $record, int $sumarioItemId): void
-    {
-        DB::transaction(function () use ($record, $sumarioItemId): void {
-            $sumario = Sumario::query()
-                ->with('items')
-                ->lockForUpdate()
-                ->findOrFail($record->id);
-
-            $sumarioItem = SumarioItem::query()
-                ->where('sumario_id', $sumario->id)
-                ->whereKey($sumarioItemId)
-                ->firstOrFail();
-
-            $solicitudCompraItemId = (int) $sumarioItem->solicitud_compra_item_id;
-
-            $sumarioItem->opciones()->delete();
-            $sumarioItem->delete();
-
-            SolicitudItemTrackingService::syncByItemIds([$solicitudCompraItemId]);
-            self::refreshWorkflowAfterCorrection($sumario);
-        });
     }
 
     private static function canSendCorrectedSumarioToGerencia(Sumario $sumario): bool
@@ -1974,16 +1769,11 @@ class SumariosTable
         $decision = (string) ($sumario->decision_gerencia_resultado ?? '');
 
         if ($hasRejected) {
-            if ($hasCorrect || $hasPendingRevalidation) {
-                $workflow = 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL';
-                $decision = 'PARCIAL';
-            } else {
-                $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
-                $decision = 'RECHAZADO';
-            }
+            $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
+            $decision = 'RECHAZADO';
         } elseif ($hasPendingRevalidation) {
-            $workflow = 'RECHAZADO_GERENCIA_FINANZAS_PARCIAL';
-            $decision = 'EN_CORRECCION';
+            $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
+            $decision = 'RECHAZADO';
         } elseif ($hasCorrect) {
             $workflow = 'APROBADO_GERENCIA_FINANZAS';
             $decision = 'APROBADO';
@@ -2025,8 +1815,8 @@ class SumariosTable
             $option = $opciones->get($optionNumber);
             $isSelected = $selectedOptionNumber === $optionNumber;
             $cellStyle = $isSelected
-                ? 'border:1px solid #86efac;padding:6px;background:#dcfce7;'
-                : 'border:1px solid #d1d5db;padding:6px;';
+                ? 'border:1px solid #86efac;padding:4px;background:#dcfce7;font-size:10px;line-height:1.2;'
+                : 'border:1px solid #d1d5db;padding:4px;font-size:10px;line-height:1.2;';
 
             return '<td style="' . $cellStyle . '">' . e((string) ($option?->proveedor_nombre ?? '-')) . '</td>'
                 . '<td style="' . $cellStyle . '">' . e((string) ($option?->marca ?? '-')) . '</td>'
@@ -2035,30 +1825,30 @@ class SumariosTable
         };
 
         return '<div style="overflow:auto;">'
-            . '<table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:10px;table-layout:auto;">'
             . '<thead><tr style="background:#f3f4f6;">'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Item</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Descripcion</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">UND</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Cant</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Prov 1</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Marca 1</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/U 1</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/T 1</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Prov 2</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Marca 2</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/U 2</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/T 2</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Prov 3</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">Marca 3</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/U 3</th>'
-            . '<th style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">P/T 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">UND</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Cant</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 3</th>'
             . '</tr></thead>'
             . '<tbody><tr>'
-            . '<td style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">' . e((string) ($item->item ?: $item->id)) . '</td>'
-            . '<td style="border:1px solid #d1d5db;padding:4px;white-space:nowrap;">' . e((string) $item->descripcion) . '</td>'
-            . '<td style="border:1px solid #d1d5db;padding:4px;text-align:center;white-space:nowrap;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
-            . '<td style="border:1px solid #d1d5db;padding:4px;text-align:right;white-space:nowrap;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">' . e((string) $item->descripcion) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;text-align:center;white-space:nowrap;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;text-align:right;white-space:nowrap;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
             . $renderOption(1)
             . $renderOption(2)
             . $renderOption(3)
@@ -2075,9 +1865,23 @@ class SumariosTable
             'items.opciones',
         ]);
 
-        $providerNames = self::resolveProviderColumnNames($sumario);
+        return self::renderGerenciaHeaderSummary($sumario)
+            . '<div style="margin-bottom:8px;font-weight:700;">Cuadro comparativo de cotizaciones</div>'
+            . self::renderComparativeTable($sumario)
+            . self::renderGerenciaFooterSummary($sumario)
+            . self::renderGerenciaGeneralCommentSummary($sumario);
+    }
 
-        $header = '<div style="margin-bottom:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
+    private static function renderGerenciaHeaderSummary(mixed $record): string
+    {
+        $sumario = $record->loadMissing([
+            'solicitudCompra',
+            'elaboradoPor',
+            'revisadoPor',
+            'items.opciones',
+        ]);
+
+        return '<div style="margin-bottom:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
             . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Encabezado</div>'
             . '<div style="padding:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;font-size:12px;">'
             . '<div><strong>Sumario N:</strong> ' . e((string) ($sumario->correlativo_sdc ?? '-')) . '</div>'
@@ -2090,24 +1894,93 @@ class SumariosTable
             . '<div><strong>Solicitud asociada:</strong> ' . e((string) ($sumario->solicitudCompra?->codigo_control ?? $sumario->solicitud_compra_id ?? '-')) . '</div>'
             . '</div>'
             . '</div>';
+    }
 
-        $footer = '<div style="margin-top:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
+    private static function renderGerenciaFooterSummary(mixed $record): string
+    {
+        $sumario = $record->loadMissing([
+            'solicitudCompra',
+            'elaboradoPor',
+            'revisadoPor',
+            'items.opciones',
+        ]);
+
+        $providerNames = self::resolveProviderColumnNames($sumario);
+        $selectedTotals = self::resolveSelectedProviderTotals($sumario);
+
+        return '<div style="margin-top:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
             . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Pie del formato</div>'
             . '<div style="padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;">'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[1]) . '):</strong> $ ' . number_format((float) ($sumario->total_compra_prov1 ?? 0), 2, ',', '.') . '</div>'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[2]) . '):</strong> $ ' . number_format((float) ($sumario->total_compra_prov2 ?? 0), 2, ',', '.') . '</div>'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[3]) . '):</strong> $ ' . number_format((float) ($sumario->total_compra_prov3 ?? 0), 2, ',', '.') . '</div>'
+            . '<div><strong>Total compra Prov. (' . e($providerNames[1]) . '):</strong> $ ' . number_format((float) ($selectedTotals[1] ?? 0), 2, ',', '.') . '</div>'
+            . '<div><strong>Total compra Prov. (' . e($providerNames[2]) . '):</strong> $ ' . number_format((float) ($selectedTotals[2] ?? 0), 2, ',', '.') . '</div>'
+            . '<div><strong>Total compra Prov. (' . e($providerNames[3]) . '):</strong> $ ' . number_format((float) ($selectedTotals[3] ?? 0), 2, ',', '.') . '</div>'
             . '<div><strong>Prioridad:</strong> ' . e(str_replace('_', ' ', (string) ($sumario->prioridad ?? '-'))) . '</div>'
             . '<div><strong>Elaborado por:</strong> ' . e((string) ($sumario->elaboradoPor?->name ?? '-')) . '</div>'
             . '<div><strong>Revisado por:</strong> ' . e((string) ($sumario->revisadoPor?->name ?? '-')) . '</div>'
             . '<div style="grid-column:1 / -1;"><strong>Observaciones:</strong><br>' . nl2br(e((string) ($sumario->observaciones ?? '-'))) . '</div>'
             . '</div>'
             . '</div>';
+    }
 
-        return $header
-            . '<div style="margin-bottom:8px;font-weight:700;">Cuadro comparativo de cotizaciones</div>'
-            . self::renderComparativeTable($sumario)
-            . $footer;
+    private static function renderGerenciaGeneralCommentSummary(mixed $record): string
+    {
+        $sumario = $record->loadMissing(['items']);
+        $generalComment = trim((string) ($sumario->decision_gerencia_comentario ?? ''));
+
+        if ($generalComment === '') {
+            return '';
+        }
+
+        return '<div style="margin-top:10px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
+            . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Comentario general de Gerencia</div>'
+            . '<div style="padding:12px;white-space:pre-wrap;">' . nl2br(e($generalComment)) . '</div>'
+            . '</div>';
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private static function resolveSelectedProviderTotals(mixed $sumario): array
+    {
+        $totals = [
+            1 => 0.0,
+            2 => 0.0,
+            3 => 0.0,
+        ];
+
+        foreach ($sumario->items ?? [] as $item) {
+            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+            $selectedProvider = (int) ($selectedOption?->opcion_numero ?? 0);
+
+            if (! in_array($selectedProvider, [1, 2, 3], true)) {
+                continue;
+            }
+
+            $totals[$selectedProvider] += (float) ($selectedOption?->precio_total ?? 0);
+        }
+
+        return $totals;
+    }
+
+    private static function resolveSelectedProviderTotalForColumn(mixed $sumario, int $providerNumber): float
+    {
+        static $totalsCacheBySumarioId = [];
+
+        if (! in_array($providerNumber, [1, 2, 3], true)) {
+            return 0.0;
+        }
+
+        $sumarioId = (int) ($sumario->id ?? 0);
+
+        if ($sumarioId <= 0) {
+            return 0.0;
+        }
+
+        if (! array_key_exists($sumarioId, $totalsCacheBySumarioId)) {
+            $totalsCacheBySumarioId[$sumarioId] = self::resolveSelectedProviderTotals($sumario);
+        }
+
+        return (float) ($totalsCacheBySumarioId[$sumarioId][$providerNumber] ?? 0.0);
     }
 
     /**
@@ -2197,7 +2070,6 @@ class SumariosTable
                 . '<td style="' . $styleProv3Numeric . 'white-space:nowrap;">' . number_format((float) ($opciones->get(3)?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
                 . '<td style="' . $styleProv3Numeric . 'white-space:nowrap;">' . number_format((float) ($opciones->get(3)?->precio_total ?? 0), 2, ',', '.') . '</td>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($sumarioItem->validacion_gerencia_resultado === 'RECHAZADO' ? 'X' : ($sumarioItem->validacion_gerencia_resultado === 'CORRECTO' ? 'Correcto' : '-'))) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($sumarioItem->validacion_gerencia_comentario ?? '-')) . '</td>'
                 . '</tr>';
         }
 
@@ -2228,7 +2100,6 @@ class SumariosTable
             . '<th style="border:1px solid #d1d5db;padding:8px;">P/U 3</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">P/T 3</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Gerencia</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Motivo X</th>'
             . '</tr>'
             . '</thead>'
             . '<tbody>' . $rows . '</tbody>'
@@ -2238,7 +2109,7 @@ class SumariosTable
             . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 1: <strong>$ ' . number_format($totalSeleccionadoProv1, 2, ',', '.') . '</strong></td>'
             . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 2: <strong>$ ' . number_format($totalSeleccionadoProv2, 2, ',', '.') . '</strong></td>'
             . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 3: <strong>$ ' . number_format($totalSeleccionadoProv3, 2, ',', '.') . '</strong></td>'
-            . '<td colspan="2" style="border:1px solid #d1d5db;padding:8px;"></td>'
+            . '<td colspan="1" style="border:1px solid #d1d5db;padding:8px;"></td>'
             . '</tr>'
             . '</tfoot>'
             . '</table>'

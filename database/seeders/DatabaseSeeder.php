@@ -73,6 +73,7 @@ class DatabaseSeeder extends Seeder
         $this->call(CargoSeeder::class);
         $this->call(CategorySeeder::class);
         $this->call(SubcategorySeeder::class);
+        $this->call(ProveedorSeeder::class);
         $this->call(SkuCodeRuleSeeder::class);
         $this->call(DailyWithdrawalSetupSeeder::class);
 

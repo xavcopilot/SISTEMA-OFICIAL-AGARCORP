@@ -195,13 +195,19 @@ class SumarioFinanceApprovalService
                     'tasa_bcv' => null,
                     'condicion_pago' => $sumario->condiciones_pago,
                     'departamento_solicitante' => (string) $group['departamento_solicitante'],
+                    'sitio_entrega' => null,
+                    'comentarios' => (string) ($sumario->observaciones ?? ''),
+                    'elaborado_por_user_id' => $user->id,
+                    'elaborado_firmado_at' => null,
+                    'aprobado_por_user_id' => null,
+                    'aprobado_firmado_at' => null,
                     'monto_exento' => $montoExento,
                     'sub_total' => $subTotal,
                     'iva_16' => $iva,
                     'gastos_adicionales' => $gastosAdicionales,
                     'total_general' => round($subTotal + $iva + $gastosAdicionales + $montoExento, 2),
                     'estado' => 'PENDIENTE_APROBACION',
-                    'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                    'workflow_post_compra' => 'BORRADOR_ODC',
                 ]);
 
                 foreach ($group['items'] as $entry) {
@@ -244,10 +250,25 @@ class SumarioFinanceApprovalService
                     ->whereKey($sumario->solicitud_compra_id)
                     ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
 
+                $sumario->refresh();
+                $sumario->loadMissing(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra']);
+
+                $pendingGroupsCount = $this->pendingProviderGroups($sumario)
+                    ->filter(function (array $group) use ($sumario): bool {
+                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                        if (filled($group['provider_id'])) {
+                            $query->where('proveedor_id', (int) $group['provider_id']);
+                        }
+
+                        return ! $query->exists();
+                    })
+                    ->count();
+
                 $sumario->forceFill([
-                    'estado' => 'REVISADO_FINANZAS',
+                    'estado' => $pendingGroupsCount > 0 ? 'PENDIENTE_CREACION_ODC' : 'REVISADO_FINANZAS',
                     'revisado_por_user_id' => $user->id,
-                    'workflow_estado' => 'ODC_GENERADA',
+                    'workflow_estado' => $pendingGroupsCount > 0 ? 'APROBADO_GERENCIA_FINANZAS' : 'ODC_GENERADA',
                 ])->save();
             }
 

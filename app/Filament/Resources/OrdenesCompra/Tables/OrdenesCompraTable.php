@@ -4,12 +4,14 @@ namespace App\Filament\Resources\OrdenesCompra\Tables;
 
 use App\Models\Departamento;
 use App\Models\Product;
+use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
 use App\Support\OrdenCompraAdministracionService;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OrdenCompraRecepcionService;
+use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
@@ -27,6 +29,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
 
 class OrdenesCompraTable
 {
@@ -34,30 +37,101 @@ class OrdenesCompraTable
     {
         return $table
             ->columns([
+                TextColumn::make('correlativo_sdc')
+                    ->label('Correlativo SDC')
+                    ->searchable()
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('fecha')
+                    ->label('Fecha')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('solicitud_codigo_control')
+                    ->label('Solicitud')
+                    ->state(fn ($record): string => (string) ($record->solicitud_codigo_control ?: $record->solicitud_compra_id ?: '-'))
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('procedencia')
+                    ->label('Procedencia')
+                    ->badge()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('tipo_orden')
+                    ->label('Tipo orden')
+                    ->badge()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('mensaje_dinamico_creacion_odc')
+                    ->label('Mensaje dinamico')
+                    ->state(fn ($record): string => self::pendingOdcMessageForTable($record))
+                    ->wrap()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('estado_creacion_odc')
+                    ->label('Estado')
+                    ->badge()
+                    ->state(fn ($record): string => self::humanReadableSumarioState((string) ($record->workflow_estado ?: $record->estado)))
+                    ->color('warning')
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('odc_faltantes_creacion_odc')
+                    ->label('ODC faltantes')
+                    ->state(fn ($record): string => 'Faltan ' . self::pendingOdcGroupsCountForTable($record))
+                    ->badge()
+                    ->color('warning')
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('total_prov_1_creacion_odc')
+                    ->label('Total Prov. 1')
+                    ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 1))
+                    ->money('USD')
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('total_prov_2_creacion_odc')
+                    ->label('Total Prov. 2')
+                    ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 2))
+                    ->money('USD')
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('total_prov_3_creacion_odc')
+                    ->label('Total Prov. 3')
+                    ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 3))
+                    ->money('USD')
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
                 TextColumn::make('correlativo_odc')
                     ->label('Correlativo ODC')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('sumario.correlativo_sdc')
                     ->label('Sumario')
                     ->default('-')
-                    ->searchable(),
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('proveedor.nombre')
                     ->label('Proveedor')
                     ->default('-')
-                    ->searchable(),
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('departamento_solicitante')
                     ->label('Departamento')
                     ->default('-')
-                    ->searchable(),
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state)),
+                    ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state))
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('workflow_post_compra')
                     ->label('Flujo post-compra')
@@ -76,7 +150,8 @@ class OrdenesCompraTable
                         'CERRADA_CONFORME' => 'success',
                         'RECHAZADA_SOLICITANTE' => 'danger',
                         default => 'gray',
-                    }),
+                    })
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('tipo_documento_recepcion')
                     ->label('Recepcion')
@@ -86,38 +161,45 @@ class OrdenesCompraTable
                         'FACTURA' => 'success',
                         'NOTA' => 'warning',
                         default => 'gray',
-                    }),
+                    })
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('factura_pendiente')
                     ->label('Alerta')
                     ->badge()
                     ->state(fn ($record): string => (bool) $record->factura_pendiente ? 'FACTURA PENDIENTE' : 'OK')
-                    ->color(fn ($record): string => (bool) $record->factura_pendiente ? 'danger' : 'success'),
+                    ->color(fn ($record): string => (bool) $record->factura_pendiente ? 'danger' : 'success')
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('sub_total')
                     ->label('Sub total')
                     ->money('VES')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('iva_16')
                     ->label('IVA 16%')
                     ->money('VES')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('gastos_adicionales')
                     ->label('Gastos adicionales')
                     ->money('VES')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('total_general')
                     ->label('Total general')
                     ->money('VES')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('conformidad_solicitante_at')
                     ->label('Conformidad')
                     ->dateTime('d/m/Y H:i')
-                    ->placeholder('Pendiente'),
+                    ->placeholder('Pendiente')
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
             ])
             ->filters([
                 Filter::make('bandejaAdministracion')
@@ -125,13 +207,37 @@ class OrdenesCompraTable
                     ->query(fn (Builder $query): Builder => $query
                         ->where('tipo_documento_recepcion', 'FACTURA')
                         ->whereNotNull('factura_path')
-                        ->whereNull('factura_procesada_administracion_at')),
+                        ->whereNull('factura_procesada_administracion_at'))
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
             ])
             ->recordActions([
+                Action::make('verSumarioPendienteOdc')
+                    ->label('Ver sumario')
+                    ->icon(Heroicon::OutlinedEye)
+                    ->color('gray')
+                    ->modalHeading(fn ($record): string => 'Resumen | Sumario ' . (string) ($record->correlativo_sdc ?? ''))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderSumarioSummaryModalForRecord($record)))
+                    ->visible(fn ($record): bool => self::isPendingSumarioRecord($record)),
+
+                Action::make('creacionOdcDesdeFila')
+                    ->label('Creacion de ODC')
+                    ->icon(Heroicon::OutlinedDocumentDuplicate)
+                    ->color('success')
+                    ->modalHeading(fn ($record): string => 'Creacion de ODC | Sumario ' . (string) ($record->correlativo_sdc ?? ''))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderPendingOdcModalForRecord($record)))
+                    ->visible(fn ($record): bool => self::isPendingSumarioRecord($record) && (bool) auth()->user()?->can('GenerateOdcs:Sumario')),
+
                 Action::make('previewPdf')
                     ->label('Vista previa ODC')
                     ->icon(Heroicon::OutlinedPrinter)
                     ->url(fn ($record) => route('ordenes-compra.formato.print', ['ordenCompra' => $record]))
+                    ->visible(fn ($record): bool => ! self::isPendingSumarioRecord($record))
                     ->openUrlInNewTab(),
 
                 Action::make('aprobarGerenciaFinanzas')
@@ -144,6 +250,8 @@ class OrdenesCompraTable
                         $record->forceFill([
                             'estado' => 'APROBADA',
                             'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
+                            'aprobado_por_user_id' => auth()->id(),
+                            'aprobado_firmado_at' => now(),
                         ])->save();
 
                         self::notifyFinanzasPaymentEnabled($record);
@@ -495,7 +603,8 @@ class OrdenesCompraTable
                         }
                     }),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->visible(fn ($record): bool => ! self::isPendingSumarioRecord($record)),
             ])
             ->defaultSort('created_at', 'desc');
     }
@@ -616,11 +725,318 @@ class OrdenesCompraTable
         ];
     }
 
+    private static function isCreationOdcTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'creacion_odc';
+    }
+
+    private static function resolveActiveTab(mixed $livewire = null): string
+    {
+        $component = $livewire;
+
+        if (! is_object($component)) {
+            return '';
+        }
+
+        if (method_exists($component, 'getActiveTab')) {
+            return (string) $component->getActiveTab();
+        }
+
+        if (property_exists($component, 'activeTab')) {
+            return (string) ($component->activeTab ?? '');
+        }
+
+        return '';
+    }
+
+    private static function isPendingSumarioRecord(mixed $record): bool
+    {
+        return (int) ($record->is_sumario_pending_odc_row ?? 0) === 1;
+    }
+
+    private static function resolvePendingSumarioRecord(mixed $record): ?Sumario
+    {
+        if (! self::isPendingSumarioRecord($record)) {
+            return null;
+        }
+
+        static $cache = [];
+
+        $sumarioId = (int) ($record->id ?? 0);
+
+        if ($sumarioId <= 0) {
+            return null;
+        }
+
+        if (! array_key_exists($sumarioId, $cache)) {
+            $cache[$sumarioId] = Sumario::query()
+                ->with(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra', 'solicitudCompra'])
+                ->find($sumarioId);
+        }
+
+        return $cache[$sumarioId];
+    }
+
+    private static function pendingOdcGroupsCountForTable(mixed $record): int
+    {
+        $sumario = self::resolvePendingSumarioRecord($record);
+
+        if (! $sumario) {
+            return 0;
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        return $service->pendingProviderGroups($sumario)
+            ->filter(function (array $group) use ($sumario): bool {
+                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                if (filled($group['provider_id'])) {
+                    $query->where('proveedor_id', (int) $group['provider_id']);
+                }
+
+                return ! $query->exists();
+            })
+            ->count();
+    }
+
+    private static function pendingOdcMessageForTable(mixed $record): string
+    {
+        $sumario = self::resolvePendingSumarioRecord($record);
+
+        if (! $sumario) {
+            return 'Sin items';
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        $names = $service->pendingProviderGroups($sumario)
+            ->map(fn (array $group): string => trim((string) ($group['provider_name'] ?? '')))
+            ->filter(fn (string $name): bool => $name !== '')
+            ->unique()
+            ->values();
+
+        if ($names->isEmpty()) {
+            return 'Pendiente por generar ODC';
+        }
+
+        return 'Pendiente con: ' . $names->implode(', ');
+    }
+
+    private static function selectedProviderTotalForTable(mixed $record, int $providerNumber): float
+    {
+        $sumario = self::resolvePendingSumarioRecord($record);
+
+        if (! $sumario || ! in_array($providerNumber, [1, 2, 3], true)) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+
+        foreach ($sumario->items ?? [] as $item) {
+            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+
+            if ((int) ($selectedOption?->opcion_numero ?? 0) !== $providerNumber) {
+                continue;
+            }
+
+            $total += (float) ($selectedOption?->precio_total ?? 0);
+        }
+
+        return $total;
+    }
+
+    private static function humanReadableSumarioState(string $state): string
+    {
+        return match ($state) {
+            'APROBADO_GERENCIA_FINANZAS' => 'PENDIENTE POR ORDENES DE COMPRA',
+            default => str_replace('_', ' ', $state),
+        };
+    }
+
+    private static function renderPendingOdcModalForRecord(mixed $record): string
+    {
+        $sumario = self::resolvePendingSumarioRecord($record);
+
+        if (! $sumario) {
+            return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No se encontro el sumario para generar ODC.</div>';
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        $groups = $service->pendingProviderGroups($sumario)
+            ->filter(function (array $group) use ($sumario): bool {
+                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                if (filled($group['provider_id'])) {
+                    $query->where('proveedor_id', (int) $group['provider_id']);
+                }
+
+                return ! $query->exists();
+            })
+            ->values();
+
+        if ($groups->isEmpty()) {
+            return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No hay proveedores pendientes por generar en este sumario.</div>';
+        }
+
+        $providerSections = '';
+
+        foreach ($groups as $group) {
+            $providerName = e((string) ($group['provider_name'] ?: ('Proveedor #' . ($group['provider_id'] ?? 'N/A'))));
+            $department = e((string) $group['departamento_solicitante']);
+            $totalItems = (int) ($group['total_items'] ?? 0);
+
+            $detailRows = self::renderProviderItemRowsForGroup($sumario, $group);
+
+            if ($detailRows === '') {
+                $detailRows = '<tr><td colspan="6" style="border:1px solid #d1d5db;padding:8px;color:#6b7280;">Sin items pendientes detectados para este proveedor.</td></tr>';
+            }
+
+            $generateUrl = route('ordenes-compra.generar-desde-sumario', [
+                'sumario' => $sumario->id,
+                'provider_id' => $group['provider_id'] ?? null,
+                'provider_name' => $group['provider_name'] ?? null,
+            ]);
+
+            $form = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+                . '<a href="' . e($generateUrl) . '" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:white;border-radius:6px;padding:6px 10px;font-size:12px;text-decoration:none;">Hacer ODC para este Proveedor</a>'
+                . '</div>';
+
+            $providerSections .= '<div style="border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px;">'
+                . '<div style="padding:10px 12px;background:#f3f4f6;font-weight:600;">' . $providerName . ' | Dep: ' . $department . ' | Items: ' . $totalItems . '</div>'
+                . '<div style="padding:10px;overflow:auto;">'
+                . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+                . '<thead><tr style="background:#fafafa;">'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">Producto</th>'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">P/U</th>'
+                . '<th style="border:1px solid #d1d5db;padding:8px;">P/T</th>'
+                . '</tr></thead><tbody>' . $detailRows . '</tbody></table>'
+                . '</div>'
+                . '<div style="padding:10px 12px;border-top:1px solid #e5e7eb;background:#fff;">' . $form . '</div>'
+                . '</div>';
+        }
+
+        return '<div style="display:flex;flex-direction:column;gap:10px;">'
+            . '<div style="padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;font-size:12px;"><strong>Sumario:</strong> ' . e((string) $sumario->correlativo_sdc) . ' | <strong>Solicitud:</strong> ' . e((string) ($sumario->solicitudCompra?->codigo_control ?: $sumario->solicitud_compra_id)) . '</div>'
+            . '<div>' . $providerSections . '</div>'
+            . '</div>';
+    }
+
+    private static function renderProviderItemRowsForGroup(Sumario $sumario, array $group): string
+    {
+        $rows = [];
+
+        foreach ($sumario->items ?? [] as $item) {
+            if ((string) ($item->sub_estado ?? '') === 'PENDIENTE_REVALIDACION_GERENCIA') {
+                continue;
+            }
+
+            $resultado = (string) ($item->validacion_gerencia_resultado ?? '');
+
+            if ($resultado !== '' && $resultado !== 'CORRECTO') {
+                continue;
+            }
+
+            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+
+            if (! $selectedOption) {
+                continue;
+            }
+
+            $providerMatches = false;
+
+            if (filled($group['provider_id'])) {
+                $providerMatches = (int) ($selectedOption->proveedor_id ?? 0) === (int) $group['provider_id'];
+            } else {
+                $providerMatches = mb_strtolower(trim((string) ($selectedOption->proveedor_nombre ?? '')))
+                    === mb_strtolower(trim((string) ($group['provider_name'] ?? '')));
+            }
+
+            if (! $providerMatches) {
+                continue;
+            }
+
+            $department = trim((string) ($item->solicitudCompraItem?->solicitudCompra?->departamento_solicitante ?? $sumario->departamento_solicitante ?? 'SIN_DEPARTAMENTO'));
+
+            if (mb_strtolower($department) !== mb_strtolower((string) ($group['departamento_solicitante'] ?? ''))) {
+                continue;
+            }
+
+            $rows[] = '<tr>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->descripcion ?? '-')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($item->cantidad ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption->precio_unitario ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '</tr>';
+        }
+
+        return implode('', $rows);
+    }
+
+    private static function renderSumarioSummaryModalForRecord(mixed $record): string
+    {
+        $sumario = self::resolvePendingSumarioRecord($record);
+
+        if (! $sumario) {
+            return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No se encontro el sumario.</div>';
+        }
+
+        $rows = '';
+
+        foreach ($sumario->items ?? [] as $item) {
+            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+
+            $rows .= '<tr>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->descripcion ?? '-')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($item->cantidad ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($selectedOption?->proveedor_nombre ?? '-')) . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_total ?? 0), 2, ',', '.') . '</td>'
+                . '</tr>';
+        }
+
+        if ($rows === '') {
+            $rows = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:8px;color:#6b7280;">Sin items registrados.</td></tr>';
+        }
+
+        return '<div style="display:flex;flex-direction:column;gap:10px;">'
+            . '<div style="padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;font-size:12px;">'
+            . '<strong>Sumario:</strong> ' . e((string) ($sumario->correlativo_sdc ?? '-'))
+            . ' | <strong>Fecha:</strong> ' . e((string) optional($sumario->fecha)->format('d/m/Y'))
+            . ' | <strong>Solicitud:</strong> ' . e((string) ($sumario->solicitudCompra?->codigo_control ?: $sumario->solicitud_compra_id))
+            . ' | <strong>Procedencia:</strong> ' . e((string) ($sumario->procedencia ?? '-'))
+            . ' | <strong>Tipo orden:</strong> ' . e((string) ($sumario->tipo_orden ?? '-'))
+            . '</div>'
+            . '<div style="overflow:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead><tr style="background:#f3f4f6;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor seleccionado</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T</th>'
+            . '</tr></thead>'
+            . '<tbody>' . $rows . '</tbody>'
+            . '</table>'
+            . '</div>'
+            . '</div>';
+    }
+
     private static function canUploadReceptionDocumentByProcura(mixed $record): bool
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -634,7 +1050,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -651,7 +1067,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -666,7 +1082,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -678,7 +1094,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -691,7 +1107,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -707,7 +1123,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -722,7 +1138,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 
@@ -742,7 +1158,7 @@ class OrdenesCompraTable
     {
         $user = auth()->user();
 
-        if (! $user || ! $record) {
+        if (! $user || ! $record || self::isPendingSumarioRecord($record)) {
             return false;
         }
 

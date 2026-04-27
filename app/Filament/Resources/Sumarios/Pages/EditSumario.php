@@ -17,6 +17,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
@@ -45,9 +46,28 @@ class EditSumario extends EditRecord
         return parent::getSaveFormAction();
     }
 
+    protected function getHeaderActions(): array
+    {
+        $workflow = (string) ($this->record->workflow_estado ?? '');
+
+        $actions = [];
+
+        if ($this->isGerenciaRejectedWorkflow($workflow)) {
+            $actions[] = $this->makeViewGerenciaCorrectionsAction();
+        }
+
+        if ($this->isRejectedWorkflow($workflow)) {
+            $actions[] = $this->makeArchiveRejectedToHistoryAction();
+        }
+
+        return $actions;
+    }
+
     protected function getFormActions(): array
     {
-        if ((string) ($this->record->workflow_estado ?? '') === 'BORRADOR') {
+        $workflow = (string) ($this->record->workflow_estado ?? '');
+
+        if ($workflow === 'BORRADOR') {
             return [
                 $this->getSaveFormAction(),
                 Action::make('submitForFinanceValidation')
@@ -70,7 +90,46 @@ class EditSumario extends EditRecord
             ];
         }
 
-        if ($this->isRejectedWorkflow((string) ($this->record->workflow_estado ?? ''))) {
+        if ($this->isGerenciaRejectedWorkflow($workflow)) {
+            return [
+                Action::make('submitForFinanceValidation')
+                    ->label('Enviar a Validacion Finanzas')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->form([
+                        TextInput::make('password')
+                            ->label('Clave de firma')
+                            ->password()
+                            ->required(),
+                        TextInput::make('password_confirmation')
+                            ->label('Repetir clave de firma')
+                            ->password()
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        $this->submitForFinanceValidation($data);
+                    }),
+                Action::make('submitForGerenciaValidation')
+                    ->label('Enviar a Gerencia Finanzas')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->form([
+                        TextInput::make('password')
+                            ->label('Clave de firma')
+                            ->password()
+                            ->required(),
+                        TextInput::make('password_confirmation')
+                            ->label('Repetir clave de firma')
+                            ->password()
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        $this->submitForGerenciaValidation($data);
+                    }),
+            ];
+        }
+
+        if ($workflow === 'RECHAZADO_VALIDACION_FINANZAS') {
             return [
                 Action::make('submitForFinanceValidation')
                     ->label('Enviar a Validacion Finanzas')
@@ -93,6 +152,70 @@ class EditSumario extends EditRecord
         }
 
         return parent::getFormActions();
+    }
+
+    private function makeViewGerenciaCorrectionsAction(): Action
+    {
+        return Action::make('viewGerenciaCorrections')
+            ->label('Ver Correcciones de Gerencia')
+            ->color('warning')
+            ->modalHeading(fn (): string => 'Correcciones de Gerencia | Sumario ' . (string) ($this->record->correlativo_sdc ?? ''))
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Cerrar')
+            ->modalWidth('7xl')
+            ->modalContent(fn (): HtmlString => new HtmlString($this->renderGerenciaCorrectionsPreview()));
+    }
+
+    private function makeArchiveRejectedToHistoryAction(): Action
+    {
+        return Action::make('archiveRejectedToHistory')
+            ->label('Eliminar para Historial')
+            ->icon('heroicon-o-archive-box-x-mark')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Enviar rechazo definitivo al historial')
+            ->modalDescription('Este sumario quedara como RECHAZADO en historial y no seguira en correccion.')
+            ->form([
+                TextInput::make('password')
+                    ->label('Clave de firma')
+                    ->password()
+                    ->required(),
+                TextInput::make('password_confirmation')
+                    ->label('Repetir clave de firma')
+                    ->password()
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
+                if (! $this->validateSignaturePassword($data)) {
+                    return;
+                }
+
+                /** @var Sumario $sumario */
+                $sumario = $this->record->fresh();
+
+                if (! $this->isRejectedWorkflow((string) ($sumario->workflow_estado ?? ''))) {
+                    Notification::make()
+                        ->title('Accion no disponible')
+                        ->body('Solo aplica para sumarios rechazados por Validacion Finanzas o Gerencia Finanzas.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                $sumario->forceFill([
+                    'workflow_estado' => 'RECHAZADO',
+                    'estado' => 'RECHAZADO',
+                ])->save();
+
+                Notification::make()
+                    ->title('Enviado a historial')
+                    ->body('El sumario fue marcado como RECHAZADO definitivo y movido al historial.')
+                    ->success()
+                    ->send();
+
+                $this->redirect(SumarioResource::getUrl('index', ['activeTab' => 'sumarios']));
+            });
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
@@ -305,6 +428,62 @@ class EditSumario extends EditRecord
         $this->redirect(SumarioResource::getUrl('index'));
     }
 
+    private function submitForGerenciaValidation(array $authData): void
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof Sumario || ! $this->isGerenciaRejectedWorkflow((string) $record->workflow_estado)) {
+            return;
+        }
+
+        if (! auth()->user()?->can('SubmitValidation:Sumario')) {
+            Notification::make()
+                ->title('Sin permisos')
+                ->body('No tienes permisos para enviar el sumario a Gerencia Finanzas.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        if (! $this->validateSignaturePassword($authData)) {
+            return;
+        }
+
+        $validatedState = $this->form->getState();
+        $data = $this->prepareDraftData($validatedState, $record);
+
+        if (blank($data['solicitud_compra_id'] ?? null)) {
+            Notification::make()
+                ->title('No se pudo enviar')
+                ->body('Selecciona una solicitud base antes de enviar a Gerencia Finanzas.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $data['estado'] = 'EN_ESPERA_APROBACION_GERENCIA';
+        $data['workflow_estado'] = 'VALIDADO_FINANZAS';
+        $data['decision_gerencia_finanzas_at'] = null;
+        $data['decision_gerencia_por_user_id'] = null;
+        $data['decision_gerencia_resultado'] = null;
+        $data['decision_gerencia_comentario'] = null;
+
+        $updated = $this->handleRecordUpdate($record, $data);
+
+        $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
+        $this->fillForm();
+
+        Notification::make()
+            ->title('Sumario enviado')
+            ->body('El sumario fue enviado directo a Gerencia Finanzas para nueva decision.')
+            ->success()
+            ->send();
+
+        $this->redirect(SumarioResource::getUrl('index'));
+    }
+
     private function validateSignaturePassword(array $data): bool
     {
         $password = (string) ($data['password'] ?? '');
@@ -478,8 +657,109 @@ class EditSumario extends EditRecord
         return in_array($workflow, [
             'RECHAZADO_VALIDACION_FINANZAS',
             'RECHAZADO_GERENCIA_FINANZAS',
-            'RECHAZADO_GERENCIA_FINANZAS_PARCIAL',
         ], true);
+    }
+
+    private function isGerenciaRejectedWorkflow(string $workflow): bool
+    {
+        return in_array($workflow, [
+            'RECHAZADO_GERENCIA_FINANZAS',
+        ], true);
+    }
+
+    private function renderGerenciaCorrectionsPreview(): string
+    {
+        /** @var Sumario $sumario */
+        $sumario = $this->record->loadMissing(['items.opciones']);
+
+        $items = $sumario->items
+            ->sortBy(function (SumarioItem $item): int {
+                return (int) ($item->item ?: $item->id);
+            })
+            ->values();
+
+        if ($items->isEmpty()) {
+            return '<div style="padding:12px;color:#6b7280;">No hay items para mostrar en correcciones de Gerencia.</div>';
+        }
+
+        $rows = $items->map(function (SumarioItem $item): string {
+            $isRejected = (string) ($item->validacion_gerencia_resultado ?? '') === 'RECHAZADO';
+            $decisionText = $isRejected ? '❌ Incorrecto' : '✅ Correcto';
+            $decisionBg = $isRejected ? '#fef2f2' : '#f0fdf4';
+            $decisionBorder = $isRejected ? '#fecaca' : '#bbf7d0';
+
+            return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">'
+                . '<div style="display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:12px;align-items:start;">'
+                . '<div>'
+                . '<div style="font-weight:700;margin-bottom:8px;">Cuadro comparativo del item</div>'
+                . $this->renderGerenciaCorrectionItemTable($item)
+                . '</div>'
+                . '<div>'
+                . '<div style="font-weight:700;margin-bottom:6px;">Decision Gerencia</div>'
+                . '<div style="padding:10px;border:1px solid ' . $decisionBorder . ';background:' . $decisionBg . ';border-radius:8px;">' . e($decisionText) . '</div>'
+                . '</div>'
+                . '</div>'
+                . '</div>';
+        })->implode('');
+
+        $comment = trim((string) ($sumario->decision_gerencia_comentario ?? ''));
+
+        return $rows
+            . '<div style="margin-top:10px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
+            . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Comentario general de Gerencia</div>'
+            . '<div style="padding:12px;white-space:pre-wrap;">' . nl2br(e($comment !== '' ? $comment : 'Sin comentario general registrado.')) . '</div>'
+            . '</div>';
+    }
+
+    private function renderGerenciaCorrectionItemTable(SumarioItem $item): string
+    {
+        $opciones = $item->opciones->keyBy('opcion_numero');
+        $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+        $selectedOptionNumber = (int) ($selectedOption?->opcion_numero ?? 0);
+
+        $renderOption = function (int $optionNumber) use ($opciones, $selectedOptionNumber): string {
+            $option = $opciones->get($optionNumber);
+            $isSelected = $selectedOptionNumber === $optionNumber;
+            $cellStyle = $isSelected
+                ? 'border:1px solid #86efac;padding:4px;background:#dcfce7;font-size:10px;line-height:1.2;'
+                : 'border:1px solid #d1d5db;padding:4px;font-size:10px;line-height:1.2;';
+
+            return '<td style="' . $cellStyle . '">' . e((string) ($option?->proveedor_nombre ?? '-')) . '</td>'
+                . '<td style="' . $cellStyle . '">' . e((string) ($option?->marca ?? '-')) . '</td>'
+                . '<td style="' . $cellStyle . 'text-align:right;">' . number_format((float) ($option?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
+                . '<td style="' . $cellStyle . 'text-align:right;">' . number_format((float) ($option?->precio_total ?? 0), 2, ',', '.') . '</td>';
+        };
+
+        return '<div style="overflow:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:10px;table-layout:auto;">'
+            . '<thead><tr style="background:#f3f4f6;">'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">UND</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Cant</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 1</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 2</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Prov 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">Marca 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/U 3</th>'
+            . '<th style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">P/T 3</th>'
+            . '</tr></thead>'
+            . '<tbody><tr>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">' . e((string) ($item->item ?: $item->id)) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;white-space:nowrap;">' . e((string) $item->descripcion) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;text-align:center;white-space:nowrap;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
+            . '<td style="border:1px solid #d1d5db;padding:3px;text-align:right;white-space:nowrap;">' . number_format((float) $item->cantidad, 2, ',', '.') . '</td>'
+            . $renderOption(1)
+            . $renderOption(2)
+            . $renderOption(3)
+            . '</tr></tbody></table>'
+            . '</div>';
     }
 
     private function resolveDepartamentoSolicitante(mixed $solicitudCompraId): string

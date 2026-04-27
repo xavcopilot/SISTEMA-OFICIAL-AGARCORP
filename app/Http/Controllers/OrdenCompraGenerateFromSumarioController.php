@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Sumario;
 use App\Support\SumarioFinanceApprovalService;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +31,12 @@ class OrdenCompraGenerateFromSumarioController
                     $providerName !== '' ? $providerName : null
                 );
 
-            return redirect()->back()->with('status', 'Se generaron ' . count($orders) . ' ODC para el proveedor seleccionado.');
+            if ($orders !== []) {
+                return redirect(OrdenCompraResource::getUrl('edit', ['record' => $orders[0]]))
+                    ->with('status', 'Se genero la ODC para el proveedor seleccionado. Completa los datos del formulario.');
+            }
+
+            return redirect()->back()->with('status', 'No habia ODC nuevas por crear para ese proveedor.');
         } catch (\Throwable $exception) {
             report($exception);
 

@@ -272,7 +272,7 @@ class SumarioForm
 
                                 Select::make('solicitud_compra_id')
                                     ->label('Solicitud Compra Base')
-                                    ->options(fn (): array => self::solicitudCompraOptions())
+                                    ->options(fn (callable $get): array => self::solicitudCompraOptions((int) ($get('solicitud_compra_id') ?? 0)))
                                     ->default(fn (): ?int => request()->integer('solicitud_compra_id') ?: null)
                                     ->searchable()
                                     ->preload()
@@ -364,7 +364,30 @@ class SumarioForm
                     ->schema([
                         CheckboxList::make('selected_item_ids')
                             ->label('Seleccion parcial de items de la solicitud')
-                            ->options(fn (callable $get): array => self::solicitudItemOptions((int) ($get('solicitud_compra_id') ?? 0)))
+                            ->options(function (callable $get): array {
+                                $selectedFromState = collect($get('selected_item_ids') ?? [])
+                                    ->map(fn ($id): int => (int) $id)
+                                    ->filter(fn (int $id): bool => $id > 0)
+                                    ->values()
+                                    ->all();
+
+                                $selectedFromRows = collect($get('comparativo_items') ?? [])
+                                    ->filter(fn ($row): bool => is_array($row) && filled($row['solicitud_compra_item_id'] ?? null))
+                                    ->map(fn ($row): int => (int) ($row['solicitud_compra_item_id'] ?? 0))
+                                    ->filter(fn (int $id): bool => $id > 0)
+                                    ->values()
+                                    ->all();
+
+                                $selectedIds = collect(array_merge($selectedFromState, $selectedFromRows))
+                                    ->unique()
+                                    ->values()
+                                    ->all();
+
+                                return self::solicitudItemOptions(
+                                    (int) ($get('solicitud_compra_id') ?? 0),
+                                    $selectedIds
+                                );
+                            })
                             ->columns(1)
                             ->searchable()
                             ->bulkToggleable()
@@ -795,9 +818,9 @@ class SumarioForm
             ]);
     }
 
-    public static function solicitudCompraOptions(): array
+    public static function solicitudCompraOptions(?int $currentSolicitudId = null): array
     {
-        return SolicitudCompra::query()
+        $options = SolicitudCompra::query()
             ->where('estado', SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA)
             ->whereNotNull('fecha_receptor')
             ->where('estado', '!=', 'RECHAZADA')
@@ -821,6 +844,29 @@ class SumarioForm
                 return [$solicitud->id => $label];
             })
             ->all();
+
+        $currentSolicitudId = (int) ($currentSolicitudId ?? 0);
+
+        if ($currentSolicitudId > 0 && ! array_key_exists($currentSolicitudId, $options)) {
+            $currentSolicitud = SolicitudCompra::query()
+                ->whereKey($currentSolicitudId)
+                ->first(['id', 'codigo_control', 'numero_solicitud_usuario', 'departamento_solicitante', 'para_ser_usado_en']);
+
+            if ($currentSolicitud) {
+                $codigo = $currentSolicitud->codigo_control ?: (string) $currentSolicitud->id;
+                $numeroSolicitud = $currentSolicitud->numero_solicitud_usuario ?: $currentSolicitud->id;
+                $uso = trim((string) ($currentSolicitud->para_ser_usado_en ?? ''));
+                $usoCorto = $uso !== '' ? mb_strimwidth($uso, 0, 60, '...') : 'Sin detalle de uso';
+
+                $options[$currentSolicitud->id] = 'N° ' . $numeroSolicitud
+                    . ' | ' . $codigo
+                    . ' | ' . ($currentSolicitud->departamento_solicitante ?: 'Sin departamento')
+                    . ' | ' . $usoCorto
+                    . ' | (actual del sumario)';
+            }
+        }
+
+        return $options;
     }
 
     public static function financeReviewerOptions(): array
@@ -896,15 +942,28 @@ class SumarioForm
         }
     }
 
-    public static function solicitudItemOptions(int $solicitudId): array
+    public static function solicitudItemOptions(int $solicitudId, array $forceIncludeItemIds = []): array
     {
         if ($solicitudId <= 0) {
             return [];
         }
 
+        $forceIncludeItemIds = collect($forceIncludeItemIds)
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
         return SolicitudCompraItem::query()
             ->where('solicitud_compra_id', $solicitudId)
-            ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)')
+            ->where(function ($query) use ($forceIncludeItemIds): void {
+                $query->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)');
+
+                if ($forceIncludeItemIds !== []) {
+                    $query->orWhereIn('id', $forceIncludeItemIds);
+                }
+            })
             ->orderBy('item')
             ->get()
             ->mapWithKeys(function (SolicitudCompraItem $item): array {

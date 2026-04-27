@@ -24,6 +24,12 @@ class OrdenCompra extends Model
         'tasa_bcv',
         'condicion_pago',
         'departamento_solicitante',
+        'sitio_entrega',
+        'comentarios',
+        'elaborado_por_user_id',
+        'elaborado_firmado_at',
+        'aprobado_por_user_id',
+        'aprobado_firmado_at',
         'monto_exento',
         'sub_total',
         'iva_16',
@@ -91,6 +97,8 @@ class OrdenCompra extends Model
         'conformidad_solicitante_at' => 'datetime',
         'devolucion_solicitada_at' => 'datetime',
         'factura_procesada_administracion_at' => 'datetime',
+        'elaborado_firmado_at' => 'datetime',
+        'aprobado_firmado_at' => 'datetime',
     ];
 
     public function sumario(): BelongsTo
@@ -141,6 +149,16 @@ class OrdenCompra extends Model
     public function facturaCargadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'factura_cargada_por_user_id');
+    }
+
+    public function elaboradoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'elaborado_por_user_id');
+    }
+
+    public function aprobadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'aprobado_por_user_id');
     }
 
     public function devolucionSolicitadaPor(): BelongsTo

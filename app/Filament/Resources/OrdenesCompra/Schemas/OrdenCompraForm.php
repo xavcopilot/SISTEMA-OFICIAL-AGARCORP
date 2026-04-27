@@ -2,13 +2,17 @@
 
 namespace App\Filament\Resources\OrdenesCompra\Schemas;
 
+use App\Models\Proveedor;
+use App\Models\User;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\HtmlString;
 
 class OrdenCompraForm
 {
@@ -16,39 +20,111 @@ class OrdenCompraForm
     {
         return $schema
             ->components([
-                Section::make('Cabecera ODC (ADV-FPR-ODC)')
+                Section::make('ORDEN DE COMPRA')
                     ->schema([
                         Grid::make(12)
                             ->schema([
-                                TextInput::make('correlativo_odc')
-                                    ->label('Correlativo ODC')
-                                    ->disabled()
-                                    ->dehydrated(false)
+                                Placeholder::make('correlativo_odc_preview')
+                                    ->label('Codigo')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->correlativo_odc ?? '-')))
                                     ->columnSpan(3),
 
-                                TextInput::make('sumario.correlativo_sdc')
-                                    ->label('Correlativo SDC')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
+                                Placeholder::make('revision_preview')
+                                    ->label('Revision')
+                                    ->content(fn (): HtmlString => self::boxedValue('01'))
+                                    ->columnSpan(2),
 
-                                TextInput::make('proveedor.nombre')
-                                    ->label('Proveedor')
-                                    ->disabled()
-                                    ->dehydrated(false)
+                                Placeholder::make('fecha_formato_preview')
+                                    ->label('Fecha')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) optional($record?->created_at)->format('d/m/Y')))
+                                    ->columnSpan(2),
+
+                                Placeholder::make('pagina_preview')
+                                    ->label('Pagina')
+                                    ->content(fn (): HtmlString => self::boxedValue('01 de 01'))
+                                    ->columnSpan(2),
+
+                                Placeholder::make('sumario_correlativo_preview')
+                                    ->label('Asociado a sumario de cotizaciones N°')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->sumario?->correlativo_sdc ?? '-')))
+                                    ->columnSpan(3),
+                            ]),
+                    ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
+                    ->columnSpanFull(),
+
+                Section::make('Informacion de la empresa')
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                Placeholder::make('empresa_razon_social')
+                                    ->label('Nombre o razon social')
+                                    ->content(fn (): HtmlString => self::boxedValue('AGARCORP DE VENEZUELA, C.A.'))
                                     ->columnSpan(6),
+
+                                Placeholder::make('empresa_rif')
+                                    ->label('RIF')
+                                    ->content(fn (): HtmlString => self::boxedValue('J-30693407-3'))
+                                    ->columnSpan(3),
+
+                                Placeholder::make('empresa_telefono')
+                                    ->label('Telefono')
+                                    ->content(fn (): HtmlString => self::boxedValue('0261-7184260'))
+                                    ->columnSpan(3),
+
+                                Placeholder::make('empresa_direccion')
+                                    ->label('Direccion')
+                                    ->content(fn (): HtmlString => self::boxedValue('AV 77 EDIF 5 JULIO PISO 4 OF D/4 SECTOR TIERRA NEGRA MARACAIBO.'))
+                                    ->columnSpan(12),
+                            ]),
+                    ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
+                    ->columnSpanFull(),
+
+                Section::make('Informacion del proveedor')
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                Select::make('proveedor_id')
+                                    ->label('Proveedor')
+                                    ->relationship('proveedor', 'nombre')
+                                    ->searchable()
+                                    ->preload()
+                                    ->required()
+                                    ->live()
+                                    ->createOptionForm([
+                                        TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
+                                        TextInput::make('rif')->label('RIF')->required()->maxLength(255),
+                                        TextInput::make('direccion')->label('Direccion')->required()->maxLength(255),
+                                        TextInput::make('ciudad')->label('Ciudad')->required()->maxLength(255),
+                                        TextInput::make('email')->label('Email')->email()->maxLength(255),
+                                        TextInput::make('contacto')->label('Contacto')->required()->maxLength(255),
+                                        TextInput::make('telefono')->label('Telefono')->required()->maxLength(50),
+                                    ])
+                                    ->createOptionUsing(function (array $data): int {
+                                        $provider = Proveedor::query()->create($data);
+
+                                        return (int) $provider->id;
+                                    })
+                                    ->afterStateHydrated(function ($state, callable $set): void {
+                                        self::hydrateProviderFields((int) ($state ?? 0), $set);
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::hydrateProviderFields((int) ($state ?? 0), $set);
+                                    })
+                                    ->columnSpan(8),
 
                                 TextInput::make('rif_proveedor')
                                     ->label('RIF')
                                     ->required()
                                     ->maxLength(255)
-                                    ->columnSpan(3),
+                                    ->columnSpan(4),
 
                                 TextInput::make('direccion_proveedor')
                                     ->label('Direccion')
                                     ->required()
                                     ->maxLength(255)
-                                    ->columnSpan(5),
+                                    ->columnSpan(6),
 
                                 TextInput::make('email_proveedor')
                                     ->label('Email')
@@ -62,82 +138,26 @@ class OrdenCompraForm
                                     ->maxLength(255)
                                     ->columnSpan(2),
 
-                                TextInput::make('tasa_bcv')
-                                    ->label('Tasa BCV')
-                                    ->numeric()
-                                    ->step('0.000001')
-                                    ->columnSpan(3),
+                                Placeholder::make('telefono_proveedor_preview')
+                                    ->label('Numero telefono')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->proveedor?->telefono ?? '-')))
+                                    ->columnSpan(2),
 
-                                TextInput::make('condicion_pago')
-                                    ->label('Condicion de pago')
-                                    ->maxLength(255)
-                                    ->columnSpan(5),
-
-                                Select::make('estado')
-                                    ->label('Estado')
-                                    ->options([
-                                        'PENDIENTE_APROBACION' => 'Pendiente Aprobacion',
-                                        'PAGADA' => 'Pagada',
-                                        'EN_ESPERA_DE_PRODUCTO' => 'En Espera de Producto',
-                                        'RECIBIDA' => 'Recibida',
-                                    ])
-                                    ->required()
-                                    ->columnSpan(4),
-
-                                TextInput::make('workflow_post_compra')
-                                    ->label('Flujo post-compra')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(4),
-                            ]),
-                    ])
-                    ->columnSpanFull(),
-
-                Section::make('Pagos y confirmaciones')
-                    ->schema([
-                        Grid::make(12)
-                            ->schema([
-                                TextInput::make('monto_pagado')
-                                    ->label('Monto pagado')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('referencia_pago')
-                                    ->label('Referencia pago')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('pago_registrado_at')
-                                    ->label('Pago registrado en')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('confirmado_procura_at')
-                                    ->label('Confirmado por Procura en')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                Placeholder::make('comprobante_pago_preview')
-                                    ->label('Comprobante de pago')
-                                    ->content(fn ($record): string => filled($record?->comprobante_pago_path)
-                                        ? (string) $record->comprobante_pago_path
-                                        : 'No cargado')
+                                Placeholder::make('ciudad_proveedor_preview')
+                                    ->label('Ciudad')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->proveedor?->ciudad ?? '-')))
                                     ->columnSpan(6),
 
-                                TextInput::make('observacion_pago')
-                                    ->label('Observacion de pago')
-                                    ->disabled()
-                                    ->dehydrated(false)
+                                Placeholder::make('fecha_entrega_preview')
+                                    ->label('Fecha de entrega')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) optional($record?->created_at)->format('d/m/Y')))
                                     ->columnSpan(6),
                             ]),
                     ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
                     ->columnSpanFull(),
 
-                Section::make('Items adjudicados al proveedor ganador')
+                Section::make('Detalle de productos')
                     ->schema([
                         Repeater::make('items')
                             ->relationship('items')
@@ -145,10 +165,10 @@ class OrdenCompraForm
                             ->deletable(false)
                             ->reorderable(false)
                             ->schema([
-                                Grid::make(12)
+                                Grid::make(14)
                                     ->schema([
                                         TextInput::make('item')
-                                            ->label('Item')
+                                            ->label('Codigo')
                                             ->disabled()
                                             ->dehydrated(false)
                                             ->columnSpan(1),
@@ -160,10 +180,10 @@ class OrdenCompraForm
                                             ->columnSpan(4),
 
                                         TextInput::make('unidad_medida')
-                                            ->label('UND')
+                                            ->label('Unidad MED')
                                             ->disabled()
                                             ->dehydrated(false)
-                                            ->columnSpan(1),
+                                            ->columnSpan(2),
 
                                         TextInput::make('cantidad')
                                             ->label('Cantidad')
@@ -173,43 +193,49 @@ class OrdenCompraForm
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario')
-                                            ->label('Precio unitario')
+                                            ->label(new HtmlString('<span style="white-space: nowrap;">Valor Unitario</span>'))
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated(false)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_total')
-                                            ->label('Precio total')
+                                            ->label('Valor Total')
                                             ->numeric()
                                             ->disabled()
                                             ->dehydrated(false)
-                                            ->columnSpan(2),
+                                            ->columnSpan(3),
                                     ]),
                             ])
                             ->columnSpanFull(),
                     ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
                     ->columnSpanFull(),
 
-                Section::make('Calculos financieros')
+                Section::make('Totales')
                     ->schema([
                         Grid::make(12)
                             ->schema([
+                                Placeholder::make('total_en_letras_preview')
+                                    ->label('Valor total en letras')
+                                    ->content(fn (callable $get): string => self::totalInWords((float) ($get('total_general') ?? 0)))
+                                    ->columnSpan(12),
+
                                 TextInput::make('monto_exento')
-                                    ->label('Monto exento')
+                                    ->label('Exento')
                                     ->numeric()
                                     ->default(0)
                                     ->live(debounce: 250)
                                     ->afterStateHydrated(fn ($state, callable $set, callable $get) => self::recalculateTotals($set, $get))
                                     ->afterStateUpdated(fn ($state, callable $set, callable $get) => self::recalculateTotals($set, $get))
-                                    ->columnSpan(3),
+                                    ->columnSpan(2),
 
                                 TextInput::make('sub_total')
                                     ->label('Sub total')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
-                                    ->columnSpan(3),
+                                    ->columnSpan(2),
 
                                 TextInput::make('iva_16')
                                     ->label('IVA 16%')
@@ -219,138 +245,137 @@ class OrdenCompraForm
                                     ->columnSpan(2),
 
                                 TextInput::make('gastos_adicionales')
-                                    ->label('Gastos adicionales')
+                                    ->label(new HtmlString('<span style="white-space: nowrap;">Gastos adicionales</span>'))
                                     ->numeric()
                                     ->default(0)
                                     ->live(debounce: 250)
                                     ->afterStateHydrated(fn ($state, callable $set, callable $get) => self::recalculateTotals($set, $get))
                                     ->afterStateUpdated(fn ($state, callable $set, callable $get) => self::recalculateTotals($set, $get))
-                                    ->columnSpan(2),
+                                    ->columnSpan(3),
 
                                 TextInput::make('total_general')
-                                    ->label('Total general')
+                                    ->label('Total')
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
-                                    ->columnSpan(2),
+                                    ->columnSpan(3),
+
+                                TextInput::make('estado')
+                                    ->label('Estado')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(6),
+
+                                TextInput::make('workflow_post_compra')
+                                    ->label('Flujo post-compra')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(6),
                             ]),
                     ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
                     ->columnSpanFull(),
 
-                Section::make('Recepcion y Cierre')
+                Section::make('Condiciones y comentarios')
                     ->schema([
                         Grid::make(12)
                             ->schema([
-                                TextInput::make('tipo_documento_recepcion')
-                                    ->label('Documento de recepcion')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('recepcion_procesada_at')
-                                    ->label('Recepcion procesada en')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('conformidad_solicitante_at')
-                                    ->label('Conformidad solicitante')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                TextInput::make('inventarioMovimiento.nro_control')
-                                    ->label('Entrada oficial inventario')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                Placeholder::make('factura_path_preview')
-                                    ->label('Factura cargada')
-                                    ->content(fn ($record): string => filled($record?->factura_path) ? (string) $record->factura_path : 'No cargada')
+                                TextInput::make('sitio_entrega')
+                                    ->label('Sitio de entrega')
+                                    ->maxLength(255)
                                     ->columnSpan(6),
 
-                                TextInput::make('factura_enviada_administracion_at')
-                                    ->label('Factura enviada a Administracion')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
+                                TextInput::make('condicion_pago')
+                                    ->label('Condicion de pago')
+                                    ->maxLength(255)
+                                    ->columnSpan(6),
 
-                                TextInput::make('factura_procesada_administracion_at')
-                                    ->label('Factura procesada por Administracion')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(3),
-
-                                Placeholder::make('alerta_factura')
-                                    ->label('Alerta')
-                                    ->content(fn ($record): string => (bool) ($record?->factura_pendiente ?? false)
-                                        ? 'FACTURA PENDIENTE: recibido con Nota de Entrega.'
-                                        : 'Sin alertas de factura pendiente.')
-                                    ->columnSpan(4),
-
-                                TextInput::make('factura_numero')
-                                    ->label('Nro Factura')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('factura_numero_control')
-                                    ->label('Nro Control')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('factura_fecha_emision')
-                                    ->label('Fecha factura')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('factura_monto_total')
-                                    ->label('Monto factura')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('retencion_iva_monto')
-                                    ->label('Ret. IVA')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('retencion_islr_monto')
-                                    ->label('Ret. ISLR')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                Placeholder::make('comprobantes_retencion_paths')
-                                    ->label('Comprobantes de retencion')
-                                    ->content(fn ($record): string => collect($record?->comprobantes_retencion_paths ?? [])->filter()->isEmpty()
-                                        ? 'Sin comprobantes cargados.'
-                                        : collect($record?->comprobantes_retencion_paths ?? [])->filter()->implode(' | '))
-                                    ->columnSpan(8),
-
-                                TextInput::make('facturaCargadaPor.name')
-                                    ->label('Cargada por Administracion')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('factura_cargada_administracion_at')
-                                    ->label('Carga contable en')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(2),
-
-                                TextInput::make('observacion_administracion')
-                                    ->label('Observacion contable')
-                                    ->disabled()
-                                    ->dehydrated(false)
+                                Textarea::make('comentarios')
+                                    ->label('Comentarios')
+                                    ->rows(2)
                                     ->columnSpan(12),
                             ]),
                     ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
+                    ->columnSpanFull(),
+
+                Section::make('Datos de control')
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                TextInput::make('tasa_bcv')
+                                    ->label('TASA BCV')
+                                    ->numeric()
+                                    ->step('0.000001')
+                                    ->columnSpan(3),
+
+                                Placeholder::make('solicitado_por_preview')
+                                    ->label('SOLICITADO POR')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->departamento_solicitante ?: '-')))
+                                    ->columnSpan(4),
+
+                                Placeholder::make('asociado_sumario_preview')
+                                    ->label('ASOCIADO A SUMARIO DE COTIZACIONES N°')
+                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->sumario?->correlativo_sdc ?: '-')))
+                                    ->columnSpan(5),
+                            ]),
+                    ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
+                    ->columnSpanFull(),
+
+                Section::make('ELABORADO POR / APROBADO POR')
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                Grid::make(1)
+                                    ->schema([
+                                        Placeholder::make('elaborado_por_preview')
+                                            ->label('Elaborado por')
+                                            ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->elaboradoPor?->name ?: auth()->user()?->name ?: '-'))),
+
+                                        Placeholder::make('elaborado_cargo_preview')
+                                            ->label('Cargo (Elaborado por)')
+                                            ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->elaboradoPor?->cargo?->nombre ?: auth()->user()?->cargo?->nombre ?: '-'))),
+
+                                        Placeholder::make('firma_elaborado_preview')
+                                            ->label('Firma')
+                                            ->content(fn ($record): HtmlString => self::boxedValue($record?->elaborado_firmado_at
+                                                ? 'Registrada el ' . $record->elaborado_firmado_at->format('d/m/Y H:i')
+                                                : 'Pendiente')),
+                                    ])
+                                    ->columnSpan(6),
+
+                                Grid::make(1)
+                                    ->schema([
+                                        Select::make('aprobado_por_user_id')
+                                            ->label('Aprobado por')
+                                            ->options(fn (): array => self::gerenciaFinanzasOptions())
+                                            ->searchable()
+                                            ->preload()
+                                            ->live()
+                                            ->required(),
+
+                                        Placeholder::make('aprobado_cargo_preview')
+                                            ->label('Cargo (Aprobado por)')
+                                            ->content(function (callable $get, $record): HtmlString {
+                                                $selectedUserId = (int) ($get('aprobado_por_user_id') ?: $record?->aprobado_por_user_id ?: 0);
+                                                $selectedUser = $selectedUserId > 0
+                                                    ? User::query()->with('cargo')->find($selectedUserId)
+                                                    : null;
+
+                                                return self::boxedValue((string) ($selectedUser?->cargo?->nombre ?: '-'));
+                                            }),
+
+                                        Placeholder::make('firma_aprobador_preview')
+                                            ->label('Firma')
+                                            ->content(fn ($record): HtmlString => self::boxedValue($record?->aprobado_firmado_at
+                                                ? 'Registrada el ' . $record->aprobado_firmado_at->format('d/m/Y H:i')
+                                                : 'Pendiente')),
+                                    ])
+                                    ->columnSpan(6),
+                            ]),
+                    ])
+                    ->extraAttributes(['style' => 'border:1px solid #86efac;'])
                     ->columnSpanFull(),
             ]);
     }
@@ -372,5 +397,59 @@ class OrdenCompraForm
         $set('sub_total', $subTotal);
         $set('iva_16', $iva);
         $set('total_general', $totalGeneral);
+    }
+
+    private static function hydrateProviderFields(int $providerId, callable $set): void
+    {
+        if ($providerId <= 0) {
+            return;
+        }
+
+        $provider = Proveedor::query()->find($providerId);
+
+        if (! $provider) {
+            return;
+        }
+
+        $set('rif_proveedor', (string) ($provider->rif ?? ''));
+        $set('direccion_proveedor', (string) ($provider->direccion ?? ''));
+        $set('email_proveedor', (string) ($provider->email ?? ''));
+        $set('contacto_proveedor', (string) ($provider->contacto ?? ''));
+    }
+
+    private static function totalInWords(float $amount): string
+    {
+        $integer = (int) floor($amount);
+        $decimal = (int) round(($amount - $integer) * 100);
+
+        if (class_exists('NumberFormatter')) {
+            $formatter = new \NumberFormatter('es', \NumberFormatter::SPELLOUT);
+            $words = strtoupper((string) $formatter->format($integer));
+
+            return trim($words . ' BOLIVARES CON ' . str_pad((string) $decimal, 2, '0', STR_PAD_LEFT) . '/100');
+        }
+
+        return 'TOTAL EN LETRAS NO DISPONIBLE';
+    }
+
+    private static function boxedValue(string $value): HtmlString
+    {
+        $safeValue = htmlspecialchars($value !== '' ? $value : '-', ENT_QUOTES, 'UTF-8');
+
+        return new HtmlString(
+            '<div style="min-height:40px;display:flex;align-items:center;padding:0 12px;border:1px solid #d1d5db;border-radius:8px;background:#ffffff;color:#111827;">'
+            . $safeValue .
+            '</div>'
+        );
+    }
+
+    private static function gerenciaFinanzasOptions(): array
+    {
+        return User::query()
+            ->whereHas('roles', fn ($query) => $query->where('name', 'Gerencia de Finanzas'))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (User $user): array => [$user->id => $user->name])
+            ->all();
     }
 }
