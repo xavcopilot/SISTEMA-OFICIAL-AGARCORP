@@ -4,7 +4,10 @@ namespace App\Filament\Resources\AprobacionOdcs\Tables;
 
 use App\Filament\Resources\AprobacionOdcs\AprobacionOdcResource;
 use App\Models\SolicitudCompra;
+use App\Support\OdcModalSummaryRenderer;
+use App\Support\SumarioModalSummaryRenderer;
 use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -13,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\HtmlString;
 
 class AprobacionOdcsTable
@@ -48,18 +52,13 @@ class AprobacionOdcsTable
 
                 TextColumn::make('total_general')
                     ->label('Total general')
-                    ->money('VES')
+                    ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable(),
 
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state)),
-
-                TextColumn::make('workflow_post_compra')
-                    ->label('Flujo')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state)),
+                    ->state(fn (): string => 'PENDIENTE APROBACION GERENCIA FINANZAS'),
             ])
             ->recordActions([
                 Action::make('verSolicitudAsociada')
@@ -89,7 +88,69 @@ class AprobacionOdcsTable
                     ->label('Aprobacion de ODC')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
                     ->color('success')
-                    ->url(fn ($record): string => AprobacionOdcResource::getUrl('edit', ['record' => $record])),
+                    ->modalHeading(fn ($record): string => 'Resumen ODC | ' . (string) ($record->correlativo_odc ?? ('#' . $record->id)))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->extraModalFooterActions(fn ($record): array => [
+                        Action::make('enviarPagoFinanzasDesdeResumen')
+                            ->label('Enviar a Pago Finanzas')
+                            ->icon(Heroicon::OutlinedBanknotes)
+                            ->color('success')
+                            ->requiresConfirmation()
+                            ->form([
+                                TextInput::make('password')
+                                    ->label('Clave de firma')
+                                    ->password()
+                                    ->required(),
+                                TextInput::make('password_confirmation')
+                                    ->label('Repetir clave de firma')
+                                    ->password()
+                                    ->required(),
+                            ])
+                            ->action(function (array $data) use ($record): void {
+                                $password = (string) ($data['password'] ?? '');
+                                $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
+
+                                if ($password === '' || $password !== $passwordConfirmation) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('Debes escribir la misma clave de firma dos veces antes de enviar.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+
+                                if (! Hash::check($password, $signatureHash)) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('La firma no se registro porque la clave de firma no coincide.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $record->forceFill([
+                                    'estado' => 'APROBADA',
+                                    'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
+                                    'aprobado_por_user_id' => $record->aprobado_por_user_id ?: auth()->id(),
+                                    'aprobado_firmado_at' => now(),
+                                ])->save();
+
+                                Notification::make()
+                                    ->title('ODC enviada a Pago Finanzas')
+                                    ->body('La ODC fue aprobada y enviada al modulo Administracion de Pagos ODC.')
+                                    ->success()
+                                    ->send();
+                            }),
+                    ])
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(
+                        OdcModalSummaryRenderer::render($record)
+                    )),
             ])
             ->defaultSort('created_at', 'desc');
     }
@@ -242,49 +303,6 @@ class AprobacionOdcsTable
             return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No se encontro el sumario.</div>';
         }
 
-        $sumario->loadMissing(['solicitudCompra', 'items.opciones']);
-        $rows = '';
-
-        foreach ($sumario->items ?? [] as $item) {
-            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
-
-            $rows .= '<tr>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->descripcion ?? '-')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($item->cantidad ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($selectedOption?->proveedor_nombre ?? '-')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_total ?? 0), 2, ',', '.') . '</td>'
-                . '</tr>';
-        }
-
-        if ($rows === '') {
-            $rows = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:8px;color:#6b7280;">Sin items registrados.</td></tr>';
-        }
-
-        return '<div style="display:flex;flex-direction:column;gap:10px;">'
-            . '<div style="padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;font-size:12px;">'
-            . '<strong>Sumario:</strong> ' . e((string) ($sumario->correlativo_sdc ?? '-'))
-            . ' | <strong>Fecha:</strong> ' . e((string) optional($sumario->fecha)->format('d/m/Y'))
-            . ' | <strong>Solicitud:</strong> ' . e((string) ($sumario->solicitudCompra?->codigo_control ?: $sumario->solicitud_compra_id))
-            . ' | <strong>Procedencia:</strong> ' . e((string) ($sumario->procedencia ?? '-'))
-            . ' | <strong>Tipo orden:</strong> ' . e((string) ($sumario->tipo_orden ?? '-'))
-            . '</div>'
-            . '<div style="overflow:auto;">'
-            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
-            . '<thead><tr style="background:#f3f4f6;">'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor seleccionado</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T</th>'
-            . '</tr></thead>'
-            . '<tbody>' . $rows . '</tbody>'
-            . '</table>'
-            . '</div>'
-            . '</div>';
+        return SumarioModalSummaryRenderer::render($sumario);
     }
 }

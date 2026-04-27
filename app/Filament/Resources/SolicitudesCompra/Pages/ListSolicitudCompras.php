@@ -19,6 +19,10 @@ class ListSolicitudCompras extends ListRecords
         return [
             'mis_solicitudes' => Tab::make('Mis solicitudes')
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterRequestsQuery($query, $user)),
+            'historial_conformidades' => Tab::make('Historial de Conformidades')
+                ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterConformidadHistoryQuery($query, $user)),
+            'historial_solicitudes' => Tab::make('Historial de Solicitudes')
+                ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterCompletedHistoryQuery($query, $user)),
             'borradores' => Tab::make('Borradores')
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterDraftsQuery($query, $user)),
         ];

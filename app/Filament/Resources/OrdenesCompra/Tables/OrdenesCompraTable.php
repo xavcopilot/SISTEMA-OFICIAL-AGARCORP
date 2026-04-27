@@ -11,6 +11,7 @@ use App\Support\ActivityNotification;
 use App\Support\OrdenCompraAdministracionService;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OrdenCompraRecepcionService;
+use App\Support\SumarioModalSummaryRenderer;
 use App\Support\SumarioFinanceApprovalService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -115,6 +116,12 @@ class OrdenesCompraTable
                     ->searchable()
                     ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
+                TextColumn::make('solicitud_codigo_control_pagos_odc')
+                    ->label('Solicitud')
+                    ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => self::isPagosOdcTab($livewire)),
+
                 TextColumn::make('proveedor.nombre')
                     ->label('Proveedor')
                     ->default('-')
@@ -125,7 +132,13 @@ class OrdenesCompraTable
                     ->label('Departamento')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+
+                TextColumn::make('para_ser_usado_en_pagos_odc')
+                    ->label('Para ser usado en')
+                    ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->para_ser_usado_en ?: '-'))
+                    ->wrap()
+                    ->visible(fn ($livewire): bool => self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('estado')
                     ->label('Estado')
@@ -151,7 +164,7 @@ class OrdenesCompraTable
                         'RECHAZADA_SOLICITANTE' => 'danger',
                         default => 'gray',
                     })
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('tipo_documento_recepcion')
                     ->label('Recepcion')
@@ -162,36 +175,36 @@ class OrdenesCompraTable
                         'NOTA' => 'warning',
                         default => 'gray',
                     })
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('factura_pendiente')
                     ->label('Alerta')
                     ->badge()
                     ->state(fn ($record): string => (bool) $record->factura_pendiente ? 'FACTURA PENDIENTE' : 'OK')
                     ->color(fn ($record): string => (bool) $record->factura_pendiente ? 'danger' : 'success')
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('sub_total')
                     ->label('Sub total')
-                    ->money('VES')
+                    ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('iva_16')
                     ->label('IVA 16%')
-                    ->money('VES')
+                    ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('gastos_adicionales')
                     ->label('Gastos adicionales')
-                    ->money('VES')
+                    ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('total_general')
                     ->label('Total general')
-                    ->money('VES')
+                    ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
 
@@ -199,7 +212,16 @@ class OrdenesCompraTable
                     ->label('Conformidad')
                     ->dateTime('d/m/Y H:i')
                     ->placeholder('Pendiente')
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+
+                TextColumn::make('comprobante_pago_path')
+                    ->label('Comprobante de pago')
+                    ->state(fn ($record): string => filled($record->comprobante_pago_path) ? 'Ver imagen' : 'Sin imagen')
+                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                        ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
+                        : null)
+                    ->openUrlInNewTab()
+                    ->visible(fn ($livewire): bool => self::isPagosOdcTab($livewire)),
             ])
             ->filters([
                 Filter::make('bandejaAdministracion')
@@ -281,9 +303,7 @@ class OrdenesCompraTable
                             ->label('Comprobantes bancarios')
                             ->image()
                             ->multiple()
-                            ->disk('public')
-                            ->directory('ordenes-compra/comprobantes-pago')
-                            ->visibility('public')
+                            ->disk('odc_comprobantes')
                             ->required(),
                         Textarea::make('observacion_pago')
                             ->label('Observacion')
@@ -612,11 +632,15 @@ class OrdenesCompraTable
     public static function makeAdministracionFacturaAction(): Action
     {
         return Action::make('registrarFacturaAdministracion')
-            ->label('Administracion: Registrar Factura')
+            ->label(fn ($record): string => filled($record->factura_procesada_administracion_at)
+                ? 'Administracion: Ver factura cargada'
+                : 'Administracion: Registrar Factura')
             ->icon(Heroicon::OutlinedDocumentText)
             ->color('info')
             ->visible(fn ($record): bool => self::canOpenManualInvoicePlaceholder($record))
-            ->modalHeading('Formulario contable de factura')
+            ->modalHeading(fn ($record): string => filled($record->factura_procesada_administracion_at)
+                ? 'Factura cargada en DB'
+                : 'Formulario contable de factura')
             ->fillForm(fn ($record): array => self::buildAdministracionFacturaData($record))
             ->form(self::administracionFacturaFormSchema())
             ->action(function (array $data, $record): void {
@@ -695,11 +719,11 @@ class OrdenesCompraTable
     public static function makeOpenFacturaImageAction(): Action
     {
         return Action::make('abrirFacturaImagen')
-            ->label('Abrir factura')
+            ->label('Descargar factura/nota')
             ->icon(Heroicon::OutlinedEye)
             ->visible(fn ($record): bool => filled($record->factura_path))
             ->url(fn ($record): ?string => filled($record->factura_path)
-                ? Storage::disk('public')->url((string) $record->factura_path)
+                ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
                 : null)
             ->openUrlInNewTab();
     }
@@ -728,6 +752,11 @@ class OrdenesCompraTable
     private static function isCreationOdcTab(mixed $livewire = null): bool
     {
         return self::resolveActiveTab($livewire) === 'creacion_odc';
+    }
+
+    private static function isPagosOdcTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'pagos_odc';
     }
 
     private static function resolveActiveTab(mixed $livewire = null): string
@@ -794,6 +823,12 @@ class OrdenesCompraTable
                 if (filled($group['provider_id'])) {
                     $query->where('proveedor_id', (int) $group['provider_id']);
                 }
+
+                $query->where(function ($workflowQuery): void {
+                    $workflowQuery
+                        ->whereNull('workflow_post_compra')
+                        ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                });
 
                 return ! $query->exists();
             })
@@ -872,6 +907,12 @@ class OrdenesCompraTable
                     $query->where('proveedor_id', (int) $group['provider_id']);
                 }
 
+                $query->where(function ($workflowQuery): void {
+                    $workflowQuery
+                        ->whereNull('workflow_post_compra')
+                        ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                });
+
                 return ! $query->exists();
             })
             ->values();
@@ -900,7 +941,7 @@ class OrdenesCompraTable
             ]);
 
             $form = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-                . '<a href="' . e($generateUrl) . '" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:white;border-radius:6px;padding:6px 10px;font-size:12px;text-decoration:none;">Hacer ODC para este Proveedor</a>'
+                . '<a href="' . e($generateUrl) . '" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:white;border-radius:6px;padding:6px 10px;font-size:12px;text-decoration:none;">Realizar ODC para este Proveedor</a>'
                 . '</div>';
 
             $providerSections .= '<div style="border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px;">'
@@ -987,49 +1028,7 @@ class OrdenesCompraTable
             return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No se encontro el sumario.</div>';
         }
 
-        $rows = '';
-
-        foreach ($sumario->items ?? [] as $item) {
-            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
-
-            $rows .= '<tr>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->item ?: $item->id)) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->descripcion ?? '-')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item->unidad_medida ?? 'UND')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($item->cantidad ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($selectedOption?->proveedor_nombre ?? '-')) . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_unitario ?? 0), 2, ',', '.') . '</td>'
-                . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . number_format((float) ($selectedOption?->precio_total ?? 0), 2, ',', '.') . '</td>'
-                . '</tr>';
-        }
-
-        if ($rows === '') {
-            $rows = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:8px;color:#6b7280;">Sin items registrados.</td></tr>';
-        }
-
-        return '<div style="display:flex;flex-direction:column;gap:10px;">'
-            . '<div style="padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;font-size:12px;">'
-            . '<strong>Sumario:</strong> ' . e((string) ($sumario->correlativo_sdc ?? '-'))
-            . ' | <strong>Fecha:</strong> ' . e((string) optional($sumario->fecha)->format('d/m/Y'))
-            . ' | <strong>Solicitud:</strong> ' . e((string) ($sumario->solicitudCompra?->codigo_control ?: $sumario->solicitud_compra_id))
-            . ' | <strong>Procedencia:</strong> ' . e((string) ($sumario->procedencia ?? '-'))
-            . ' | <strong>Tipo orden:</strong> ' . e((string) ($sumario->tipo_orden ?? '-'))
-            . '</div>'
-            . '<div style="overflow:auto;">'
-            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
-            . '<thead><tr style="background:#f3f4f6;">'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">UND</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Proveedor seleccionado</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">P/U</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">P/T</th>'
-            . '</tr></thead>'
-            . '<tbody>' . $rows . '</tbody>'
-            . '</table>'
-            . '</div>'
-            . '</div>';
+        return SumarioModalSummaryRenderer::render($sumario);
     }
 
     private static function canUploadReceptionDocumentByProcura(mixed $record): bool
@@ -1291,7 +1290,7 @@ class OrdenesCompraTable
     private static function notifyReturnRequested(mixed $record): void
     {
         $users = User::query()
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Procura', 'Finanzas', 'Gerencia de Finanzas']))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Procura', 'Finanzas Pagos', 'Gerencia de Finanzas', 'Finanzas']))
             ->get();
 
         if ($users->isEmpty()) {

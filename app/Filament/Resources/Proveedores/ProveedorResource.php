@@ -16,7 +16,7 @@ class ProveedorResource extends Resource
 {
     protected static ?string $model = Proveedor::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Compras';
+    protected static string|\UnitEnum|null $navigationGroup = 'Proveedores';
 
     protected static ?string $navigationLabel = 'Proveedores';
 

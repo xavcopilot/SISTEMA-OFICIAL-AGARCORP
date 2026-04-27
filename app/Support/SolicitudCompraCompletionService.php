@@ -35,7 +35,6 @@ class SolicitudCompraCompletionService
                 ->whereKey($item->id)
                 ->withSum([
                     'ordenCompraItems as cantidad_procesada_almacen' => fn ($query) => $query
-                        ->whereNotNull('procesado_almacen_at')
                         ->where('decision_solicitante', 'ACEPTADO'),
                 ], 'cantidad')
                 ->value('cantidad_procesada_almacen'), 2);
@@ -54,7 +53,6 @@ class SolicitudCompraCompletionService
         $allCompleted = $solicitud->items->every(function (SolicitudCompraItem $item): bool {
             $cantidadObjetivo = round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2);
             $cantidadProcesada = round((float) $item->ordenCompraItems()
-                ->whereNotNull('procesado_almacen_at')
                 ->where('decision_solicitante', 'ACEPTADO')
                 ->sum('cantidad'), 2);
 

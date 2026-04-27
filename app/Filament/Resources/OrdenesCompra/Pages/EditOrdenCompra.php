@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\OrdenesCompra\Pages;
 
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
+use App\Models\Sumario;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -139,6 +140,8 @@ class EditOrdenCompra extends EditRecord
             'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
         ])->save();
 
+        $this->syncSumarioWorkflowAfterSignatureSend();
+
         Notification::make()
             ->title('ODC enviada a Gerencia Finanzas')
             ->body('La orden quedo en espera de aprobacion de Gerencia de Finanzas.')
@@ -185,6 +188,30 @@ class EditOrdenCompra extends EditRecord
     private function canSendToPagoFinanzas(): bool
     {
         return (bool) auth()->user()?->hasRole('Gerencia de Finanzas');
+    }
+
+    private function syncSumarioWorkflowAfterSignatureSend(): void
+    {
+        $sumarioId = (int) ($this->record->sumario_id ?? 0);
+
+        if ($sumarioId <= 0) {
+            return;
+        }
+
+        $sumario = Sumario::query()->find($sumarioId);
+
+        if (! $sumario) {
+            return;
+        }
+
+        $hasDraftOrders = $sumario->ordenesCompra()
+            ->where('workflow_post_compra', 'BORRADOR_ODC')
+            ->exists();
+
+        $sumario->forceFill([
+            'estado' => $hasDraftOrders ? 'PENDIENTE_CREACION_ODC' : 'REVISADO_FINANZAS',
+            'workflow_estado' => $hasDraftOrders ? 'APROBADO_GERENCIA_FINANZAS' : 'ODC_GENERADA',
+        ])->save();
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

@@ -47,7 +47,6 @@ class ListOrdenesCompra extends ListRecords
                         'BORRADOR_ODC',
                         'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
                         'PENDIENTE_PAGO_FINANZAS',
-                        'PAGO_REGISTRADO_FINANZAS',
                         'PAGADO_Y_EN_TRANSITO',
                         'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
                         'EN_TRANSICION_ALMACEN',
@@ -55,6 +54,9 @@ class ListOrdenesCompra extends ListRecords
                         'FACTURA_ENVIADA_ADMINISTRACION',
                         'BACKUP_FACTURA_COMPLETADO',
                     ])),
+            'pagos_odc' => Tab::make('Pagos de ODC')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                    ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')),
             'historial_odc' => Tab::make('Historial de ODC')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereIn('workflow_post_compra', [
@@ -122,6 +124,12 @@ class ListOrdenesCompra extends ListRecords
                     if (filled($group['provider_id'])) {
                         $query->where('proveedor_id', (int) $group['provider_id']);
                     }
+
+                    $query->where(function ($workflowQuery): void {
+                        $workflowQuery
+                            ->whereNull('workflow_post_compra')
+                            ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                    });
 
                     return ! $query->exists();
                 })

@@ -66,6 +66,8 @@ class OrdenCompraConformidadService
 
             $ordenCompra->refresh()->load('items');
 
+            app(SolicitudCompraCompletionService::class)->syncFromOrdenCompra($ordenCompra);
+
             $hasRejected = $ordenCompra->items->contains(fn (OrdenCompraItem $item): bool => (string) $item->decision_solicitante === 'RECHAZADO');
             $allDecided = ! $ordenCompra->items->contains(fn (OrdenCompraItem $item): bool => blank($item->decision_solicitante));
 

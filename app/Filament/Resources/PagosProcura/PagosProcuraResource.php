@@ -69,12 +69,12 @@ class PagosProcuraResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canAccess();
+        return false;
     }
 
     public static function canViewAny(): bool
     {
-        return static::canAccess();
+        return false;
     }
 
     public static function canCreate(): bool

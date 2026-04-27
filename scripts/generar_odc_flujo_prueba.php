@@ -112,7 +112,7 @@ function resolveUsersContext(): array
     $aprobador = userByRole('Gerencia de Operaciones')
         ?? userByRole('Alta Gerencia');
     $procura = userByRole('Procura');
-    $finanzas = userByRole('Finanzas');
+    $finanzas = userByRole('Finanzas Pagos') ?? userByRole('Finanzas');
     $gerenciaFinanzas = userByRole('Gerencia de Finanzas');
 
     if (! $solicitante || ! $almacen || ! $aprobador || ! $procura || ! $finanzas || ! $gerenciaFinanzas) {

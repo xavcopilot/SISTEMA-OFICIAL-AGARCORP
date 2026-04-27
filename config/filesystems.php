@@ -47,6 +47,27 @@ return [
             'report' => false,
         ],
 
+        'odc_comprobantes' => [
+            'driver' => 'local',
+            'root' => base_path('Comprobantes-ODC'),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'odc_facturas' => [
+            'driver' => 'local',
+            'root' => base_path('Facturas'),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'odc_notas_entrega' => [
+            'driver' => 'local',
+            'root' => base_path('Notas de Entrega'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

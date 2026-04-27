@@ -14,12 +14,12 @@ class ListAdministracionFacturas extends ListRecords
     public function getTabs(): array
     {
         return [
-            'pendientes' => Tab::make('Pendientes de carga')
+            'por_enviar' => Tab::make('Facturas por enviar')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereNull('factura_procesada_administracion_at')),
-            'procesadas' => Tab::make('Procesadas')
+                    ->whereNull('factura_enviada_administracion_at')),
+            'enviadas' => Tab::make('Facturas enviadas')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereNotNull('factura_procesada_administracion_at')),
+                    ->whereNotNull('factura_enviada_administracion_at')),
             'todas' => Tab::make('Todas'),
         ];
     }

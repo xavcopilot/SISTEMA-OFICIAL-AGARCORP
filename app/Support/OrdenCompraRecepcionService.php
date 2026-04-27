@@ -19,8 +19,8 @@ class OrdenCompraRecepcionService
             throw new \InvalidArgumentException('Tipo de documento de recepcion no valido.');
         }
 
-        if ($tipoDocumento === 'FACTURA' && blank($facturaPath)) {
-            throw new \InvalidArgumentException('Debe cargar la imagen de la factura.');
+        if (blank($facturaPath)) {
+            throw new \InvalidArgumentException('Debe cargar la imagen o PDF de la factura o nota de entrega.');
         }
 
         return DB::transaction(function () use ($ordenCompra, $user, $tipoDocumento, $facturaPath): OrdenCompra {
@@ -35,7 +35,7 @@ class OrdenCompraRecepcionService
 
             $ordenCompra->forceFill([
                 'tipo_documento_recepcion' => $tipoDocumento,
-                'factura_path' => $tipoDocumento === 'FACTURA' ? $facturaPath : null,
+                'factura_path' => $facturaPath,
                 'factura_pendiente' => $tipoDocumento === 'NOTA',
                 'estado' => 'RECIBIDA',
                 'workflow_post_compra' => 'DOCUMENTO_RECEPCION_CARGADO_PROCURA',

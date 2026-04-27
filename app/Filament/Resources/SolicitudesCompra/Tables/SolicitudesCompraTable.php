@@ -13,11 +13,15 @@ use App\Models\SolicitudCompraItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
 use App\Support\ControlCodeGenerator;
+use App\Support\OrdenCompraConformidadService;
 use App\Support\SolicitudCompraFlow;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -111,9 +115,106 @@ class SolicitudesCompraTable
                     ->icon(Heroicon::OutlinedCheckBadge)
                     ->color('success')
                     ->visible(fn (SolicitudCompra $record): bool => self::hasPendingConformidadForSolicitante($record))
-                    ->url(fn (SolicitudCompra $record): ?string => ($ordenCompraId = self::firstPendingConformidadOrdenCompraId($record))
-                        ? OrdenCompraResource::getUrl('edit', ['record' => $ordenCompraId])
-                        : null),
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Conformidad de Materiales | Solicitud ' . (string) ($record->codigo_control ?: $record->id))
+                    ->modalDescription(function (SolicitudCompra $record): string {
+                        $ordenCompra = self::pendingConformidadOrdenCompra($record);
+
+                        if (! $ordenCompra) {
+                            return 'No se encontro una ODC en transicion con items pendientes.';
+                        }
+
+                        return 'Productos llegados en la ODC ' . (string) ($ordenCompra->correlativo_odc ?: ('#' . $ordenCompra->id))
+                            . '. Marca cada item como Aceptar o Rechazar a Devoluciones.';
+                    })
+                    ->fillForm(fn (SolicitudCompra $record): array => [
+                        'orden_compra_id' => self::firstPendingConformidadOrdenCompraId($record),
+                        'items_conformidad' => self::buildConformidadRowsForSolicitante($record),
+                    ])
+                    ->form([
+                        Hidden::make('orden_compra_id')
+                            ->required(),
+                        Repeater::make('items_conformidad')
+                            ->label('Productos llegados (OC generada)')
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->schema([
+                                Hidden::make('orden_compra_item_id')->required(),
+                                TextInput::make('item')
+                                    ->label('Item')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('descripcion')
+                                    ->label('Descripcion')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('cantidad_llegada')
+                                    ->label('Cantidad llegada')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('faltante_solicitud')
+                                    ->label('Faltante en solicitud')
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                Radio::make('decision')
+                                    ->label('Decision')
+                                    ->options([
+                                        'ACEPTADO' => 'Aceptar',
+                                        'RECHAZADO' => 'Rechazar a Devoluciones',
+                                    ])
+                                    ->required()
+                                    ->live(),
+                                Textarea::make('motivo')
+                                    ->label('Motivo (si rechaza)')
+                                    ->rows(2)
+                                    ->required(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO')
+                                    ->visible(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO'),
+                            ])
+                            ->columns(2),
+                    ])
+                    ->action(function (array $data, SolicitudCompra $record): void {
+                        try {
+                            $ordenCompraId = (int) ($data['orden_compra_id'] ?? 0);
+
+                            $ordenCompra = OrdenCompra::query()
+                                ->with(['sumario.solicitudCompra'])
+                                ->find($ordenCompraId);
+
+                            if (! $ordenCompra || (int) ($ordenCompra->sumario?->solicitudCompra?->id ?? 0) !== (int) $record->id) {
+                                throw new \RuntimeException('No se encontro una ODC valida para registrar conformidad en esta solicitud.');
+                            }
+
+                            app(OrdenCompraConformidadService::class)->registrarConformidadPorItems(
+                                $ordenCompra,
+                                auth()->user(),
+                                $data['items_conformidad'] ?? []
+                            );
+
+                            $hasRejected = collect($data['items_conformidad'] ?? [])
+                                ->contains(fn (array $row): bool => strtoupper((string) ($row['decision'] ?? '')) === 'RECHAZADO');
+
+                            Notification::make()
+                                ->title('Conformidad registrada')
+                                ->body($hasRejected
+                                    ? 'Se registraron rechazos y se envio a flujo de devoluciones para los items marcados.'
+                                    : 'Se registraron los productos llegados correctamente.')
+                                ->success()
+                                ->send();
+
+                            ActivityNotification::record(
+                                auth()->user(),
+                                'Conformidad de materiales desde Solicitudes',
+                                'Se registro conformidad para la solicitud ' . (string) ($record->codigo_control ?: $record->id) . '.',
+                                'success'
+                            );
+                        } catch (\Throwable $exception) {
+                            Notification::make()
+                                ->title('No se pudo registrar la conformidad')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
 
                 EditAction::make()
                     ->authorize(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record))
@@ -143,11 +244,69 @@ class SolicitudesCompraTable
         $ordenCompraId = OrdenCompra::query()
             ->whereHas('sumario', fn ($query) => $query->where('solicitud_compra_id', $record->id))
             ->whereNotNull('recepcion_procesada_at')
+            ->where('workflow_post_compra', 'EN_TRANSICION_ALMACEN')
             ->whereHas('items', fn ($query) => $query->whereNull('decision_solicitante'))
             ->orderByDesc('id')
             ->value('id');
 
         return $ordenCompraId ? (int) $ordenCompraId : null;
+    }
+
+    private static function pendingConformidadOrdenCompra(SolicitudCompra $record): ?OrdenCompra
+    {
+        $ordenCompraId = self::firstPendingConformidadOrdenCompraId($record);
+
+        if (! $ordenCompraId) {
+            return null;
+        }
+
+        return OrdenCompra::query()
+            ->with(['items.solicitudCompraItem.ordenCompraItems', 'sumario.solicitudCompra'])
+            ->find($ordenCompraId);
+    }
+
+    private static function buildConformidadRowsForSolicitante(SolicitudCompra $record): array
+    {
+        $ordenCompra = self::pendingConformidadOrdenCompra($record);
+
+        if (! $ordenCompra) {
+            return [];
+        }
+
+        return $ordenCompra->items()
+            ->whereNull('decision_solicitante')
+            ->orderBy('id')
+            ->get()
+            ->map(function (OrdenCompraItem $item): array {
+                $solicitudItem = $item->solicitudCompraItem;
+
+                $cantidadObjetivo = round((float) (
+                    $solicitudItem?->cantidad_pedida
+                    ?? $solicitudItem?->cantidad_a_comprar
+                    ?? $solicitudItem?->cantidad_solicitada
+                    ?? $item->cantidad
+                    ?? 0
+                ), 2);
+
+                $cantidadAceptadaHistorica = round((float) ($solicitudItem?->ordenCompraItems()
+                    ->where('decision_solicitante', 'ACEPTADO')
+                    ->sum('cantidad') ?? 0), 2);
+
+                $cantidadLlegada = round((float) ($item->cantidad ?? 0), 2);
+
+                $faltanteDespuesDeLlegada = max(0, round($cantidadObjetivo - ($cantidadAceptadaHistorica + $cantidadLlegada), 2));
+
+                return [
+                    'orden_compra_item_id' => (int) $item->id,
+                    'item' => (string) ($item->item ?? ('#' . $item->id)),
+                    'descripcion' => (string) ($item->descripcion ?? ''),
+                    'cantidad_llegada' => number_format($cantidadLlegada, 2, ',', '.'),
+                    'faltante_solicitud' => number_format((float) $faltanteDespuesDeLlegada, 2, ',', '.'),
+                    'decision' => null,
+                    'motivo' => '',
+                ];
+            })
+            ->all();
     }
 
     private static function getViewSchema(): array
@@ -1005,47 +1164,67 @@ class SolicitudesCompraTable
         $tracking = self::buildTrackingData($record);
         $summary = $tracking['summary'];
         $items = $tracking['items'];
-        $internalCycle = self::resolveInternalRequestCycle($record);
+        $sumarios = $tracking['sumarios'];
 
         $rows = collect($items)
             ->map(function (array $item): string {
                 return '<tr>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['item']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['descripcion']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['estado_item']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['sumarios']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['odcs']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['fase']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['cantidad_pedida']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['entregados']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['faltantes']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;font-weight:700;">' . e((string) $item['porcentaje']) . '%</td>'
                     . '</tr>';
             })
             ->implode('');
 
         if ($rows === '') {
-            $rows = '<tr><td colspan="7" style="border:1px solid #d1d5db;padding:10px;text-align:center;color:#6b7280;">Sin items registrados.</td></tr>';
+            $rows = '<tr><td colspan="6" style="border:1px solid #d1d5db;padding:10px;text-align:center;color:#6b7280;">Sin items registrados.</td></tr>';
+        }
+
+        $sumariosHtml = collect($sumarios)
+            ->map(function (array $sumario): string {
+                $ordenes = collect($sumario['ordenes'])
+                    ->map(function (array $orden): string {
+                        return '<li style="margin:4px 0;">' . e((string) $orden['label']) . '</li>';
+                    })
+                    ->implode('');
+
+                if ($ordenes === '') {
+                    $ordenes = '<li style="margin:4px 0;color:#6b7280;">Sin ordenes de compra generadas.</li>';
+                }
+
+                return '<div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;background:#f9fafb;">'
+                    . '<div style="font-size:14px;font-weight:700;color:#111827;">' . e((string) $sumario['label']) . '</div>'
+                    . '<ul style="margin:8px 0 0 18px;padding:0;font-size:12px;color:#374151;">' . $ordenes . '</ul>'
+                    . '</div>';
+            })
+            ->implode('');
+
+        if ($sumariosHtml === '') {
+            $sumariosHtml = '<div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;background:#f9fafb;color:#6b7280;">Esta solicitud aun no tiene sumarios generados.</div>';
         }
 
         return '<div style="display:grid;gap:12px;">'
-            . '<div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;background:#f9fafb;">'
-            . '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;">Ciclo interno de la solicitud (antes de procura)</div>'
-            . '<div style="font-size:14px;font-weight:700;color:#111827;margin-top:4px;">Estado actual: ' . e($internalCycle['current_label']) . '</div>'
-            . '<div style="font-size:12px;color:#374151;margin-top:6px;">NACE LA SOLICITUD = EN ESPERA DE ALMACEN / ALMACEN APRUEBA = EN ESPERA DE APROBADOR / APROBADOR APRUEBA = EN ESPERA DE PROCURA / PROCURA FIRMA = RECIBIDO POR PROCURA</div>'
-            . '</div>'
             . '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;">'
             . self::trackingCard('Sumarios', (string) $summary['sumarios_count'])
             . self::trackingCard('ODC', (string) $summary['odcs_count'])
             . self::trackingCard('Items', (string) $summary['items_count'])
             . self::trackingCard('Avance general', (string) $summary['progress'] . '%')
             . '</div>'
+            . '<div style="display:grid;gap:10px;">'
+            . '<div style="font-size:13px;font-weight:700;color:#111827;">Sumarios y ordenes de compra asociadas</div>'
+            . $sumariosHtml
+            . '</div>'
             . '<div style="overflow:auto;">'
             . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
             . '<thead><tr style="background:#f3f4f6;">'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado item</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Sumarios</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">ODC</th>'
-            . '<th style="border:1px solid #d1d5db;padding:8px;">Fase actual</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad pedida</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Entregados</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Faltantes</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Avance</th>'
             . '</tr></thead>'
             . '<tbody>' . $rows . '</tbody>'
@@ -1063,7 +1242,7 @@ class SolicitudesCompraTable
     }
 
     /**
-     * @return array{summary: array{sumarios_count:int,odcs_count:int,items_count:int,progress:int}, items: array<int, array<string, mixed>>}
+     * @return array{summary: array{sumarios_count:int,odcs_count:int,items_count:int,progress:int}, sumarios: array<int, array{label:string,ordenes: array<int, array{label:string}>}>, items: array<int, array<string, mixed>>}
      */
     private static function buildTrackingData(SolicitudCompra $record): array
     {
@@ -1071,7 +1250,6 @@ class SolicitudesCompraTable
 
         $items = SolicitudCompraItem::query()
             ->where('solicitud_compra_id', $solicitudId)
-            ->withCount('sumarioItems')
             ->orderBy('item')
             ->get();
 
@@ -1080,9 +1258,15 @@ class SolicitudesCompraTable
         $ocItems = OrdenCompraItem::query()
             ->whereIn('solicitud_compra_item_id', $itemIds)
             ->whereHas('ordenCompra.sumario', fn ($query) => $query->where('solicitud_compra_id', $solicitudId))
-            ->with('ordenCompra:id,correlativo_odc,workflow_post_compra,estado')
+            ->with('ordenCompra:id,correlativo_odc,sumario_id')
             ->get()
             ->groupBy('solicitud_compra_item_id');
+
+        $sumarios = Sumario::query()
+            ->where('solicitud_compra_id', $solicitudId)
+            ->with(['ordenesCompra:id,sumario_id,correlativo_odc'])
+            ->orderBy('id')
+            ->get();
 
         $rows = [];
         $progressAccumulator = 0;
@@ -1090,27 +1274,24 @@ class SolicitudesCompraTable
         foreach ($items as $item) {
             $itemOcRows = $ocItems->get($item->id, collect());
 
-            $status = self::resolveItemTrackingStatus(
-                $record,
-                (string) ($item->estado_item ?: 'SIN_PROCESAR'),
-                $itemOcRows->sortByDesc('id')->first()
-            );
+            $cantidadPedida = round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2);
+            $cantidadEntregada = round((float) $itemOcRows
+                ->where('decision_solicitante', 'ACEPTADO')
+                ->sum('cantidad'), 2);
+            $cantidadFaltante = max(0, round($cantidadPedida - $cantidadEntregada, 2));
+            $progress = $cantidadPedida > 0
+                ? (int) round(min(100, ($cantidadEntregada / $cantidadPedida) * 100))
+                : 0;
 
-            $odcCount = $itemOcRows
-                ->pluck('orden_compra_id')
-                ->unique()
-                ->count();
-
-            $progressAccumulator += $status['percent'];
+            $progressAccumulator += $progress;
 
             $rows[] = [
                 'item' => $item->item ?: $item->id,
                 'descripcion' => $item->descripcion,
-                'estado_item' => str_replace('_', ' ', (string) ($item->estado_item ?: 'SIN_PROCESAR')),
-                'sumarios' => (int) $item->sumario_items_count,
-                'odcs' => $odcCount,
-                'fase' => $status['label'],
-                'porcentaje' => $status['percent'],
+                'cantidad_pedida' => number_format($cantidadPedida, 2, ',', '.'),
+                'entregados' => number_format($cantidadEntregada, 2, ',', '.'),
+                'faltantes' => number_format($cantidadFaltante, 2, ',', '.'),
+                'porcentaje' => $progress,
             ];
         }
 
@@ -1119,55 +1300,27 @@ class SolicitudesCompraTable
 
         return [
             'summary' => [
-                'sumarios_count' => $record->sumarios()->count(),
-                'odcs_count' => $record->sumarios()->withCount('ordenesCompra')->get()->sum('ordenes_compra_count'),
+                'sumarios_count' => $sumarios->count(),
+                'odcs_count' => $sumarios->sum(fn (Sumario $sumario): int => (int) $sumario->ordenesCompra->count()),
                 'items_count' => $itemsCount,
                 'progress' => $progress,
             ],
+            'sumarios' => $sumarios
+                ->map(function (Sumario $sumario): array {
+                    return [
+                        'label' => 'Sumario ' . (string) ($sumario->correlativo_sdc ?: ('#' . $sumario->id)),
+                        'ordenes' => $sumario->ordenesCompra
+                            ->map(fn (OrdenCompra $orden): array => [
+                                'label' => (string) ($orden->correlativo_odc ?: ('OC #' . $orden->id)),
+                            ])
+                            ->values()
+                            ->all(),
+                    ];
+                })
+                ->values()
+                ->all(),
             'items' => $rows,
         ];
-    }
-
-    /**
-     * @return array{label:string,percent:int}
-     */
-    private static function resolveItemTrackingStatus(SolicitudCompra $record, string $estadoItem, mixed $latestOcItem): array
-    {
-        $internalCycle = self::resolveInternalRequestCycle($record);
-
-        if (! $latestOcItem) {
-            return match ($estadoItem) {
-                'EN_SUMARIO' => ['label' => 'Comparativo en sumario', 'percent' => 40],
-                'EN_OC' => ['label' => 'En ODC (sin detalle)', 'percent' => 60],
-                default => ['label' => $internalCycle['current_label'], 'percent' => $internalCycle['percent']],
-            };
-        }
-
-        $workflow = (string) ($latestOcItem->ordenCompra->workflow_post_compra ?? '');
-        $recepcionEstado = (string) ($latestOcItem->estado_recepcion ?? '');
-
-        if ($estadoItem === 'CERRADO') {
-            return ['label' => 'Entregado al solicitante', 'percent' => 100];
-        }
-
-        if (filled($latestOcItem->procesado_almacen_at)) {
-            return ['label' => 'Entrada oficial parcial', 'percent' => 95];
-        }
-
-        return match ($workflow) {
-            'PENDIENTE_PAGO_FINANZAS' => ['label' => 'ODC pendiente de pago', 'percent' => 60],
-            'PAGO_REGISTRADO_FINANZAS' => ['label' => 'Pago registrado por Finanzas', 'percent' => 70],
-            'PAGO_CONFIRMADO_PROCURA' => ['label' => 'Pago confirmado por Procura', 'percent' => 75],
-            'ESPERANDO_PRODUCTO' => ['label' => 'Esperando producto', 'percent' => 80],
-            'EN_ESPERA_DE_PRODUCTO' => ['label' => 'Esperando producto', 'percent' => 80],
-            'EN_TRANSICION_ALMACEN' => ['label' => 'En transicion a almacen', 'percent' => 85],
-            'FACTURA_ENVIADA_ADMINISTRACION' => ['label' => 'Factura enviada a Administracion', 'percent' => 90],
-            'FACTURA_PROCESADA_ADMINISTRACION' => ['label' => 'Factura procesada por Administracion', 'percent' => 95],
-            'BACKUP_FACTURA_COMPLETADO' => ['label' => 'Factura procesada (respaldo completo)', 'percent' => 95],
-            'CERRADA_CONFORME' => ['label' => 'Cerrada conforme', 'percent' => 100],
-            'RECHAZO_SOLICITANTE' => ['label' => 'Rechazo del solicitante', 'percent' => 65],
-            default => ['label' => 'ODC en proceso', 'percent' => 60],
-        };
     }
 
     /**

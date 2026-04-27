@@ -148,6 +148,14 @@ Route::get('/ordenes-compra/{ordenCompra}/formato/impresion', [\App\Http\Control
     ->middleware(['auth'])
     ->name('ordenes-compra.formato.print');
 
+Route::get('/ordenes-compra/{ordenCompra}/comprobante/descargar', \App\Http\Controllers\OrdenCompraComprobanteDownloadController::class)
+    ->middleware(['auth'])
+    ->name('ordenes-compra.comprobante.download');
+
+Route::get('/ordenes-compra/{ordenCompra}/documento-recepcion/descargar', \App\Http\Controllers\OrdenCompraDocumentoRecepcionDownloadController::class)
+    ->middleware(['auth'])
+    ->name('ordenes-compra.documento-recepcion.download');
+
 Route::match(['get', 'post'], '/ordenes-compra/sumarios/{sumario}/generar', \App\Http\Controllers\OrdenCompraGenerateFromSumarioController::class)
     ->middleware(['auth'])
     ->name('ordenes-compra.generar-desde-sumario');

@@ -18,7 +18,7 @@ class AprobacionSumariosResource extends Resource
 {
     protected static ?string $model = Sumario::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Compras';
+    protected static string | \UnitEnum | null $navigationGroup = 'Aprobaciones';
 
     protected static ?string $navigationLabel = 'Aprobacion de Sumarios';
 

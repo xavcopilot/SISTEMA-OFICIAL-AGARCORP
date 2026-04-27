@@ -371,6 +371,7 @@ class SolicitudCompraFlow
         return $query
             ->where('solicitado_por_user_id', $user->id)
             ->where('estado', '!=', 'BORRADOR')
+            ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
             ->orderByDesc('updated_at');
     }
 
@@ -395,6 +396,32 @@ class SolicitudCompraFlow
         return $query
             ->where('solicitado_por_user_id', $user->id)
             ->whereNotNull('firma_solicitante')
+            ->orderByDesc('updated_at');
+    }
+
+    public static function requesterConformidadHistoryQuery(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->where('solicitado_por_user_id', $user->id)
+            ->where('estado', '!=', 'BORRADOR')
+            ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
+            ->whereHas('items.ordenCompraItems', fn (Builder $itemQuery) => $itemQuery->where('decision_solicitante', 'ACEPTADO'))
+            ->orderByDesc('updated_at');
+    }
+
+    public static function requesterCompletedHistoryQuery(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->where('solicitado_por_user_id', $user->id)
+            ->where('estado', SolicitudCompra::ESTADO_COMPLETADA)
             ->orderByDesc('updated_at');
     }
 

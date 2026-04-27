@@ -17,11 +17,11 @@ class AdministracionFacturasResource extends Resource
 {
     protected static ?string $model = OrdenCompra::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Compras';
+    protected static string | \UnitEnum | null $navigationGroup = 'Pagos';
 
     protected static ?string $navigationLabel = 'Administracion de Facturas';
 
-    protected static ?string $modelLabel = 'Factura Administrativa';
+    protected static ?string $modelLabel = 'Factura de ODC';
 
     protected static ?string $pluralModelLabel = 'Administracion de Facturas';
 
@@ -51,8 +51,7 @@ class AdministracionFacturasResource extends Resource
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
             ->where('tipo_documento_recepcion', 'FACTURA')
-            ->whereNotNull('factura_path')
-            ->whereNotNull('factura_enviada_administracion_at');
+            ->whereNotNull('factura_path');
     }
 
     public static function canAccess(): bool
@@ -63,9 +62,7 @@ class AdministracionFacturasResource extends Resource
             return false;
         }
 
-        $departamento = (string) ($user->departamento?->nombre ?? '');
-
-        return in_array($departamento, ['ADMINISTRACIÓN', 'ADMINISTRACION'], true);
+        return (string) ($user->departamento?->nombre ?? '') === 'FINANZAS';
     }
 
     public static function shouldRegisterNavigation(): bool

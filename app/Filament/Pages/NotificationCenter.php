@@ -27,7 +27,9 @@ class NotificationCenter extends Page
 
     protected static string | \BackedEnum | null $navigationIcon = Heroicon::OutlinedBell;
 
-    protected static string | UnitEnum | null $navigationGroup = 'Administracion';
+    protected static string | UnitEnum | null $navigationGroup = null;
+
+    protected static ?int $navigationSort = 31;
 
     protected string $view = 'filament.pages.notification-center';
 

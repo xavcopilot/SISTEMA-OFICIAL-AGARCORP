@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
@@ -64,7 +65,7 @@ class DatabaseSeeder extends Seeder
             'Talento Humano' => 'talentohumano',
             'A.I.T'       => 'ait',
             'Validador Finanzas' => 'validadorfinanzas',
-            'Finanzas'    => 'finanzas',
+            'Finanzas Pagos'    => 'finanzas',
             'Administracion' => 'administracion',
         ];
 
@@ -209,7 +210,7 @@ class DatabaseSeeder extends Seeder
             'Talento Humano' => 'TALENTO HUMANO',
             'A.I.T' => 'A.I.T',
             'Validador Finanzas' => 'FINANZAS',
-            'Finanzas' => 'FINANZAS',
+            'Finanzas Pagos' => 'FINANZAS',
             'Administracion' => 'ADMINISTRACIÓN',
         ];
 
@@ -224,7 +225,7 @@ class DatabaseSeeder extends Seeder
                 'email' => 'daniela.carrasco@agarven.com',
                 'cargo' => 'Almacenista',
             ],
-            'Finanzas' => [
+            'Finanzas Pagos' => [
                 'name' => 'Finanzas Pagos',
                 'email' => 'finanzas@agarven.com',
                 'cargo' => 'Analista',
@@ -285,7 +286,7 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-            if ($rol === 'Finanzas') {
+            if ($rol === 'Finanzas Pagos') {
                 $roleModel->givePermissionTo(array_merge(
                     $ordenCompraReadPermissions,
                     $ordenCompraEditPermissions,
@@ -359,6 +360,33 @@ class DatabaseSeeder extends Seeder
 
             $user->syncRoles([$roleModel->name]);
         }
+
+        $procuraExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            $proveedorPermissions,
+            $sumarioReviewPermissions,
+            $sumarioWriteExtraPermissions,
+            $ordenCompraReadPermissions,
+            [
+                'ProcessReception:OrdenCompra',
+                'SubmitValidation:Sumario',
+                'GenerateOdcs:Sumario',
+            ],
+        )));
+
+        $gerenciaFinanzasExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            [
+                'ApprovePayment:Sumario',
+                'Update:OrdenCompra',
+            ],
+        )));
+
+        Role::firstOrCreate(['name' => 'Procura'])->syncPermissions($procuraExactPermissions);
+        Role::firstOrCreate(['name' => 'Gerencia de Finanzas'])->syncPermissions($gerenciaFinanzasExactPermissions);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($executiveUsers as $executiveUser) {
             $departamentoId = Departamento::where('nombre', $executiveUser['departamento'])->value('id');

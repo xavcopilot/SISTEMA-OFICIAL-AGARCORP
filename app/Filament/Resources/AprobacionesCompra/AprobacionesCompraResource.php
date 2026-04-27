@@ -29,6 +29,20 @@ class AprobacionesCompraResource extends Resource
 
     protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
+    public static function getNavigationLabel(): string
+    {
+        return auth()->user()?->hasRole('Gerencia de Finanzas')
+            ? 'Aprobacion de Solicitudes'
+            : 'Aprobaciones de Compra';
+    }
+
+    public static function getNavigationGroup(): string | \UnitEnum | null
+    {
+        return auth()->user()?->hasRole('Gerencia de Finanzas')
+            ? 'Aprobaciones'
+            : 'Solicitudes de Compra';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return SolicitudCompraForm::configure($schema);

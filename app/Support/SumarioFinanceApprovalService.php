@@ -261,6 +261,12 @@ class SumarioFinanceApprovalService
                             $query->where('proveedor_id', (int) $group['provider_id']);
                         }
 
+                        $query->where(function ($workflowQuery): void {
+                            $workflowQuery
+                                ->whereNull('workflow_post_compra')
+                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                        });
+
                         return ! $query->exists();
                     })
                     ->count();

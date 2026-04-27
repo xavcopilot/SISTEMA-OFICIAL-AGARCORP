@@ -18,7 +18,7 @@ class AprobacionOdcResource extends Resource
 {
     protected static ?string $model = OrdenCompra::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Compras';
+    protected static string|\UnitEnum|null $navigationGroup = 'Aprobaciones';
 
     protected static ?string $navigationLabel = 'Aprobacion de ODC';
 
