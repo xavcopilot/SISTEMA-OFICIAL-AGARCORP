@@ -13,6 +13,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\HtmlString;
 
 class OrdenCompraForm
@@ -298,6 +299,39 @@ class OrdenCompraForm
                             ]),
                     ])
                     ->extraAttributes(['style' => 'border:1px solid #86efac;'])
+                    ->columnSpanFull(),
+
+                Section::make('Motivo de rechazo')
+                    ->visible(fn ($record): bool => filled($record?->rechazo_comentario))
+                    ->schema([
+                        Grid::make(12)
+                            ->schema([
+                                TextInput::make('rechazo_etapa')
+                                    ->label('Etapa')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->formatStateUsing(fn (?string $state): string => $state ? strtoupper(str_replace('_', ' ', $state)) : '-')->columnSpan(4),
+                                TextInput::make('rechazo_por_user_id')
+                                    ->label('Rechazada por')
+                                    ->formatStateUsing(fn ($state, $record): string => (string) ($record?->rechazoPor?->name ?: '-'))
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(4),
+                                TextInput::make('rechazo_en')
+                                    ->label('Fecha rechazo')
+                                    ->formatStateUsing(fn ($state): string => filled($state) ? (string) Carbon::parse($state)->format('d/m/Y H:i') : '-')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(4),
+                                Textarea::make('rechazo_comentario')
+                                    ->label('Comentario')
+                                    ->rows(3)
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->columnSpan(12),
+                            ]),
+                    ])
+                    ->extraAttributes(['style' => 'border:1px solid #fca5a5;'])
                     ->columnSpanFull(),
 
                 Section::make('Datos de control')

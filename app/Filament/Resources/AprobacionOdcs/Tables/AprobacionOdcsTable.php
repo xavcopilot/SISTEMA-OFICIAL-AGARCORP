@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AprobacionOdcs\Tables;
 
 use App\Filament\Resources\AprobacionOdcs\AprobacionOdcResource;
+use App\Models\Sumario;
 use App\Models\SolicitudCompra;
 use App\Support\OdcModalSummaryRenderer;
 use App\Support\SumarioModalSummaryRenderer;
@@ -93,6 +94,83 @@ class AprobacionOdcsTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->extraModalFooterActions(fn ($record): array => [
+                        Action::make('rechazarOdcDesdeResumen')
+                            ->label('Rechazar ODC')
+                            ->icon(Heroicon::OutlinedXCircle)
+                            ->color('danger')
+                            ->requiresConfirmation()
+                            ->form([
+                                Textarea::make('rechazo_comentario')
+                                    ->label('Motivo de rechazo')
+                                    ->rows(4)
+                                    ->required()
+                                    ->maxLength(2000),
+                                TextInput::make('password')
+                                    ->label('Clave de firma')
+                                    ->password()
+                                    ->required(),
+                                TextInput::make('password_confirmation')
+                                    ->label('Repetir clave de firma')
+                                    ->password()
+                                    ->required(),
+                            ])
+                            ->action(function (array $data) use ($record): void {
+                                $password = (string) ($data['password'] ?? '');
+                                $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
+
+                                if ($password === '' || $password !== $passwordConfirmation) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('Debes escribir la misma clave de firma dos veces antes de rechazar.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+
+                                if (! Hash::check($password, $signatureHash)) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('La firma no se registro porque la clave de firma no coincide.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $record->forceFill([
+                                    'estado' => 'RECHAZADA',
+                                    'workflow_post_compra' => 'BORRADOR_ODC',
+                                    'aprobado_por_user_id' => null,
+                                    'aprobado_firmado_at' => null,
+                                    'rechazo_etapa' => 'gerencia_finanzas',
+                                    'rechazo_comentario' => trim((string) ($data['rechazo_comentario'] ?? '')),
+                                    'rechazo_por_user_id' => auth()->id(),
+                                    'rechazo_en' => now(),
+                                ])->save();
+
+                                $sumarioId = (int) ($record->sumario_id ?? 0);
+
+                                if ($sumarioId > 0) {
+                                    $sumario = Sumario::query()->find($sumarioId);
+
+                                    if ($sumario) {
+                                        $sumario->forceFill([
+                                            'estado' => 'RECHAZADO',
+                                            'workflow_estado' => 'RECHAZADO_GERENCIA_FINANZAS',
+                                        ])->save();
+                                    }
+                                }
+
+                                Notification::make()
+                                    ->title('ODC rechazada por Gerencia de Finanzas')
+                                    ->body('La orden fue rechazada y el sumario asociado paso a correcciones.')
+                                    ->success()
+                                    ->send();
+                            }),
+
                         Action::make('enviarPagoFinanzasDesdeResumen')
                             ->label('Enviar a Pago Finanzas')
                             ->icon(Heroicon::OutlinedBanknotes)

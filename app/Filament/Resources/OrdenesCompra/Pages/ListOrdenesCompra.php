@@ -20,13 +20,17 @@ class ListOrdenesCompra extends ListRecords
 
     public function getTabs(): array
     {
+        $pendingSumarioIds = $this->pendingSumarioIdsWithPendingProviders();
+
         return [
             'creacion_odc' => Tab::make('Creacion de ODC')
-                ->badge((string) $this->pendingSumariosCount())
+                ->badge((string) count($pendingSumarioIds))
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->from('sumarios as ordenes_compra')
                     ->leftJoin('solicitud_compras', 'solicitud_compras.id', '=', 'ordenes_compra.solicitud_compra_id')
                     ->where('ordenes_compra.workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
+                    ->when($pendingSumarioIds === [], fn (Builder $subQuery): Builder => $subQuery->whereRaw('1 = 0'))
+                    ->when($pendingSumarioIds !== [], fn (Builder $subQuery): Builder => $subQuery->whereIn('ordenes_compra.id', $pendingSumarioIds))
                     ->select([
                         'ordenes_compra.id',
                         'ordenes_compra.created_at',
@@ -43,26 +47,42 @@ class ListOrdenesCompra extends ListRecords
                     ])),
             'odc_en_correcciones' => Tab::make('ODC en correcciones')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereIn('workflow_post_compra', [
-                        'BORRADOR_ODC',
-                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
-                        'PENDIENTE_PAGO_FINANZAS',
-                        'PAGADO_Y_EN_TRANSITO',
-                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
-                        'EN_TRANSICION_ALMACEN',
-                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
-                        'FACTURA_ENVIADA_ADMINISTRACION',
-                        'BACKUP_FACTURA_COMPLETADO',
-                    ])),
+                    ->where(function (Builder $correccionesQuery): Builder {
+                        return $correccionesQuery
+                            ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
+                            ->orWhere(function (Builder $rechazadasQuery): Builder {
+                                return $rechazadasQuery
+                                    ->where('estado', 'RECHAZADA')
+                                    ->where('rechazo_etapa', 'gerencia_finanzas');
+                            });
+                    })),
             'pagos_odc' => Tab::make('Pagos de ODC')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')),
             'historial_odc' => Tab::make('Historial de ODC')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->whereIn('workflow_post_compra', [
-                        'CERRADA_CONFORME',
-                        'RECHAZADA_SOLICITANTE',
-                    ])),
+                    ->where(function (Builder $historyQuery): Builder {
+                        return $historyQuery
+                            ->where(function (Builder $approvedQuery): Builder {
+                                return $approvedQuery
+                                    ->whereIn('workflow_post_compra', [
+                                        'PENDIENTE_PAGO_FINANZAS',
+                                        'PAGO_REGISTRADO_FINANZAS',
+                                        'PAGADO_Y_EN_TRANSITO',
+                                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                                        'EN_TRANSICION_ALMACEN',
+                                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
+                                        'FACTURA_ENVIADA_ADMINISTRACION',
+                                        'BACKUP_FACTURA_COMPLETADO',
+                                        'CERRADA_CONFORME',
+                                    ]);
+                            })
+                            ->orWhere(function (Builder $rejectedHistoryQuery): Builder {
+                                return $rejectedHistoryQuery
+                                    ->where('estado', 'RECHAZADA')
+                                    ->where('rechazo_etapa', 'historial');
+                            });
+                    })),
         ];
     }
 
@@ -223,9 +243,52 @@ class ListOrdenesCompra extends ListRecords
 
     private function pendingSumariosCount(): int
     {
-        return Sumario::query()
+        return count($this->pendingSumarioIdsWithPendingProviders());
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function pendingSumarioIdsWithPendingProviders(): array
+    {
+        $sumarios = Sumario::query()
+            ->with(['ordenesCompra', 'items.opciones', 'items.solicitudCompraItem.solicitudCompra'])
             ->where('workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
-            ->count();
+            ->orderByDesc('id')
+            ->get();
+
+        if ($sumarios->isEmpty()) {
+            return [];
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        return $sumarios
+            ->filter(function (Sumario $sumario) use ($service): bool {
+                $groups = $service->pendingProviderGroups($sumario)
+                    ->filter(function (array $group) use ($sumario): bool {
+                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                        if (filled($group['provider_id'])) {
+                            $query->where('proveedor_id', (int) $group['provider_id']);
+                        }
+
+                        $query->where(function ($workflowQuery): void {
+                            $workflowQuery
+                                ->whereNull('workflow_post_compra')
+                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                        });
+
+                        return ! $query->exists();
+                    })
+                    ->values();
+
+                return $groups->isNotEmpty();
+            })
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**

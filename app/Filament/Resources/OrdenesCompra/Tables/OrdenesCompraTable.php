@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\ActivityNotification;
 use App\Support\OrdenCompraAdministracionService;
 use App\Support\OrdenCompraConformidadService;
+use App\Support\OdcModalSummaryRenderer;
 use App\Support\OrdenCompraRecepcionService;
 use App\Support\SumarioModalSummaryRenderer;
 use App\Support\SumarioFinanceApprovalService;
@@ -18,12 +19,15 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -108,13 +112,19 @@ class OrdenesCompraTable
                     ->label('Correlativo ODC')
                     ->searchable()
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('sumario.correlativo_sdc')
                     ->label('Sumario')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+
+                TextColumn::make('solicitud_codigo_control')
+                    ->label('Solicitud')
+                    ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('solicitud_codigo_control_pagos_odc')
                     ->label('Solicitud')
@@ -126,13 +136,13 @@ class OrdenesCompraTable
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('departamento_solicitante')
                     ->label('Departamento')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('para_ser_usado_en_pagos_odc')
                     ->label('Para ser usado en')
@@ -144,7 +154,14 @@ class OrdenesCompraTable
                     ->label('Estado')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state))
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+
+                TextColumn::make('sub_estado_historial')
+                    ->label('Sub Estado')
+                    ->state(fn ($record): string => self::humanReadableSubEstado((string) ($record->workflow_post_compra ?? '')))
+                    ->badge()
+                    ->color(fn ($record): string => self::subEstadoColor((string) ($record->workflow_post_compra ?? '')))
+                    ->visible(fn ($livewire): bool => self::isHistorialOdcTab($livewire)),
 
                 TextColumn::make('workflow_post_compra')
                     ->label('Flujo post-compra')
@@ -164,7 +181,7 @@ class OrdenesCompraTable
                         'RECHAZADA_SOLICITANTE' => 'danger',
                         default => 'gray',
                     })
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('tipo_documento_recepcion')
                     ->label('Recepcion')
@@ -175,44 +192,44 @@ class OrdenesCompraTable
                         'NOTA' => 'warning',
                         default => 'gray',
                     })
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('factura_pendiente')
                     ->label('Alerta')
                     ->badge()
                     ->state(fn ($record): string => (bool) $record->factura_pendiente ? 'FACTURA PENDIENTE' : 'OK')
                     ->color(fn ($record): string => (bool) $record->factura_pendiente ? 'danger' : 'success')
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('sub_total')
                     ->label('Sub total')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('iva_16')
                     ->label('IVA 16%')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('gastos_adicionales')
                     ->label('Gastos adicionales')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('total_general')
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('conformidad_solicitante_at')
                     ->label('Conformidad')
                     ->dateTime('d/m/Y H:i')
                     ->placeholder('Pendiente')
-                    ->visible(fn ($livewire): bool => ! self::isCreationOdcTab($livewire) && ! self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('comprobante_pago_path')
                     ->label('Comprobante de pago')
@@ -256,17 +273,82 @@ class OrdenesCompraTable
                     ->visible(fn ($record): bool => self::isPendingSumarioRecord($record) && (bool) auth()->user()?->can('GenerateOdcs:Sumario')),
 
                 Action::make('previewPdf')
-                    ->label('Vista previa ODC')
+                    ->label('Vista PDF ODC')
                     ->icon(Heroicon::OutlinedPrinter)
                     ->url(fn ($record) => route('ordenes-compra.formato.print', ['ordenCompra' => $record]))
-                    ->visible(fn ($record): bool => ! self::isPendingSumarioRecord($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && self::isHistorialOdcTab($livewire))
                     ->openUrlInNewTab(),
+
+                Action::make('verResumenOdc')
+                    ->label('Ver resumen ODC')
+                    ->icon(Heroicon::OutlinedClipboardDocumentList)
+                    ->color('gray')
+                    ->modalHeading(fn ($record): string => 'Resumen ODC | ' . (string) ($record->correlativo_odc ?? ('#' . $record->id)))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record)))
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && (self::isOdcCorreccionesTab($livewire) || self::isHistorialOdcTab($livewire))),
+
+                Action::make('verSumarioOdc')
+                    ->label('Ver sumario')
+                    ->icon(Heroicon::OutlinedDocumentText)
+                    ->color('gray')
+                    ->modalHeading(fn ($record): string => 'Resumen | Sumario ' . (string) ($record->sumario?->correlativo_sdc ?? '-'))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderSumarioSummaryModalForOdc($record)))
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && self::isHistorialOdcTab($livewire)),
+
+                Action::make('verSolicitudOdc')
+                    ->label('Ver solicitud')
+                    ->icon(Heroicon::OutlinedEye)
+                    ->color('info')
+                    ->modalHeading(fn ($record): string => 'Solicitud asociada | ' . (string) ($record->sumario?->solicitudCompra?->codigo_control ?? '-'))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->fillForm(fn ($record): array => self::getSolicitudViewFormDataForOdc($record))
+                    ->schema(self::getSolicitudViewSchemaForOdc())
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && self::isHistorialOdcTab($livewire)),
+
+                Action::make('verComprobanteHistorial')
+                    ->label('Ver comprobante')
+                    ->icon(Heroicon::OutlinedBanknotes)
+                    ->color('info')
+                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                        ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
+                        : null)
+                    ->openUrlInNewTab()
+                    ->visible(fn ($record, $livewire): bool => self::isHistorialOdcTab($livewire)
+                        && self::isFinalHistorialStage($record)
+                        && filled($record->comprobante_pago_path)),
+
+                Action::make('verDocumentoRecepcionHistorial')
+                    ->label(fn ($record): string => (string) ($record->tipo_documento_recepcion ?? '') === 'NOTA'
+                        ? 'Ver nota de entrega'
+                        : 'Ver factura')
+                    ->icon(Heroicon::OutlinedDocumentText)
+                    ->color('warning')
+                    ->url(fn ($record): ?string => filled($record->factura_path)
+                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
+                        : null)
+                    ->openUrlInNewTab()
+                    ->visible(fn ($record, $livewire): bool => self::isHistorialOdcTab($livewire)
+                        && self::isFinalHistorialStage($record)
+                        && filled($record->factura_path)),
 
                 Action::make('aprobarGerenciaFinanzas')
                     ->label('Gerencia Finanzas: Aprobar para pago')
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->color('warning')
-                    ->visible(fn ($record): bool => self::canApproveByGerenciaFinanzas($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canApproveByGerenciaFinanzas($record))
                     ->requiresConfirmation()
                     ->action(function ($record): void {
                         $record->forceFill([
@@ -289,7 +371,8 @@ class OrdenesCompraTable
                     ->label('Finanzas: Registrar Pago')
                     ->icon(Heroicon::OutlinedBanknotes)
                     ->color('success')
-                    ->visible(fn ($record): bool => self::canRegisterFinancePayment($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canRegisterFinancePayment($record))
                     ->form([
                         TextInput::make('monto_pagado')
                             ->label('Monto pagado')
@@ -356,7 +439,8 @@ class OrdenesCompraTable
                     ->label('Procura: Marcar Pagado y En Transito')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
                     ->color('info')
-                    ->visible(fn ($record): bool => self::canConfirmPaymentByProcura($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canConfirmPaymentByProcura($record))
                     ->action(function ($record): void {
                         $record->forceFill([
                             'confirmado_procura_at' => now(),
@@ -380,7 +464,8 @@ class OrdenesCompraTable
                     ->label('Procura: Cargar Factura/Nota')
                     ->icon(Heroicon::OutlinedArrowDownTray)
                     ->color('warning')
-                    ->visible(fn ($record): bool => self::canUploadReceptionDocumentByProcura($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canUploadReceptionDocumentByProcura($record))
                     ->form([
                         Radio::make('tipo_documento_recepcion')
                             ->label('Llego con Factura o Nota de Entrega?')
@@ -436,7 +521,8 @@ class OrdenesCompraTable
                     ->label('Almacen: Pasar a Zona de Transicion')
                     ->icon(Heroicon::OutlinedInboxArrowDown)
                     ->color('info')
-                    ->visible(fn ($record): bool => self::canMarkTransitionByWarehouse($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canMarkTransitionByWarehouse($record))
                     ->requiresConfirmation()
                     ->modalHeading('Confirmar recepcion en almacen')
                     ->modalDescription('Esta accion habilita la conformidad por item para el solicitante.')
@@ -462,7 +548,8 @@ class OrdenesCompraTable
                     ->label('Finanzas: Enviar factura a Administracion')
                     ->icon(Heroicon::OutlinedPaperAirplane)
                     ->color('warning')
-                    ->visible(fn ($record): bool => self::canSendInvoiceToAdministration($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canSendInvoiceToAdministration($record))
                     ->action(function ($record): void {
                         $record->forceFill([
                             'factura_enviada_administracion_at' => now(),
@@ -485,7 +572,8 @@ class OrdenesCompraTable
                     ->label('Conformidad de Materiales')
                     ->icon(Heroicon::OutlinedCheckBadge)
                     ->color('success')
-                    ->visible(fn ($record): bool => self::canRegisterItemConformity($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canRegisterItemConformity($record))
                     ->form([
                         Repeater::make('items_conformidad')
                             ->label('Decision por item')
@@ -559,7 +647,8 @@ class OrdenesCompraTable
                     ->label('Almacen: Entrada/Registro Nuevo')
                     ->icon(Heroicon::OutlinedArchiveBoxArrowDown)
                     ->color('primary')
-                    ->visible(fn ($record): bool => self::canProcessWarehouseEntryByItem($record))
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::canProcessWarehouseEntryByItem($record))
                     ->form([
                         Repeater::make('items_entrada')
                             ->label('Ingreso por item aceptado')
@@ -623,8 +712,35 @@ class OrdenesCompraTable
                         }
                     }),
 
+                Action::make('eliminarOdcHistorial')
+                    ->label('Eliminar para Historial')
+                    ->icon(Heroicon::OutlinedTrash)
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Eliminar ODC rechazada')
+                    ->modalDescription('Esta accion elimina definitivamente la ODC rechazada del historial.')
+                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                        && self::isHistorialOdcTab($livewire)
+                        && (string) ($record->workflow_post_compra ?? '') === 'RECHAZADA_SOLICITANTE'
+                        && (bool) auth()->user()?->can('Delete:OrdenCompra'))
+                    ->action(function ($record): void {
+                        $correlativo = (string) ($record->correlativo_odc ?? ('#' . $record->id));
+
+                        $record->delete();
+
+                        Notification::make()
+                            ->title('ODC eliminada del historial')
+                            ->body('Se elimino la ODC ' . $correlativo . ' por estar rechazada.')
+                            ->success()
+                            ->send();
+                    }),
+
                 EditAction::make()
-                    ->visible(fn ($record): bool => ! self::isPendingSumarioRecord($record)),
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && ! self::isHistorialOdcTab($livewire)
+                        && (! self::isOdcCorreccionesTab($livewire)
+                            || ((string) ($record->estado ?? '') === 'RECHAZADA'
+                                && (string) ($record->rechazo_etapa ?? '') === 'gerencia_finanzas'))),
             ])
             ->defaultSort('created_at', 'desc');
     }
@@ -637,7 +753,8 @@ class OrdenesCompraTable
                 : 'Administracion: Registrar Factura')
             ->icon(Heroicon::OutlinedDocumentText)
             ->color('info')
-            ->visible(fn ($record): bool => self::canOpenManualInvoicePlaceholder($record))
+            ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                && self::canOpenManualInvoicePlaceholder($record))
             ->modalHeading(fn ($record): string => filled($record->factura_procesada_administracion_at)
                 ? 'Factura cargada en DB'
                 : 'Formulario contable de factura')
@@ -759,6 +876,22 @@ class OrdenesCompraTable
         return self::resolveActiveTab($livewire) === 'pagos_odc';
     }
 
+    private static function isHistorialOdcTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'historial_odc';
+    }
+
+    private static function isOdcCorreccionesTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'odc_en_correcciones';
+    }
+
+    private static function isCorreccionesOrHistorialOdcTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'odc_en_correcciones'
+            || self::resolveActiveTab($livewire) === 'historial_odc';
+    }
+
     private static function resolveActiveTab(mixed $livewire = null): string
     {
         $component = $livewire;
@@ -781,6 +914,36 @@ class OrdenesCompraTable
     private static function isPendingSumarioRecord(mixed $record): bool
     {
         return (int) ($record->is_sumario_pending_odc_row ?? 0) === 1;
+    }
+
+    private static function isFinalHistorialStage(mixed $record): bool
+    {
+        return in_array((string) ($record->workflow_post_compra ?? ''), ['BACKUP_FACTURA_COMPLETADO', 'CERRADA_CONFORME'], true);
+    }
+
+    private static function humanReadableSubEstado(string $workflow): string
+    {
+        return match ($workflow) {
+            'PENDIENTE_PAGO_FINANZAS' => 'EN ESPERA DE PAGO',
+            'PAGO_REGISTRADO_FINANZAS' => 'PAGO REGISTRADO',
+            'PAGADO_Y_EN_TRANSITO' => 'PAGADO Y EN TRANSITO',
+            'DOCUMENTO_RECEPCION_CARGADO_PROCURA' => 'DOC. DE RECEPCION CARGADO',
+            'EN_TRANSICION_ALMACEN' => 'EN TRANSICION ALMACEN',
+            'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'CONFORMIDAD COMPLETA',
+            'FACTURA_ENVIADA_ADMINISTRACION' => 'FACTURA ENVIADA A ADMINISTRACION',
+            'BACKUP_FACTURA_COMPLETADO', 'CERRADA_CONFORME' => 'CERRADA CON EXITO',
+            default => str_replace('_', ' ', $workflow ?: '-'),
+        };
+    }
+
+    private static function subEstadoColor(string $workflow): string
+    {
+        return match ($workflow) {
+            'PENDIENTE_PAGO_FINANZAS', 'DOCUMENTO_RECEPCION_CARGADO_PROCURA', 'EN_TRANSICION_ALMACEN' => 'warning',
+            'PAGO_REGISTRADO_FINANZAS', 'PAGADO_Y_EN_TRANSITO', 'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'info',
+            'FACTURA_ENVIADA_ADMINISTRACION', 'BACKUP_FACTURA_COMPLETADO', 'CERRADA_CONFORME' => 'success',
+            default => 'gray',
+        };
     }
 
     private static function resolvePendingSumarioRecord(mixed $record): ?Sumario
@@ -1029,6 +1192,145 @@ class OrdenesCompraTable
         }
 
         return SumarioModalSummaryRenderer::render($sumario);
+    }
+
+    private static function renderSumarioSummaryModalForOdc(mixed $record): string
+    {
+        if (! $record || ! $record->sumario) {
+            return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No se encontro el sumario asociado.</div>';
+        }
+
+        return SumarioModalSummaryRenderer::render($record->sumario);
+    }
+
+    private static function getSolicitudViewSchemaForOdc(): array
+    {
+        return [
+            Section::make('Resumen de solicitud')
+                ->schema([
+                    Grid::make(6)
+                        ->schema([
+                            TextInput::make('codigo_control')->label('N° control')->disabled()->columnSpan(1),
+                            TextInput::make('estado')->label('Estado')->disabled()->columnSpan(1),
+                            TextInput::make('fecha_solicitud')->label('Fecha')->disabled()->columnSpan(1),
+                            TextInput::make('tipo_solicitud')->label('Tipo')->disabled()->columnSpan(1),
+                            TextInput::make('prioridad')->label('Prioridad')->disabled()->columnSpan(1),
+                            TextInput::make('departamento_solicitante')->label('Departamento')->disabled()->columnSpan(1),
+                            TextInput::make('solicitado_por_nombre')->label('Solicitado por')->disabled()->columnSpan(2),
+                            TextInput::make('por_almacen_nombre')->label('Almacén')->disabled()->columnSpan(2),
+                            TextInput::make('aprobado_por_nombre')->label('Aprobador')->disabled()->columnSpan(1),
+                            TextInput::make('recibido_por_nombre')->label('Procura')->disabled()->columnSpan(1),
+                        ]),
+                    Textarea::make('para_ser_usado_en')
+                        ->label('Para ser usado en')
+                        ->rows(2)
+                        ->disabled(),
+                    Grid::make(4)
+                        ->schema([
+                            TextInput::make('fecha_almacen')->label('Fecha almacén')->disabled(),
+                            TextInput::make('fecha_aprobador')->label('Fecha aprobador')->disabled(),
+                            TextInput::make('fecha_receptor')->label('Fecha procura')->disabled(),
+                            TextInput::make('hora_receptor')->label('Hora procura')->disabled(),
+                        ]),
+                ]),
+
+            Section::make('Materiales / servicios solicitados')
+                ->schema([
+                    Placeholder::make('items_detalle')
+                        ->label('Items')
+                        ->content(fn (callable $get): HtmlString => new HtmlString(self::renderSolicitudItemsTableForOdc($get('items') ?? [])))
+                        ->dehydrated(false),
+                ]),
+
+            Section::make('Motivo de rechazo')
+                ->visible(fn (callable $get): bool => filled($get('rechazo_comentario')))
+                ->schema([
+                    Grid::make(3)
+                        ->schema([
+                            TextInput::make('rechazo_etapa')->label('Etapa')->disabled(),
+                            TextInput::make('rechazo_por_nombre')->label('Rechazada por')->disabled(),
+                            TextInput::make('rechazo_en')->label('Fecha rechazo')->disabled(),
+                        ]),
+                    Textarea::make('rechazo_comentario')->label('Comentario')->rows(3)->disabled(),
+                ]),
+        ];
+    }
+
+    private static function getSolicitudViewFormDataForOdc(mixed $record): array
+    {
+        $solicitud = $record?->sumario?->solicitudCompra;
+
+        if (! $solicitud) {
+            return [];
+        }
+
+        return [
+            'id' => $solicitud->id,
+            'codigo_control' => $solicitud->codigo_control ?: $solicitud->id,
+            'fecha_solicitud' => $solicitud->fecha_solicitud?->format('d/m/Y'),
+            'estado' => str_replace('_', ' ', (string) $solicitud->estado),
+            'departamento_solicitante' => $solicitud->departamento_solicitante,
+            'tipo_solicitud' => $solicitud->tipo_solicitud,
+            'prioridad' => $solicitud->prioridad,
+            'para_ser_usado_en' => $solicitud->para_ser_usado_en,
+            'items' => $solicitud->items
+                ->map(fn ($item) => [
+                    'item' => $item->item,
+                    'descripcion' => $item->descripcion,
+                    'unidad_medida' => $item->unidad_medida,
+                    'cantidad_solicitada' => $item->cantidad_solicitada,
+                    'cantidad_existencia' => $item->cantidad_existencia,
+                    'cantidad_a_comprar' => $item->cantidad_a_comprar,
+                ])
+                ->values()
+                ->all(),
+            'solicitado_por_nombre' => $solicitud->solicitadoPor?->name,
+            'por_almacen_nombre' => $solicitud->porAlmacen?->name,
+            'aprobado_por_nombre' => $solicitud->aprobadoPor?->name,
+            'recibido_por_nombre' => $solicitud->recibidoPor?->name,
+            'fecha_almacen' => $solicitud->fecha_almacen?->format('d/m/Y'),
+            'fecha_aprobador' => $solicitud->fecha_aprobador?->format('d/m/Y'),
+            'fecha_receptor' => $solicitud->fecha_receptor?->format('d/m/Y'),
+            'hora_receptor' => $solicitud->hora_receptor,
+            'rechazo_etapa' => $solicitud->rechazo_etapa ? strtoupper((string) $solicitud->rechazo_etapa) : null,
+            'rechazo_por_nombre' => $solicitud->rechazoPor?->name,
+            'rechazo_en' => $solicitud->rechazo_en?->format('d/m/Y H:i'),
+            'rechazo_comentario' => $solicitud->rechazo_comentario,
+        ];
+    }
+
+    private static function renderSolicitudItemsTableForOdc(array $items): string
+    {
+        if ($items === []) {
+            return '<div style="padding:12px 0;color:#6b7280;">Sin items registrados.</div>';
+        }
+
+        $rows = collect($items)
+            ->map(function ($item, int $index): string {
+                $item = is_array($item) ? $item : [];
+
+                return '<tr>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($item['item'] ?? ($index + 1))) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) ($item['descripcion'] ?? '-')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($item['unidad_medida'] ?? '-')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) number_format((float) ($item['cantidad_solicitada'] ?? 0), 2, ',', '.')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) number_format((float) ($item['cantidad_existencia'] ?? 0), 2, ',', '.')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) number_format((float) ($item['cantidad_a_comprar'] ?? 0), 2, ',', '.')) . '</td>'
+                    . '</tr>';
+            })
+            ->implode('');
+
+        return '<div style="overflow:auto;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+            . '<thead><tr style="background:#f3f4f6;">'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Unidad</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cant. solicitada</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cant. existencia</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cant. a comprar</th>'
+            . '</tr></thead><tbody>' . $rows . '</tbody></table>'
+            . '</div>';
     }
 
     private static function canUploadReceptionDocumentByProcura(mixed $record): bool

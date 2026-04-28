@@ -71,6 +71,10 @@ class OrdenCompra extends Model
         'devolucion_motivo',
         'inventario_movimiento_id',
         'factura_procesada_administracion_at',
+        'rechazo_etapa',
+        'rechazo_comentario',
+        'rechazo_por_user_id',
+        'rechazo_en',
     ];
 
     protected $casts = [
@@ -99,6 +103,7 @@ class OrdenCompra extends Model
         'factura_procesada_administracion_at' => 'datetime',
         'elaborado_firmado_at' => 'datetime',
         'aprobado_firmado_at' => 'datetime',
+        'rechazo_en' => 'datetime',
     ];
 
     public function sumario(): BelongsTo
@@ -169,5 +174,10 @@ class OrdenCompra extends Model
     public function inventarioMovimiento(): BelongsTo
     {
         return $this->belongsTo(InventoryMovement::class, 'inventario_movimiento_id');
+    }
+
+    public function rechazoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rechazo_por_user_id');
     }
 }

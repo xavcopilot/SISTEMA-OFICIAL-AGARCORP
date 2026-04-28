@@ -89,7 +89,17 @@ class OrdenCompraResource extends Resource
         }
 
         if (self::hasEditAccess()) {
+            if ((string) ($record->estado ?? '') === 'RECHAZADA'
+                && (string) ($record->rechazo_etapa ?? '') === 'historial') {
+                return false;
+            }
+
             return true;
+        }
+
+        if ((string) ($record->estado ?? '') === 'RECHAZADA'
+            && (string) ($record->rechazo_etapa ?? '') === 'historial') {
+            return false;
         }
 
         return $user->can('GenerateOdcs:Sumario')

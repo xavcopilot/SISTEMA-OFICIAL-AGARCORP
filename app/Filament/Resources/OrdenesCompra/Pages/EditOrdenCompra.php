@@ -22,6 +22,28 @@ class EditOrdenCompra extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('eliminarParaHistorial')
+                ->label('Eliminar para Historial')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Enviar rechazo a historial')
+                ->modalDescription('La ODC quedara como rechazada definitiva en historial y ya no podra corregirse.')
+                ->visible(fn (): bool => (string) ($this->record->estado ?? '') === 'RECHAZADA'
+                    && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas')
+                ->action(function (): void {
+                    $this->record->forceFill([
+                        'rechazo_etapa' => 'historial',
+                    ])->save();
+
+                    Notification::make()
+                        ->title('ODC enviada a historial')
+                        ->body('La ODC rechazada se marco como historica y ya no permitira correcciones.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['rechazo_etapa']);
+                }),
+
             Action::make('enviarGerenciaFinanzas')
                 ->label('Enviar a Gerencia Finanzas')
                 ->color('success')
@@ -36,7 +58,8 @@ class EditOrdenCompra extends EditRecord
                         ->password()
                         ->required(),
                 ])
-                ->visible(fn (): bool => (string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC')
+                ->visible(fn (): bool => (string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC'
+                    && (string) ($this->record->estado ?? '') !== 'RECHAZADA')
                 ->action(function (array $data): void {
                     $this->submitToGerenciaFinanzas($data);
                 }),
@@ -45,7 +68,8 @@ class EditOrdenCompra extends EditRecord
 
     protected function getFormActions(): array
     {
-        if ((string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC') {
+        if ((string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC'
+            && (string) ($this->record->estado ?? '') !== 'RECHAZADA') {
             return [
                 Action::make('submitToGerenciaFinanzas')
                     ->label('Enviar ODC a Gerencia Finanzas')
