@@ -80,6 +80,41 @@ class OrdenCompraResource extends Resource
         return $solicitanteId > 0 && (int) $user->id === $solicitanteId;
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        if (! self::hasReadAccess()) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()
+            ->where(function (Builder $query): Builder {
+                return $query
+                    ->whereIn('workflow_post_compra', [
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                        'PENDIENTE_PAGO_FINANZAS',
+                        'PAGO_REGISTRADO_FINANZAS',
+                        'PAGADO_Y_EN_TRANSITO',
+                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                        'EN_TRANSICION_ALMACEN',
+                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
+                        'FACTURA_ENVIADA_ADMINISTRACION',
+                    ])
+                    ->orWhere(function (Builder $rejectedQuery): Builder {
+                        return $rejectedQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->where('rechazo_etapa', 'gerencia_finanzas');
+                    });
+            })
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
+    }
+
     public static function canEdit(Model $record): bool
     {
         $user = auth()->user();

@@ -3,12 +3,14 @@
 namespace App\Providers;
 
 use App\Livewire\PersistentFilamentNotifications;
+use App\Support\Filament\DatabaseNotificationSender;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use App\Models\User;
 use App\Observers\UserObserver;
 use Filament\Facades\Filament;
 use App\Models\Ticket;
+use App\Support\Filament\FlowInboxNotificationService;
 use Filament\Notifications\Notification;
 use Livewire\Livewire;
 
@@ -28,6 +30,23 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Livewire::component('notifications', PersistentFilamentNotifications::class);
+
+        Filament::serving(function (): void {
+            if (! auth()->check()) {
+                return;
+            }
+
+            $user = auth()->user();
+            $throttleKey = 'flow-inbox:sync-throttle:' . (string) $user->id;
+
+            if (cache()->has($throttleKey)) {
+                return;
+            }
+
+            cache()->put($throttleKey, true, now()->addSeconds(20));
+
+            app(FlowInboxNotificationService::class)->syncUnreadNotificationsForUser($user);
+        });
 
         User::observe(UserObserver::class); // Usamos el nombre corto porque ya lo importaste arriba
         Schema::defaultStringLength(125);

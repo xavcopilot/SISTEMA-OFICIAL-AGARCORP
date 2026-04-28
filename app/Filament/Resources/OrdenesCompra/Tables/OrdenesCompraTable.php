@@ -1535,11 +1535,12 @@ class OrdenesCompraTable
         }
 
         $users->each(function (User $user) use ($record): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Pago registrado por Finanzas')
                 ->body('La ODC ' . (string) $record->correlativo_odc . ' ya tiene comprobante de pago. Procura debe confirmar y esperar producto.')
-                ->success()
-                ->sendToDatabase($user);
+                ->success();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 
@@ -1558,11 +1559,12 @@ class OrdenesCompraTable
         }
 
         $users->each(function (User $user) use ($record): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Factura pendiente de carga manual')
                 ->body('La ODC ' . (string) $record->correlativo_odc . ' fue enviada por Finanzas para respaldo contable en Administracion.')
-                ->warning()
-                ->sendToDatabase($user);
+                ->warning();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 
@@ -1581,11 +1583,12 @@ class OrdenesCompraTable
         }
 
         $users->each(function (User $user) use ($record): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('ODC aprobada para pago')
                 ->body('La ODC ' . (string) $record->correlativo_odc . ' fue aprobada por Gerencia de Finanzas y esta lista para registrar pago.')
-                ->warning()
-                ->sendToDatabase($user);
+                ->warning();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 
@@ -1600,11 +1603,12 @@ class OrdenesCompraTable
         }
 
         $users->each(function (User $user) use ($record): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Solicitud de devolucion')
                 ->body('El solicitante rechazo la ODC ' . (string) $record->correlativo_odc . '. Revisar gestion con proveedor.')
-                ->danger()
-                ->sendToDatabase($user);
+                ->danger();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 }

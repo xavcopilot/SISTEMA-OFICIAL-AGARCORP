@@ -879,11 +879,12 @@ class SolicitudesCompraTable
         if ($destinatario) {
             $rechazadoPor = auth()->user()?->name ?? 'Usuario';
 
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Solicitud rechazada en etapa ' . strtoupper($etapa))
                 ->body('Solicitud #' . $record->id . ' rechazada por ' . $rechazadoPor . '. Motivo: ' . $comentario)
-                ->danger()
-                ->sendToDatabase($destinatario);
+                ->danger();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $destinatario, dispatchEvent: true);
         }
 
         Notification::make()

@@ -221,7 +221,7 @@ class AprobacionOdcsTable
 
                                 Notification::make()
                                     ->title('ODC enviada a Pago Finanzas')
-                                    ->body('La ODC fue aprobada y enviada al modulo Administracion de Pagos ODC.')
+                                    ->body('La ODC fue aprobada y enviada al modulo Realizacion de Pagos ODC.')
                                     ->success()
                                     ->send();
                             }),

@@ -66,6 +66,29 @@ class SolicitudCompraResource extends Resource
         return auth()->check() && ! SolicitudCompraFlow::isApproverOnly(auth()->user());
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+
+        if (! $user || ! static::canAccess()) {
+            return null;
+        }
+
+        // Este recurso muestra solicitudes del propio solicitante (mis solicitudes + borradores),
+        // por eso el badge debe reflejar solo renglones visibles para ese usuario.
+        $count = static::getModel()::query()
+            ->where('solicitado_por_user_id', $user->id)
+            ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
+    }
+
     public static function canViewAny(): bool
     {
         return static::canAccess();

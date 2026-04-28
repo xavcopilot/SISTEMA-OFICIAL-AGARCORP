@@ -492,11 +492,12 @@ class ViewSolicitudCompra extends ViewRecord
         if ($destinatario) {
             $rechazadoPor = auth()->user()?->name ?? 'Usuario';
 
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Solicitud rechazada en etapa ' . strtoupper($etapa))
                 ->body('Solicitud #' . $record->id . ' rechazada por ' . $rechazadoPor . '. Motivo: ' . $comentario)
-                ->danger()
-                ->sendToDatabase($destinatario);
+                ->danger();
+
+            \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $destinatario, dispatchEvent: true);
         }
 
         $this->syncSignedRecord();
@@ -546,11 +547,12 @@ class ViewSolicitudCompra extends ViewRecord
             ->whereIn('id', $userIds)
             ->get()
             ->each(function (User $user) use ($detalle): void {
-                Notification::make()
+                $notification = Notification::make()
                     ->title('Solicitud reenviada para nueva revision')
                     ->body($detalle)
-                    ->warning()
-                    ->sendToDatabase($user);
+                    ->warning();
+
+                \App\Support\Filament\DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
             });
     }
 

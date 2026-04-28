@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AdministracionPagosOdc\Tables;
 
 use App\Models\OrdenCompraComprobante;
 use App\Models\User;
+use App\Support\Filament\DatabaseNotificationSender;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
@@ -112,11 +113,12 @@ class AdministracionPagosOdcTable
         }
 
         $users->each(function (User $user) use ($record): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Pago registrado por Finanzas')
                 ->body('La ODC ' . (string) $record->correlativo_odc . ' ya tiene comprobante de pago en PAGOS DE ODC.')
-                ->success()
-                ->sendToDatabase($user);
+                ->success();
+
+            DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 }

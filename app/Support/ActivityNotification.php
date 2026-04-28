@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\User;
+use App\Support\Filament\DatabaseNotificationSender;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 
@@ -34,6 +35,6 @@ class ActivityNotification
             default => $notification->info(),
         };
 
-        $notification->sendToDatabase($user);
+        DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
     }
 }

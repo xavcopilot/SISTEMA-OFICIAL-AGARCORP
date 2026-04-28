@@ -71,6 +71,22 @@ class RecepcionMaterialesNuevosResource extends Resource
         return static::canAccess();
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        if (! static::canAccess()) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
+    }
+
     public static function canViewAny(): bool
     {
         return static::canAccess();

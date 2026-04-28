@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class SumarioResource extends Resource
@@ -77,6 +78,45 @@ class SumarioResource extends Resource
     public static function canCreate(): bool
     {
         return self::hasCreateAccess();
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+
+        if (! $user || ! self::hasReadAccess()) {
+            return null;
+        }
+
+        $query = static::getModel()::query();
+
+        if ($user->can('ApprovePayment:Sumario')) {
+            $query->where('workflow_estado', 'VALIDADO_FINANZAS');
+        } elseif ($user->can('ValidateFinance:Sumario') && ! $user->can('ApprovePayment:Sumario')) {
+            $query->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS');
+        } elseif ($user->can('GenerateOdcs:Sumario')) {
+            $query->whereIn('workflow_estado', [
+                'APROBADO_GERENCIA_FINANZAS',
+                'RECHAZADO_GERENCIA_FINANZAS',
+            ]);
+        } elseif ($user->can('Create:Sumario') || $user->can('Update:Sumario')) {
+            $query->whereIn('workflow_estado', [
+                'BORRADOR',
+                'RECHAZADO_VALIDACION_FINANZAS',
+                'RECHAZADO_GERENCIA_FINANZAS',
+            ]);
+        } else {
+            return null;
+        }
+
+        $count = (int) $query->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
     }
 
     public static function canEdit(Model $record): bool

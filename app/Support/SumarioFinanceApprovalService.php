@@ -379,11 +379,12 @@ class SumarioFinanceApprovalService
             : 'ODC pendientes de aprobacion: ' . implode(', ', $correlativos) . '.';
 
         $usuarios->each(function (User $user) use ($resumen): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Nuevas ODC por aprobar')
                 ->body($resumen)
-                ->warning()
-                ->sendToDatabase($user);
+                ->warning();
+
+            DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
     }
 }

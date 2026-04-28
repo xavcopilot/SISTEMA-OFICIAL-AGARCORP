@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Support\Filament\DatabaseNotificationSender;
 use Filament\Notifications\Livewire\Notifications;
 use Filament\Notifications\Notification;
 use Livewire\Attributes\On;
@@ -17,7 +18,7 @@ class PersistentFilamentNotifications extends Notifications
             $notification = Notification::fromArray($notificationData);
 
             if ($user && $this->shouldStoreInHistory($notificationData)) {
-                $user->notify($notification->toDatabase());
+                DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
             }
 
             $this->pushNotification($notification);

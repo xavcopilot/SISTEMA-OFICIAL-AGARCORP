@@ -25,9 +25,9 @@ class AdministracionFacturasResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Administracion de Facturas';
 
-    protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedDocumentDuplicate;
+    protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedDocumentText;
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 7;
 
     public static function form(Schema $schema): Schema
     {
@@ -51,7 +51,8 @@ class AdministracionFacturasResource extends Resource
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
             ->where('tipo_documento_recepcion', 'FACTURA')
-            ->whereNotNull('factura_path');
+            ->whereNotNull('factura_path')
+            ->whereNotNull('factura_enviada_administracion_at');
     }
 
     public static function canAccess(): bool
@@ -62,12 +63,36 @@ class AdministracionFacturasResource extends Resource
             return false;
         }
 
-        return (string) ($user->departamento?->nombre ?? '') === 'FINANZAS';
+        if ($user->hasRole('Procura')) {
+            return false;
+        }
+
+        $departamento = (string) ($user->departamento?->nombre ?? '');
+
+        return in_array($departamento, ['ADMINISTRACIÓN', 'ADMINISTRACION'], true);
     }
 
     public static function shouldRegisterNavigation(): bool
     {
         return static::canAccess();
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        if (! static::canAccess()) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()
+            ->whereNull('factura_cargada_administracion_at')
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
     }
 
     public static function canViewAny(): bool

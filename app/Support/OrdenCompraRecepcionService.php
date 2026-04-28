@@ -6,6 +6,7 @@ use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Departamento;
 use App\Models\OrdenCompra;
 use App\Models\User;
+use App\Support\Filament\DatabaseNotificationSender;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 
@@ -100,11 +101,12 @@ class OrdenCompraRecepcionService
             return;
         }
 
-        Notification::make()
+        $notification = Notification::make()
             ->title('Tu articulo ha llegado')
             ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' ya esta en zona de transicion. Ingresa y presiona "Conformidad de Materiales" para aceptar o rechazar cada item.')
-            ->success()
-            ->sendToDatabase($solicitante);
+            ->success();
+
+        DatabaseNotificationSender::sendNow($notification, $solicitante, dispatchEvent: true);
     }
 
     private function notifyFinanzas(OrdenCompra $ordenCompra): void
@@ -124,7 +126,7 @@ class OrdenCompraRecepcionService
         $url = OrdenCompraResource::getUrl('edit', ['record' => $ordenCompra]);
 
         $usuarios->each(function (User $financeUser) use ($ordenCompra, $url): void {
-            Notification::make()
+            $notification = Notification::make()
                 ->title('Factura recibida desde Procura')
                 ->body('La ODC ' . (string) $ordenCompra->correlativo_odc . ' tiene factura cargada. Validar y enviar a Administracion.')
                 ->actions([
@@ -133,8 +135,9 @@ class OrdenCompraRecepcionService
                         ->url($url)
                         ->button(),
                 ])
-                ->warning()
-                ->sendToDatabase($financeUser);
+                ->warning();
+
+            DatabaseNotificationSender::sendNow($notification, $financeUser, dispatchEvent: true);
         });
     }
 }

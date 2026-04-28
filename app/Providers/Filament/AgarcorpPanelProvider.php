@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\MainDashboard;
 use App\Filament\Widgets\Dashboard\DesktopWelcomeWidget;
+use App\Support\Filament\ModuleHelp;
 use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -107,6 +108,7 @@ class AgarcorpPanelProvider extends PanelProvider
         function (): string {
         $user = auth()->user();
         $roleName = $user?->getRoleNames()->first() ?? 'ROL SIN ASIGNAR (CONSULTAR A TECNICO)';
+        $help = ModuleHelp::current();
 
         // Si el rol es 'administrador' o 'super_admin', lo renombramos a 'Administrador'
         // pero mantenemos el diseño exacto que tenías antes.
@@ -114,15 +116,16 @@ class AgarcorpPanelProvider extends PanelProvider
             $roleName = 'Administrador';
         }
 
-        return "
-            <div class='ag-top-module-wrap'>
-                <span class='ag-top-module-chip'>
-                    <span class='ag-top-module-icon'>✦</span>
-                    <span class='ag-top-module-label'>Panel</span>
-                    <span class='ag-top-module-value'>" . e($roleName) . "</span>
-                </span>
-            </div>
-        ";
+        return view('filament.module-help-chip', ['help' => $help])->render()
+            . "
+                <div class='ag-top-module-wrap'>
+                    <span class='ag-top-module-chip'>
+                        <span class='ag-top-module-icon'>✦</span>
+                        <span class='ag-top-module-label'>Panel</span>
+                        <span class='ag-top-module-value'>" . e($roleName) . "</span>
+                    </span>
+                </div>
+            ";
     }
 )
             ->authMiddleware([

@@ -19,11 +19,11 @@ class AdministracionPagosOdcResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Pagos';
 
-    protected static ?string $navigationLabel = 'Administracion de Pagos ODC';
+    protected static ?string $navigationLabel = 'Realizacion de Pagos ODC';
 
     protected static ?string $modelLabel = 'Pago de ODC';
 
-    protected static ?string $pluralModelLabel = 'Administracion de Pagos ODC';
+    protected static ?string $pluralModelLabel = 'Realizacion de Pagos ODC';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
@@ -71,6 +71,24 @@ class AdministracionPagosOdcResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         return static::canAccess();
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        if (! static::canAccess()) {
+            return null;
+        }
+
+        $count = static::getEloquentQuery()
+            ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return static::getNavigationBadge() !== null ? 'warning' : 'gray';
     }
 
     public static function canViewAny(): bool
