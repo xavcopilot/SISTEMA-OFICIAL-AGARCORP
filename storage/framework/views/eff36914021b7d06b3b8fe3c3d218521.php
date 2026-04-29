@@ -14,7 +14,7 @@
     </button>
 </div>
 
-<?php if (! $__env->hasRenderedOnce('770b301a-78e5-4c83-9b1d-77ee9a17386e')): $__env->markAsRenderedOnce('770b301a-78e5-4c83-9b1d-77ee9a17386e'); ?>
+<?php if (! $__env->hasRenderedOnce('6973cb54-d741-40b2-8d1c-2093003dc48f')): $__env->markAsRenderedOnce('6973cb54-d741-40b2-8d1c-2093003dc48f'); ?>
     <script>
         (() => {
             const key = 'ag-theme-mode';
@@ -74,4 +74,4 @@
             }
         })();
     </script>
-<?php endif; ?><?php /**PATH C:\laragon\www\SISTEMA-OFICIAL-AGARCORP\resources\views/filament/login-footer.blade.php ENDPATH**/ ?>
+<?php endif; ?><?php /**PATH C:\laragon\www\SISTEMA-OFICIAL-AGARCORP\resources\views\filament\login-footer.blade.php ENDPATH**/ ?>

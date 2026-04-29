@@ -14,7 +14,7 @@ return new class extends Migration
     {
         $isPostgres = DB::getDriverName() === 'pgsql';
 
-        Schema::create('notifications', function (Blueprint $table) {
+        Schema::create('notifications', function (Blueprint $table) use ($isPostgres) {
             $table->uuid('id')->primary();
             $table->string('type');
             $table->morphs('notifiable');
