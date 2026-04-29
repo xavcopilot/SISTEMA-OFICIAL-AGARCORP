@@ -8,12 +8,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('bcv:update--force')
+Schedule::command('bcv:update --force')
     ->timezone('America/Caracas')
     ->dailyAt('07:30')
     ->withoutOverlapping();
 
-Schedule::command('bcv:update--force')
+Schedule::command('bcv:update --force')
     ->timezone('America/Caracas')
     ->dailyAt('09:15')
     ->withoutOverlapping();

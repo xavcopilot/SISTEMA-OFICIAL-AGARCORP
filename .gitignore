@@ -26,9 +26,11 @@ Thumbs.db
 public/Notas de Entrega/*
 public/Comprobantes-ODC/*
 public/Facturas/*
+storage/app/public/firmas/*
 
 
 # Pero permite que se suba el archivo keep para mantener la carpeta
 !public/Notas de Entrega/.gitkeep
 !public/Comprobantes-ODC/.gitkeep
 !public/Facturas/.gitkeep
+!storage/app/public/firmas/.gitkeep
