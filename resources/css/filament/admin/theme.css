@@ -143,6 +143,52 @@
     color: #98a2b3;
 }
 
+.ag-login-signature-row {
+    width: 100%;
+    position: relative;
+    min-height: 2.2rem;
+    margin-top: 0.2rem;
+}
+
+.ag-theme-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 2px solid rgba(15, 35, 73, 0.3);
+    background: rgba(255, 255, 255, 0.95);
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(15, 35, 73, 0.12);
+    transition: all 0.18s ease;
+}
+
+.ag-theme-toggle:hover {
+    color: #0f2349;
+    border-color: rgba(37, 99, 235, 0.62);
+    background: #ffffff;
+}
+
+.ag-theme-toggle:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.55);
+    outline-offset: 2px;
+}
+
+.ag-theme-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-1px);
+}
+
 .fi-simple-main .fi-form,
 .fi-simple-main .fi-fo-component-ctn,
 .fi-simple-main .fi-fo-field {
@@ -223,6 +269,18 @@
     color: #7f8ba3;
 }
 
+.dark .ag-theme-toggle {
+    border-color: rgba(203, 213, 225, 0.58);
+    background: rgba(15, 23, 42, 0.86);
+    color: #dbeafe;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.dark .ag-theme-toggle:hover {
+    border-color: rgba(191, 219, 254, 0.75);
+    background: rgba(15, 23, 42, 0.95);
+}
+
 @media (max-width: 640px) {
     .fi-simple-main-ctn {
         padding-inline: 0.9rem;
@@ -241,6 +299,11 @@
     .ag-login-subtitle {
         font-size: 0.78rem;
         letter-spacing: 0.22em;
+    }
+
+    .ag-theme-toggle {
+        width: 1.9rem;
+        height: 1.9rem;
     }
 }
 

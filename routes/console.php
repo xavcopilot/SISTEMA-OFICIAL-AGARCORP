@@ -10,5 +10,10 @@ Artisan::command('inspire', function () {
 
 Schedule::command('bcv:update')
     ->timezone('America/Caracas')
+    ->dailyAt('07:30')
+    ->withoutOverlapping();
+
+Schedule::command('bcv:update')
+    ->timezone('America/Caracas')
     ->dailyAt('09:15')
     ->withoutOverlapping();

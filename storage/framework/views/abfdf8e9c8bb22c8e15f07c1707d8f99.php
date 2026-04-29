@@ -14,7 +14,7 @@
     </button>
 </div>
 
-@once
+<?php if (! $__env->hasRenderedOnce('68d23172-2fb7-4710-8b64-7e0095f14cb6')): $__env->markAsRenderedOnce('68d23172-2fb7-4710-8b64-7e0095f14cb6'); ?>
     <script>
         (() => {
             const key = 'ag-theme-mode';
@@ -74,4 +74,4 @@
             }
         })();
     </script>
-@endonce
+<?php endif; ?><?php /**PATH C:\laragon\www\SISTEMA-OFICIAL-AGARCORP\resources\views/filament/login-footer.blade.php ENDPATH**/ ?>
