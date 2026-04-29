@@ -315,3 +315,109 @@ Estos campos no existen hoy como datos propios del movimiento de salida, por lo 
 - `despachado_por`
 
 Si alguno de esos campos debe salir en la plantilla, primero hay que incorporarlo al flujo de captura o definir una regla de negocio para derivarlo.
+
+## Placeholders oficiales - Formato SUM COTIZACIONES
+
+Este bloque aplica al archivo:
+
+- `storage/app/templates/FORMATO SUM COTIZACIONES.xlsx`
+
+Nota: hoy la plantilla no trae placeholders detectables en formatos `{{token}}`, `[[token]]`, `{token}`, `%token%` o `__token__`.
+Para implementar exportacion dinamica, usa estos placeholders.
+
+### Placeholders globales (encabezado / pie)
+
+- `sumario_correlativo`
+- `sumario_fecha` (formato `d/m/Y`)
+- `solicitud_codigo_control`
+- `procedencia`
+- `tipo_orden`
+- `departamento_solicitante`
+- `condiciones_pago`
+- `tiempo_entrega`
+- `prioridad`
+- `observaciones`
+- `elaborado_por`
+- `revisado_por`
+- `decision_gerencia_resultado`
+- `decision_gerencia_fecha` (formato `d/m/Y H:i`)
+- `decision_gerencia_comentario`
+- `total_seleccionado_prov1`
+- `total_seleccionado_prov2`
+- `total_seleccionado_prov3`
+
+### Placeholders de detalle (items)
+
+Coloca estos placeholders en una sola fila plantilla del detalle.
+Esa fila se repetira por cada item del sumario.
+
+- `item`
+- `descripcion`
+- `unidad_medida`
+- `cantidad`
+
+- `prov1_nombre`
+- `prov1_marca`
+- `prov1_precio_unitario`
+- `prov1_precio_total`
+
+- `prov2_nombre`
+- `prov2_marca`
+- `prov2_precio_unitario`
+- `prov2_precio_total`
+
+- `prov3_nombre`
+- `prov3_marca`
+- `prov3_precio_unitario`
+- `prov3_precio_total`
+
+- `seleccion_prov1_x` (marca `X` cuando la opcion seleccionada es proveedor 1)
+- `seleccion_prov2_x` (marca `X` cuando la opcion seleccionada es proveedor 2)
+- `seleccion_prov3_x` (marca `X` cuando la opcion seleccionada es proveedor 3)
+- `validacion_gerencia` (`CORRECTO`, `RECHAZADO` o vacio)
+
+## Bloque copiable - Formato SUM COTIZACIONES (con llaves)
+
+### Globales
+
+- {{sumario_correlativo}}
+- {{sumario_fecha}}
+- {{solicitud_codigo_control}}
+- {{procedencia}}
+- {{tipo_orden}}
+- {{departamento_solicitante}}
+- {{condiciones_pago}}
+- {{tiempo_entrega}}
+- {{prioridad}}
+- {{observaciones}}
+- {{elaborado_por}}
+- {{revisado_por}}
+- {{decision_gerencia_resultado}}
+- {{decision_gerencia_fecha}}
+- {{decision_gerencia_comentario}}
+- {{total_seleccionado_prov1}}
+- {{total_seleccionado_prov2}}
+- {{total_seleccionado_prov3}}
+
+### Detalle
+
+- {{item}}
+- {{descripcion}}
+- {{unidad_medida}}
+- {{cantidad}}
+- {{prov1_nombre}}
+- {{prov1_marca}}
+- {{prov1_precio_unitario}}
+- {{prov1_precio_total}}
+- {{prov2_nombre}}
+- {{prov2_marca}}
+- {{prov2_precio_unitario}}
+- {{prov2_precio_total}}
+- {{prov3_nombre}}
+- {{prov3_marca}}
+- {{prov3_precio_unitario}}
+- {{prov3_precio_total}}
+- {{seleccion_prov1_x}}
+- {{seleccion_prov2_x}}
+- {{seleccion_prov3_x}}
+- {{validacion_gerencia}}
