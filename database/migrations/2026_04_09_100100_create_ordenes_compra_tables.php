@@ -24,6 +24,12 @@ return new class extends Migration
             $table->decimal('tasa_bcv', 14, 6)->nullable();
             $table->string('condicion_pago')->nullable();
             $table->string('departamento_solicitante')->nullable();
+            $table->string('sitio_entrega')->nullable();
+            $table->text('comentarios')->nullable();
+            $table->foreignId('elaborado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('elaborado_firmado_at')->nullable();
+            $table->foreignId('aprobado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('aprobado_firmado_at')->nullable();
 
             $table->decimal('monto_exento', 14, 2)->default(0);
             $table->decimal('sub_total', 14, 2)->default(0);
@@ -67,6 +73,10 @@ return new class extends Migration
             $table->text('devolucion_motivo')->nullable();
             $table->foreignId('inventario_movimiento_id')->nullable()->constrained('inventory_movements')->nullOnDelete();
             $table->timestamp('factura_procesada_administracion_at')->nullable();
+            $table->string('rechazo_etapa')->nullable();
+            $table->text('rechazo_comentario')->nullable();
+            $table->foreignId('rechazo_por_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('rechazo_en')->nullable();
 
             $table->timestamps();
         });
