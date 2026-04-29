@@ -7,6 +7,7 @@ use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
 use App\Support\ActivityNotification;
 use App\Support\SolicitudCompraFlow;
+use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
@@ -201,7 +202,7 @@ class EditSolicitudCompra extends EditRecord
             'codigo_control_procura' => $record->codigo_control_procura,
             'estado' => SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN,
             // La correccion de una solicitud rechazada se considera reenviada.
-            'firma_solicitante' => '__ENVIADA__',
+            'firma_solicitante' => UserSignaturePath::resolveForUser(auth()->user(), '__ENVIADA__'),
             'firma_almacen' => null,
             'firma_aprobador' => null,
             'firma_receptor' => null,

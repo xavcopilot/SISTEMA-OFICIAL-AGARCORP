@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\SolicitudCompra;
+use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
 use App\Support\SolicitudCompraFlow;
+use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -105,8 +107,8 @@ class SolicitudCompraFormatoController extends Controller
             $globalTokens = $this->buildGlobalTokens($solicitudCompra, $usoLinea1, $usoLinea2, $usoLinea3);
             $itemTemplateRow = $this->findFirstRowWithItemTokens($sheet);
 
-            $this->replaceGlobalTokens($sheet, $globalTokens);
             $this->renderSignatureImages($sheet, $solicitudCompra);
+            $this->replaceGlobalTokens($sheet, $globalTokens);
             $this->renderItemRows($sheet, $itemTemplateRow, $solicitudCompra);
             $this->normalizeSheetForPdf($sheet);
 
@@ -346,10 +348,10 @@ class SolicitudCompraFormatoController extends Controller
     private function renderSignatureImages(Worksheet $sheet, SolicitudCompra $solicitudCompra): void
     {
         $signaturePaths = [
-            'firma_solicitante' => $this->resolveSignatureImagePath($solicitudCompra->firma_solicitante),
-            'firma_almacen' => $this->resolveSignatureImagePath($solicitudCompra->firma_almacen),
-            'firma_aprobador' => $this->resolveSignatureImagePath($solicitudCompra->firma_aprobador),
-            'firma_receptor' => $this->resolveSignatureImagePath($solicitudCompra->firma_receptor),
+            'firma_solicitante' => $this->resolveSignatureImagePath($solicitudCompra->firma_solicitante, $solicitudCompra->solicitadoPor),
+            'firma_almacen' => $this->resolveSignatureImagePath($solicitudCompra->firma_almacen, $solicitudCompra->porAlmacen),
+            'firma_aprobador' => $this->resolveSignatureImagePath($solicitudCompra->firma_aprobador, $solicitudCompra->aprobadoPor),
+            'firma_receptor' => $this->resolveSignatureImagePath($solicitudCompra->firma_receptor, $solicitudCompra->recibidoPor),
         ];
 
         $highestRow = $sheet->getHighestRow();
@@ -388,23 +390,37 @@ class SolicitudCompraFormatoController extends Controller
         }
     }
 
-    private function resolveSignatureImagePath(?string $storedPath): ?string
+    private function resolveSignatureImagePath(?string $storedPath, ?User $signer = null): ?string
     {
-        if (blank($storedPath) || $storedPath === '__ENVIADA__') {
+        $normalizedPath = trim((string) $storedPath);
+
+        if ($normalizedPath === '' || $normalizedPath === '__ENVIADA__') {
+            if (! $signer) {
+                return null;
+            }
+
+            $expectedPath = UserSignaturePath::findByUserId((int) $signer->id);
+
+            if ($expectedPath && Storage::disk('public')->exists($expectedPath)) {
+                $absolutePath = Storage::disk('public')->path($expectedPath);
+
+                return file_exists($absolutePath) ? $absolutePath : null;
+            }
+
             return null;
         }
 
-        if (file_exists($storedPath)) {
-            return $storedPath;
+        if (file_exists($normalizedPath)) {
+            return $normalizedPath;
         }
 
-        if (Storage::disk('public')->exists($storedPath)) {
-            $path = Storage::disk('public')->path($storedPath);
+        if (Storage::disk('public')->exists($normalizedPath)) {
+            $path = Storage::disk('public')->path($normalizedPath);
 
             return file_exists($path) ? $path : null;
         }
 
-        $publicPath = public_path('storage/' . ltrim($storedPath, '/\\'));
+        $publicPath = public_path('storage/' . ltrim($normalizedPath, '/\\'));
 
         return file_exists($publicPath) ? $publicPath : null;
     }
@@ -416,10 +432,10 @@ class SolicitudCompraFormatoController extends Controller
         $drawing->setDescription('Firma ' . $token);
         $drawing->setPath($imagePath);
         $drawing->setCoordinates($coordinates);
-        $drawing->setOffsetX(8);
-        $drawing->setOffsetY(4);
+        $drawing->setOffsetX(0);
+        $drawing->setOffsetY(0);
         $drawing->setResizeProportional(true);
-        $drawing->setHeight(36);
+        $drawing->setHeight(120);
         $drawing->setWorksheet($sheet);
     }
 

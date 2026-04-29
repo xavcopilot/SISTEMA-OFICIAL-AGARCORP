@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\SolicitudCompra;
 use App\Models\User;
+use App\Support\UserSignaturePath;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -162,7 +163,7 @@ class SolicitudCompraFlow
             'cargo_aprobador' => self::cargoForUserId($solicitudCompra->aprobado_por_user_id),
             'recibido_por_user_id' => $procuraUserId,
             'cargo_receptor' => self::cargoForUserId($procuraUserId),
-            'firma_solicitante' => '__ENVIADA__',
+            'firma_solicitante' => UserSignaturePath::resolveForUser($user, '__ENVIADA__'),
             'firma_almacen' => null,
             'firma_aprobador' => null,
             'firma_receptor' => null,

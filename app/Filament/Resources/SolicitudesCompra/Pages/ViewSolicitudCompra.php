@@ -11,6 +11,7 @@ use App\Models\Sumario;
 use App\Support\ActivityNotification;
 use App\Support\ControlCodeGenerator;
 use App\Support\SolicitudCompraFlow;
+use App\Support\UserSignaturePath;
 use Filament\Schemas\Schema;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
 use Filament\Actions\Action;
@@ -237,7 +238,7 @@ class ViewSolicitudCompra extends ViewRecord
         $record->forceFill([
             'por_almacen_user_id' => $record->por_almacen_user_id ?: auth()->id(),
             'cargo_almacen' => auth()->user()?->cargo?->nombre,
-            'firma_almacen' => $record->firma_almacen,
+            'firma_almacen' => UserSignaturePath::resolveForUser(auth()->user(), '__ENVIADA__'),
             'fecha_almacen' => now()->toDateString(),
             'estado' => SolicitudCompra::ESTADO_EN_ESPERA_APROBADOR,
         ])->save();
@@ -280,7 +281,7 @@ class ViewSolicitudCompra extends ViewRecord
             'aprobado_por_user_id' => $record->aprobado_por_user_id ?: auth()->id(),
             'cargo_aprobador' => auth()->user()?->cargo?->nombre,
             'prioridad' => $prioridad,
-            'firma_aprobador' => $record->firma_aprobador,
+            'firma_aprobador' => UserSignaturePath::resolveForUser(auth()->user(), '__ENVIADA__'),
             'fecha_aprobador' => now()->toDateString(),
             'estado' => SolicitudCompra::ESTADO_EN_ESPERA_PROCURA,
         ])->save();
@@ -312,7 +313,7 @@ class ViewSolicitudCompra extends ViewRecord
             'recibido_por_user_id' => $record->recibido_por_user_id ?: auth()->id(),
             'cargo_receptor' => auth()->user()?->cargo?->nombre,
             'codigo_control_procura' => $record->codigo_control_procura ?: ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
-            'firma_receptor' => $record->firma_receptor,
+            'firma_receptor' => UserSignaturePath::resolveForUser(auth()->user(), '__ENVIADA__'),
             'fecha_receptor' => now()->toDateString(),
             'hora_receptor' => now()->format('H:i:s'),
             'estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA,
