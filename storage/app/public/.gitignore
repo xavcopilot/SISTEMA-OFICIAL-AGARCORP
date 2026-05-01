@@ -1,2 +1,10 @@
 *
 !.gitignore
+!firmas/
+!firmas/.gitkeep
+!ordenes-compra/
+!ordenes-compra/.gitkeep
+!ordenes-compra/comprobantes-pago/
+!ordenes-compra/comprobantes-pago/.gitkeep
+!ordenes-compra/comprobantes-retencion/
+!ordenes-compra/comprobantes-retencion/.gitkeep

@@ -27,6 +27,7 @@ public/Notas de Entrega/*
 public/Comprobantes-ODC/*
 public/Facturas/*
 storage/app/public/firmas/*
+storage/app/public/ordenes-compra/**
 
 
 # Pero permite que se suba el archivo keep para mantener la carpeta
@@ -34,3 +35,9 @@ storage/app/public/firmas/*
 !public/Comprobantes-ODC/.gitkeep
 !public/Facturas/.gitkeep
 !storage/app/public/firmas/.gitkeep
+!storage/app/public/ordenes-compra/
+!storage/app/public/ordenes-compra/.gitkeep
+!storage/app/public/ordenes-compra/comprobantes-pago/
+!storage/app/public/ordenes-compra/comprobantes-pago/.gitkeep
+!storage/app/public/ordenes-compra/comprobantes-retencion/
+!storage/app/public/ordenes-compra/comprobantes-retencion/.gitkeep
