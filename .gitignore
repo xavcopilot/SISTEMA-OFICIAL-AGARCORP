@@ -60,3 +60,4 @@ storage/app/public/ordenes-compra/**
 !/storage/framework/views/.gitkeep
 /storage/logs/*
 !/storage/logs/.gitkeep
+/storage/app/libreoffice-runtime/
