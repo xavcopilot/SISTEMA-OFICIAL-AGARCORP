@@ -5,6 +5,7 @@ namespace App\Filament\Widgets\Dashboard;
 use App\Filament\Resources\AprobacionesCompra\AprobacionesCompraResource;
 use App\Filament\Resources\Categories\CategoryResource;
 use App\Filament\Resources\ConsultarEntradas\ConsultarEntradasResource;
+use App\Filament\Resources\InformacionAgarcorp\InformacionAgarcorpResource;
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Filament\Resources\Sumarios\SumarioResource;
@@ -87,6 +88,12 @@ class DesktopWelcomeWidget extends Widget
                 'description' => 'Entradas, salidas y trazabilidad de materiales.',
                 'url' => ConsultarEntradasResource::getUrl('index'),
                 'tone' => 'slate',
+            ] : null,
+            InformacionAgarcorpResource::canAccess() ? [
+                'title' => 'Informacion AGARCORP',
+                'description' => 'Actualizar razon social, RIF, direccion y telefono para formatos.',
+                'url' => InformacionAgarcorpResource::getUrl('index'),
+                'tone' => 'teal',
             ] : null,
         ]));
 

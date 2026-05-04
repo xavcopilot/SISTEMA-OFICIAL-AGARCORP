@@ -128,6 +128,137 @@ Alias equivalentes (mismo resultado):
 - `{{para_ser_usado_en_2}}` = línea 2
 - `{{para_ser_usado_en}}` = texto completo (solo usar si tienes una sola línea/celda amplia)
 
+## Placeholders para ODC
+
+### Información de la Orden de Compra
+- `correlativo_odc`: Correlativo de la orden de compra.
+- `fecha_odc`: Fecha de creación de la orden de compra.
+- `proveedor_nombre`: Nombre del proveedor.
+- `rif_proveedor`: RIF del proveedor.
+- `telefono_proveedor`: Teléfono del proveedor.
+- `direccion_proveedor`: Dirección del proveedor.
+- `tiempo_entrega`: Tiempo de entrega especificado en el sumario.
+- `ciudad_proveedor`: Ciudad del proveedor.
+- `email_proveedor`: Email del proveedor.
+- `contacto_proveedor`: Contacto del proveedor.
+
+### Montos y Totales
+- `monto_exento`: Monto exento de impuestos.
+- `sub_total`: Subtotal de la orden de compra.
+- `iva_16`: Monto del IVA (16%).
+- `gastos_adicionales`: Gastos adicionales.
+- `total_general`: Total general de la orden de compra.
+- `total_en_letras`: Total general en letras.
+
+### Información de la Empresa
+- `empresa_razon_social`: Razón social de la empresa.
+- `empresa_rif`: RIF de la empresa.
+- `empresa_direccion_fiscal`: Dirección fiscal de la empresa.
+- `empresa_telefono_principal`: Teléfono principal de la empresa.
+
+### Otros Detalles
+- `sitio_entrega`: Sitio de entrega de los productos.
+- `condicion_pago`: Condiciones de pago.
+- `comentarios`: Comentarios adicionales.
+- `tasa_bcv`: Tasa de cambio del BCV.
+- `departamento_solicitante`: Departamento solicitante.
+- `correlativo_sdc`: Correlativo del sumario de compra.
+
+### Firmas
+- `firma_elaborado`: Inserta la firma PNG del usuario que elaboró.
+- `elaborado_por_nombre`: Nombre de la persona que elaboró la orden.
+- `elaborado_por_cargo`: Cargo de la persona que elaboró la orden.
+- `firma_aprobado`: Inserta la firma PNG del usuario que aprobó.
+- `aprobado_por_nombre`: Nombre de la persona que aprobó la orden.
+- `aprobado_por_cargo`: Cargo de la persona que aprobó la orden.
+
+### Placeholders de detalle (items)
+
+Coloca estos placeholders en las filas de detalle del formato ODC. Cada fila con placeholders de item será llenada en orden con los items de la orden de compra.
+
+- `item`
+- `item_n` (alias de `item`)
+- `descripcion`
+- `item_descripcion` (alias de `descripcion`)
+- `unidad_medida`
+- `item_unidad_medida` (alias de `unidad_medida`)
+- `cantidad`
+- `item_cantidad` (alias de `cantidad`)
+- `precio_unitario`
+- `item_precio_unitario` (alias de `precio_unitario`)
+- `precio_total`
+- `item_precio_total` (alias de `precio_total`)
+
+## Nota para detalle ODC
+
+Si tu plantilla tiene una columna llamada `CODIGO`, hoy el formato ODC no expone un campo de código o SKU propio por item.
+
+Por ahora, en esa columna debes usar:
+
+- `{{item}}`
+
+Y en montos usa exactamente estos tokens:
+
+- `{{monto_exento}}`
+- `{{precio_unitario}}`
+- `{{precio_total}}`
+
+No uses placeholders con espacios como `{{monto exento}}` porque no serán reconocidos.
+
+## Bloque copiable - Formato ODC (con llaves)
+
+Este bloque es solo para copiar y pegar directamente en la plantilla.
+
+### Globales
+
+- {{correlativo_odc}}
+- {{fecha_odc}}
+- {{proveedor_nombre}}
+- {{rif_proveedor}}
+- {{telefono_proveedor}}
+- {{direccion_proveedor}}
+- {{tiempo_entrega}}
+- {{ciudad_proveedor}}
+- {{email_proveedor}}
+- {{contacto_proveedor}}
+- {{monto_exento}}
+- {{sub_total}}
+- {{iva_16}}
+- {{gastos_adicionales}}
+- {{total_general}}
+- {{total_en_letras}}
+- {{empresa_razon_social}}
+- {{empresa_rif}}
+- {{empresa_direccion_fiscal}}
+- {{empresa_telefono_principal}}
+- {{sitio_entrega}}
+- {{condicion_pago}}
+- {{comentarios}}
+- {{tasa_bcv}}
+- {{departamento_solicitante}}
+- {{correlativo_sdc}}
+- {{firma_elaborado}}
+- {{elaborado_por_nombre}}
+- {{elaborado_por_cargo}}
+- {{firma_aprobado}}
+- {{aprobado_por_nombre}}
+- {{aprobado_por_cargo}}
+
+### Detalle
+
+- {{item}}
+- {{item_n}}
+- {{descripcion}}
+- {{item_descripcion}}
+- {{unidad_medida}}
+- {{item_unidad_medida}}
+- {{cantidad}}
+- {{item_cantidad}}
+- {{precio_unitario}}
+- {{item_precio_unitario}}
+- {{precio_total}}
+- {{item_precio_total}}
+
 ## Placeholders oficiales - Formato Entrada Material
 
 Este bloque aplica al archivo:
@@ -322,29 +453,60 @@ Este bloque aplica al archivo:
 
 - `storage/app/templates/FORMATO SUM COTIZACIONES.xlsx`
 
-Nota: hoy la plantilla no trae placeholders detectables en formatos `{{token}}`, `[[token]]`, `{token}`, `%token%` o `__token__`.
-Para implementar exportacion dinamica, usa estos placeholders.
+Nota: este formato ahora funciona en modo estricto por placeholders.
+Si falta alguno de los placeholders requeridos, el sistema respondera con error 422 y listara los tokens faltantes.
+
+Tokens opcionales de informacion impresa (no son requeridos y aplican tambien a ODC):
+
+- `empresa_razon_social` (alias: `empresa_nombre`)
+- `empresa_rif`
+- `empresa_direccion_fiscal` (alias: `empresa_direccion`)
+- `empresa_telefono_principal` (alias: `empresa_telefono`)
+
+Estos valores se administran desde el modulo de escritorio `Informacion AGARCORP` (acceso A.I.T).
+
+Formatos soportados de token:
+
+- `{{token}}`
+- `[[token]]`
+- `{token}`
+- `%token%`
+- `__token__`
 
 ### Placeholders globales (encabezado / pie)
 
-- `sumario_correlativo`
-- `sumario_fecha` (formato `d/m/Y`)
-- `solicitud_codigo_control`
-- `procedencia`
-- `tipo_orden`
+- `sumario_numero`
+- `correlativo_sdc` (alias opcional)
+- `fecha_sumario` (formato `d/m/Y`)
 - `departamento_solicitante`
-- `condiciones_pago`
-- `tiempo_entrega`
-- `prioridad`
+- `procedencia_local` (ejemplo generado: `Local ■`)
+- `procedencia_importado` (ejemplo generado: `Importado □`)
+- `tipo_orden_compra` (ejemplo generado: `■ COMPRA`)
+- `tipo_orden_servicios` (ejemplo generado: `□ SERVICIOS`)
+- `proveedor_1_nombre`
+- `proveedor_2_nombre`
+- `proveedor_3_nombre`
+- `condiciones_pago_1`
+- `condiciones_pago_2`
+- `condiciones_pago_3`
+- `tiempo_entrega_1`
+- `tiempo_entrega_2`
+- `tiempo_entrega_3`
+- `total_compra_prov1`
+- `total_compra_prov2`
+- `total_compra_prov3`
 - `observaciones`
-- `elaborado_por`
-- `revisado_por`
-- `decision_gerencia_resultado`
-- `decision_gerencia_fecha` (formato `d/m/Y H:i`)
-- `decision_gerencia_comentario`
-- `total_seleccionado_prov1`
-- `total_seleccionado_prov2`
-- `total_seleccionado_prov3`
+- `prioridad_mejor_precio` (ejemplo generado: `MEJOR PRECIO ■`)
+- `prioridad_mejor_servicio` (ejemplo generado: `MEJOR SERVICIO/CALIDAD □`)
+- `firma_elaborado` (inserta la firma PNG del elaborador)
+- `firma_aprobado` (alias PNG del usuario revisor)
+- `firma_revisado` (inserta la firma PNG del revisor)
+- `elaborado_por_nombre`
+- `elaborado_por_cargo`
+- `elaborado_fecha` (formato `d/m/Y`)
+- `revisado_por_nombre`
+- `revisado_por_cargo`
+- `revisado_fecha` (formato `d/m/Y`)
 
 ### Placeholders de detalle (items)
 
@@ -356,48 +518,54 @@ Esa fila se repetira por cada item del sumario.
 - `unidad_medida`
 - `cantidad`
 
-- `prov1_nombre`
-- `prov1_marca`
-- `prov1_precio_unitario`
-- `prov1_precio_total`
+- `marca_prov1`
+- `precio_unitario_prov1`
+- `precio_total_prov1`
 
-- `prov2_nombre`
-- `prov2_marca`
-- `prov2_precio_unitario`
-- `prov2_precio_total`
+- `marca_prov2`
+- `precio_unitario_prov2`
+- `precio_total_prov2`
 
-- `prov3_nombre`
-- `prov3_marca`
-- `prov3_precio_unitario`
-- `prov3_precio_total`
-
-- `seleccion_prov1_x` (marca `X` cuando la opcion seleccionada es proveedor 1)
-- `seleccion_prov2_x` (marca `X` cuando la opcion seleccionada es proveedor 2)
-- `seleccion_prov3_x` (marca `X` cuando la opcion seleccionada es proveedor 3)
-- `validacion_gerencia` (`CORRECTO`, `RECHAZADO` o vacio)
+- `marca_prov3`
+- `precio_unitario_prov3`
+- `precio_total_prov3`
 
 ## Bloque copiable - Formato SUM COTIZACIONES (con llaves)
 
 ### Globales
 
-- {{sumario_correlativo}}
-- {{sumario_fecha}}
-- {{solicitud_codigo_control}}
-- {{procedencia}}
-- {{tipo_orden}}
+- {{sumario_numero}}
+- {{correlativo_sdc}}
+- {{fecha_sumario}}
 - {{departamento_solicitante}}
-- {{condiciones_pago}}
-- {{tiempo_entrega}}
-- {{prioridad}}
+- {{procedencia_local}}
+- {{procedencia_importado}}
+- {{tipo_orden_compra}}
+- {{tipo_orden_servicios}}
+- {{proveedor_1_nombre}}
+- {{proveedor_2_nombre}}
+- {{proveedor_3_nombre}}
+- {{condiciones_pago_1}}
+- {{condiciones_pago_2}}
+- {{condiciones_pago_3}}
+- {{tiempo_entrega_1}}
+- {{tiempo_entrega_2}}
+- {{tiempo_entrega_3}}
+- {{total_compra_prov1}}
+- {{total_compra_prov2}}
+- {{total_compra_prov3}}
 - {{observaciones}}
-- {{elaborado_por}}
-- {{revisado_por}}
-- {{decision_gerencia_resultado}}
-- {{decision_gerencia_fecha}}
-- {{decision_gerencia_comentario}}
-- {{total_seleccionado_prov1}}
-- {{total_seleccionado_prov2}}
-- {{total_seleccionado_prov3}}
+- {{prioridad_mejor_precio}}
+- {{prioridad_mejor_servicio}}
+- {{firma_elaborado}}
+- {{firma_aprobado}}
+- {{firma_revisado}}
+- {{elaborado_por_nombre}}
+- {{elaborado_por_cargo}}
+- {{elaborado_fecha}}
+- {{revisado_por_nombre}}
+- {{revisado_por_cargo}}
+- {{revisado_fecha}}
 
 ### Detalle
 
@@ -405,19 +573,36 @@ Esa fila se repetira por cada item del sumario.
 - {{descripcion}}
 - {{unidad_medida}}
 - {{cantidad}}
-- {{prov1_nombre}}
-- {{prov1_marca}}
-- {{prov1_precio_unitario}}
-- {{prov1_precio_total}}
-- {{prov2_nombre}}
-- {{prov2_marca}}
-- {{prov2_precio_unitario}}
-- {{prov2_precio_total}}
-- {{prov3_nombre}}
-- {{prov3_marca}}
-- {{prov3_precio_unitario}}
-- {{prov3_precio_total}}
-- {{seleccion_prov1_x}}
-- {{seleccion_prov2_x}}
-- {{seleccion_prov3_x}}
-- {{validacion_gerencia}}
+- {{marca_prov1}}
+- {{precio_unitario_prov1}}
+- {{precio_total_prov1}}
+- {{marca_prov2}}
+- {{precio_unitario_prov2}}
+- {{precio_total_prov2}}
+- {{marca_prov3}}
+- {{precio_unitario_prov3}}
+- {{precio_total_prov3}}
+
+## Recomendacion rapida para empezar en tu Excel de Sumario
+
+1. Encabezado:
+	- Reemplaza `Sumario N°` por `{{sumario_numero}}`.
+	- Reemplaza `Fecha` por `{{fecha_sumario}}`.
+	- Reemplaza departamento por `{{departamento_solicitante}}`.
+
+2. Procedencia y tipo:
+	- Usa `{{procedencia_local}}` y `{{procedencia_importado}}` en sus dos lineas.
+	- Usa `{{tipo_orden_compra}}` y `{{tipo_orden_servicios}}` para las casillas del bloque tipo de orden.
+
+3. Proveedores y condiciones:
+	- Encabezados de proveedor: `{{proveedor_1_nombre}}`, `{{proveedor_2_nombre}}`, `{{proveedor_3_nombre}}`.
+	- Condiciones y entrega por columna: `{{condiciones_pago_1..3}}` y `{{tiempo_entrega_1..3}}`.
+
+4. Fila plantilla de items (una sola fila):
+	- Coloca ahi todos los placeholders de detalle.
+	- El sistema detecta esa fila y la repite automaticamente.
+
+5. Pie:
+	- Observaciones: `{{observaciones}}`.
+	- Prioridad: `{{prioridad_mejor_precio}}` y `{{prioridad_mejor_servicio}}`.
+	- Firmas/cargos/fechas: `{{elaborado_por_*}}` y `{{revisado_por_*}}`.

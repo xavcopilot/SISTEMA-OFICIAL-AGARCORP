@@ -3,71 +3,70 @@
 namespace App\Http\Controllers;
 
 use App\Models\InformacionAgarcorp;
-use App\Models\OrdenCompra;
+use App\Models\Sumario;
+use App\Models\SumarioItemOpcion;
 use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
-use NumberFormatter;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class OrdenCompraFormatoController extends Controller
+class SumarioFormatoController extends Controller
 {
-    private const EXCEL_TEMPLATE_FILE = 'FORMATO ODC.xlsx';
-    private const PDF_PRINT_AREA_START = 'B6';
-    private const PDF_PRINT_AREA_END = 'H63';
-    private const ITEMS_START_ROW = 32;
-    private const ITEMS_END_ROW = 43;
+    private const EXCEL_TEMPLATE_FILE = 'FORMATO SUM COTIZACIONES.xlsx';
+    private const ITEMS_START_ROW = 17;
+    private const ITEMS_END_ROW = 28;
+    private const PDF_PRINT_AREA_START = 'B3';
+    private const PDF_PRINT_AREA_END = 'P39';
     private const SIGNATURE_TOKENS = [
         'firma_elaborado',
         'firma_aprobado',
+        'firma_revisado',
     ];
 
     public function __construct(private LibreOfficePdfConverter $libreOfficePdfConverter)
     {
     }
 
-    public function printPreview(OrdenCompra $ordenCompra)
+    public function printPreview(Sumario $sumario)
     {
-        if (! auth()->check()) {
-            abort(401);
+        if (! $this->canAccess()) {
+            abort(403);
         }
 
-        return view('ordenes-compra.print-preview', [
-            'ordenCompra' => $ordenCompra,
-            'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra]),
-            'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'download' => 1]),
-            'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'format' => 'xlsx', 'download' => 1]),
+        return view('sumarios.print-preview', [
+            'sumario' => $sumario,
+            'pdfUrl' => route('sumarios.formato', ['sumario' => $sumario]),
+            'downloadUrl' => route('sumarios.formato', ['sumario' => $sumario, 'download' => 1]),
+            'excelUrl' => route('sumarios.formato', ['sumario' => $sumario, 'format' => 'xlsx', 'download' => 1]),
         ]);
     }
 
-    public function __invoke(OrdenCompra $ordenCompra)
+    public function __invoke(Sumario $sumario)
     {
-        if (! auth()->check()) {
-            abort(401);
+        if (! $this->canAccess()) {
+            abort(403);
         }
 
-        $ordenCompra->loadMissing([
-            'items',
-            'proveedor',
+        $sumario->loadMissing([
+            'solicitudCompra',
             'elaboradoPor.cargo',
-            'aprobadoPor.cargo',
-            'sumario.solicitudCompra',
-            'sumario.elaboradoPor.cargo',
-            'sumario.revisadoPor.cargo',
+            'revisadoPor.cargo',
+            'items.opciones.proveedor',
         ]);
 
         $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
 
         if (! file_exists($templatePath)) {
-            abort(Response::HTTP_NOT_FOUND, 'No se encontro la plantilla Excel FORMATO ODC.xlsx en storage/app/templates.');
+            abort(Response::HTTP_NOT_FOUND, 'No se encontro la plantilla Excel FORMATO SUM COTIZACIONES.xlsx en storage/app/templates.');
         }
 
         $tmpDir = storage_path('app/tmp');
@@ -76,11 +75,11 @@ class OrdenCompraFormatoController extends Controller
         }
 
         $outputFormat = strtolower((string) request('format', 'pdf'));
-        $fileBaseName = 'orden-compra-' . $ordenCompra->id . '-' . now()->format('YmdHis');
+        $fileBaseName = 'sumario-cotizaciones-' . $sumario->id . '-' . now()->format('YmdHis');
         $xlsxPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.xlsx';
         $pdfPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.pdf';
-        $excelFileName = 'ODC_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.xlsx';
-        $pdfFileName = 'ODC_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.pdf';
+        $excelFileName = 'SUMARIO_' . ($sumario->correlativo_sdc ?: $sumario->id) . '.xlsx';
+        $pdfFileName = 'SUMARIO_' . ($sumario->correlativo_sdc ?: $sumario->id) . '.pdf';
 
         try {
             $spreadsheet = IOFactory::load($templatePath);
@@ -93,18 +92,18 @@ class OrdenCompraFormatoController extends Controller
 
             if ($missingTokens !== []) {
                 return response(
-                    'Faltan placeholders requeridos en FORMATO ODC.xlsx: ' . implode(', ', $missingTokens),
+                    'Faltan placeholders requeridos en FORMATO SUM COTIZACIONES.xlsx: ' . implode(', ', $missingTokens),
                     Response::HTTP_UNPROCESSABLE_ENTITY,
                     ['Content-Type' => 'text/plain; charset=UTF-8']
                 );
             }
 
-            $globalTokens = $this->buildGlobalTokens($ordenCompra);
+            $globalTokens = $this->buildGlobalTokens($sumario);
             $itemRowsWithTokens = $this->findRowsWithAnyTokens($sheet, $this->itemTokenNames());
 
-            $this->renderSignatureImages($sheet, $ordenCompra);
+            $this->renderSignatureImages($sheet, $sumario);
             $this->replaceGlobalTokens($sheet, $globalTokens);
-            $this->renderItemsByTokenRows($sheet, $ordenCompra, $itemRowsWithTokens);
+            $this->renderItemsByTokenRows($sheet, $sumario, $itemRowsWithTokens);
 
             $this->normalizeSheetForPdf($sheet);
 
@@ -122,11 +121,12 @@ class OrdenCompraFormatoController extends Controller
                 $xlsxPath,
                 $pdfPath,
                 $tmpDir,
-                ['documento' => 'orden_compra']
+                ['documento' => 'sumario_cotizaciones']
             );
 
-            if (! $wasConvertedByLibreOffice || ! file_exists($pdfPath)) {
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF con LibreOffice para la ODC.');
+            if (! $wasConvertedByLibreOffice) {
+                $pdfWriter = new PdfDompdfWriter($spreadsheet);
+                $pdfWriter->save($pdfPath);
             }
 
             if (file_exists($xlsxPath)) {
@@ -142,7 +142,7 @@ class OrdenCompraFormatoController extends Controller
                 @unlink($xlsxPath);
             }
 
-            abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar la ODC desde la plantilla Excel.');
+            abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario desde la plantilla Excel.');
         }
 
         if (request()->boolean('download')) {
@@ -155,47 +155,39 @@ class OrdenCompraFormatoController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
-    private function buildGlobalTokens(OrdenCompra $ordenCompra): array
+    private function canAccess(): bool
     {
-        $proveedor = $ordenCompra->proveedor;
-        $sumario = $ordenCompra->sumario;
+        $user = auth()->user();
+
+        if (! $user) {
+            abort(401);
+        }
+
+        return $user->hasRole('Procura');
+    }
+
+    private function buildGlobalTokens(Sumario $sumario): array
+    {
         $informacionImpresa = InformacionAgarcorp::current();
-        $elaboradoPor = $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor;
-        $aprobadoPor = $ordenCompra->aprobadoPor ?: $sumario?->revisadoPor;
+        $procedencia = strtoupper((string) ($sumario->procedencia ?? ''));
+        $isImportado = str_contains($procedencia, 'IMPORT');
 
-        $elaboradoFecha = (string) ($ordenCompra->elaborado_firmado_at
-            ? 'Registrada el ' . $ordenCompra->elaborado_firmado_at->format('d/m/Y H:i')
-            : 'Pendiente por registrar');
+        $tipoOrden = strtoupper((string) ($sumario->tipo_orden ?? ''));
+        $isServicio = str_contains($tipoOrden, 'SERVICIO');
 
-        $aprobadoFecha = (string) ($ordenCompra->aprobado_firmado_at
-            ? 'Registrada el ' . $ordenCompra->aprobado_firmado_at->format('d/m/Y H:i')
-            : 'Pendiente por validacion de Gerencia de Finanzas');
+        $prioridad = strtoupper((string) ($sumario->prioridad ?? ''));
+        $isMejorServicio = str_contains($prioridad, 'SERVICIO') || str_contains($prioridad, 'CALIDAD');
+
+        [$provider1, $provider2, $provider3] = $this->resolveProviderHeaders($sumario);
+
+        $fechaElaborado = optional($sumario->enviado_validacion_finanzas_at ?? $sumario->created_at)->format('d/m/Y');
+        $fechaRevisado = optional($sumario->decision_gerencia_finanzas_at ?? $sumario->updated_at)->format('d/m/Y');
 
         return [
-            'correlativo_odc' => (string) ($ordenCompra->correlativo_odc ?? ''),
-            'fecha_odc' => (string) optional($ordenCompra->created_at)->format('d/m/Y'),
-            'proveedor_nombre' => (string) ($proveedor?->nombre ?? ''),
-            'rif_proveedor' => (string) ($ordenCompra->rif_proveedor ?? $proveedor?->rif ?? ''),
-            'telefono_proveedor' => (string) ($proveedor?->telefono ?? ''),
-            'direccion_proveedor' => (string) ($ordenCompra->direccion_proveedor ?? $proveedor?->direccion ?? ''),
-            'tiempo_entrega' => (string) ($sumario?->tiempo_entrega ?? ''),
-            'ciudad_proveedor' => (string) ($proveedor?->ciudad ?? ''),
-            'email_proveedor' => (string) ($ordenCompra->email_proveedor ?? $proveedor?->email ?? ''),
-            'contacto_proveedor' => (string) ($ordenCompra->contacto_proveedor ?? $proveedor?->contacto ?? ''),
-
-            'monto_exento' => (float) ($ordenCompra->monto_exento ?? 0),
-            'sub_total' => (float) ($ordenCompra->sub_total ?? 0),
-            'iva_16' => (float) ($ordenCompra->iva_16 ?? 0),
-            'gastos_adicionales' => (float) ($ordenCompra->gastos_adicionales ?? 0),
-            'total_general' => (float) ($ordenCompra->total_general ?? 0),
-            'total_en_letras' => $this->numberToWordsEs((float) ($ordenCompra->total_general ?? 0)) . ' BOLIVARES',
-
-            'sitio_entrega' => (string) ($ordenCompra->sitio_entrega ?: 'ALMACEN AGARCORP'),
-            'condicion_pago' => (string) ($ordenCompra->condicion_pago ?? ''),
-            'comentarios' => (string) ($ordenCompra->comentarios ?? $sumario?->observaciones ?? ''),
-            'tasa_bcv' => (float) ($ordenCompra->tasa_bcv ?? 0),
-            'departamento_solicitante' => (string) ($ordenCompra->departamento_solicitante ?? ''),
-            'correlativo_sdc' => (string) ($sumario?->correlativo_sdc ?? ''),
+            'sumario_numero' => (string) ($sumario->correlativo_sdc ?? ''),
+            'correlativo_sdc' => (string) ($sumario->correlativo_sdc ?? ''),
+            'fecha_sumario' => (string) optional($sumario->fecha)->format('d/m/Y'),
+            'departamento_solicitante' => (string) ($sumario->departamento_solicitante ?? ''),
 
             'empresa_razon_social' => (string) ($informacionImpresa->razon_social ?? ''),
             'empresa_rif' => (string) ($informacionImpresa->rif ?? ''),
@@ -207,22 +199,67 @@ class OrdenCompraFormatoController extends Controller
 
             'firma_elaborado' => '',
             'firma_aprobado' => '',
+            'firma_revisado' => '',
 
-            'elaborado_por_nombre' => (string) ($elaboradoPor?->name ?? ''),
-            'elaborado_por_cargo' => (string) ($elaboradoPor?->cargo?->nombre ?? ''),
-            'elaborado_fecha' => $elaboradoFecha,
-            'aprobado_por_nombre' => (string) ($aprobadoPor?->name ?? ''),
-            'aprobado_por_cargo' => (string) ($aprobadoPor?->cargo?->nombre ?? ''),
-            'aprobado_fecha' => $aprobadoFecha,
+            'procedencia_local' => $this->checkboxTrailing('Local', ! $isImportado),
+            'procedencia_importado' => $this->checkboxTrailing('Importado', $isImportado),
+
+            'tipo_orden_compra' => $this->checkboxLeading('COMPRA', ! $isServicio),
+            'tipo_orden_servicios' => $this->checkboxLeading('SERVICIOS', $isServicio),
+
+            'proveedor_1_nombre' => $provider1,
+            'proveedor_2_nombre' => $provider2,
+            'proveedor_3_nombre' => $provider3,
+
+            'condiciones_pago_1' => (string) ($sumario->condiciones_pago ?? ''),
+            'condiciones_pago_2' => (string) ($sumario->condiciones_pago ?? ''),
+            'condiciones_pago_3' => (string) ($sumario->condiciones_pago ?? ''),
+            'tiempo_entrega_1' => (string) ($sumario->tiempo_entrega ?? ''),
+            'tiempo_entrega_2' => (string) ($sumario->tiempo_entrega ?? ''),
+            'tiempo_entrega_3' => (string) ($sumario->tiempo_entrega ?? ''),
+
+            'total_compra_prov1' => (float) ($sumario->total_compra_prov1 ?? 0),
+            'total_compra_prov2' => (float) ($sumario->total_compra_prov2 ?? 0),
+            'total_compra_prov3' => (float) ($sumario->total_compra_prov3 ?? 0),
+
+            'observaciones' => (string) ($sumario->observaciones ?? ''),
+            'prioridad_mejor_precio' => $this->checkboxTrailing('MEJOR PRECIO', ! $isMejorServicio),
+            'prioridad_mejor_servicio' => $this->checkboxTrailing('MEJOR SERVICIO/CALIDAD', $isMejorServicio),
+
+            'elaborado_por_nombre' => (string) ($sumario->elaboradoPor?->name ?? ''),
+            'elaborado_por_cargo' => (string) ($sumario->elaboradoPor?->cargo?->nombre ?? ''),
+            'elaborado_fecha' => (string) $fechaElaborado,
+            'revisado_por_nombre' => (string) ($sumario->revisadoPor?->name ?? ''),
+            'revisado_por_cargo' => (string) ($sumario->revisadoPor?->cargo?->nombre ?? ''),
+            'revisado_fecha' => (string) $fechaRevisado,
         ];
     }
 
-    private function renderSignatureImages(Worksheet $sheet, OrdenCompra $ordenCompra): void
+    private function resolveProviderHeaders(Sumario $sumario): array
     {
-        $sumario = $ordenCompra->sumario;
+        $providers = [1 => '', 2 => '', 3 => ''];
+
+        foreach ($sumario->items as $item) {
+            foreach ($item->opciones as $opcion) {
+                $index = (int) ($opcion->opcion_numero ?? 0);
+
+                if ($index < 1 || $index > 3 || $providers[$index] !== '') {
+                    continue;
+                }
+
+                $providers[$index] = (string) ($opcion->proveedor_nombre ?: $opcion->proveedor?->nombre ?: '');
+            }
+        }
+
+        return [$providers[1], $providers[2], $providers[3]];
+    }
+
+    private function renderSignatureImages(Worksheet $sheet, Sumario $sumario): void
+    {
         $signaturePaths = [
-            'firma_elaborado' => $this->resolveSignatureImagePath($ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor),
-            'firma_aprobado' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->revisadoPor),
+            'firma_elaborado' => $this->resolveSignatureImagePath($sumario->elaboradoPor),
+            'firma_aprobado' => $this->resolveSignatureImagePath($sumario->revisadoPor),
+            'firma_revisado' => $this->resolveSignatureImagePath($sumario->revisadoPor),
         ];
 
         $highestRow = $sheet->getHighestRow();
@@ -295,32 +332,34 @@ class OrdenCompraFormatoController extends Controller
     private function requiredGlobalTokenNames(): array
     {
         return [
-            'correlativo_odc',
-            'fecha_odc',
-            'proveedor_nombre',
-            'rif_proveedor',
-            'telefono_proveedor',
-            'direccion_proveedor',
-            'tiempo_entrega',
-            'ciudad_proveedor',
-            'email_proveedor',
-            'contacto_proveedor',
-            'monto_exento',
-            'sub_total',
-            'iva_16',
-            'gastos_adicionales',
-            'total_general',
-            'total_en_letras',
-            'sitio_entrega',
-            'condicion_pago',
-            'comentarios',
-            'tasa_bcv',
+            'sumario_numero',
+            'fecha_sumario',
             'departamento_solicitante',
-            'correlativo_sdc',
+            'procedencia_local',
+            'procedencia_importado',
+            'tipo_orden_compra',
+            'tipo_orden_servicios',
+            'proveedor_1_nombre',
+            'proveedor_2_nombre',
+            'proveedor_3_nombre',
+            'condiciones_pago_1',
+            'condiciones_pago_2',
+            'condiciones_pago_3',
+            'tiempo_entrega_1',
+            'tiempo_entrega_2',
+            'tiempo_entrega_3',
+            'total_compra_prov1',
+            'total_compra_prov2',
+            'total_compra_prov3',
+            'observaciones',
+            'prioridad_mejor_precio',
+            'prioridad_mejor_servicio',
             'elaborado_por_nombre',
             'elaborado_por_cargo',
-            'aprobado_por_nombre',
-            'aprobado_por_cargo',
+            'elaborado_fecha',
+            'revisado_por_nombre',
+            'revisado_por_cargo',
+            'revisado_fecha',
         ];
     }
 
@@ -335,10 +374,15 @@ class OrdenCompraFormatoController extends Controller
             'item_unidad_medida',
             'cantidad',
             'item_cantidad',
-            'precio_unitario',
-            'item_precio_unitario',
-            'precio_total',
-            'item_precio_total',
+            'marca_prov1',
+            'precio_unitario_prov1',
+            'precio_total_prov1',
+            'marca_prov2',
+            'precio_unitario_prov2',
+            'precio_total_prov2',
+            'marca_prov3',
+            'precio_unitario_prov3',
+            'precio_total_prov3',
         ];
     }
 
@@ -349,14 +393,21 @@ class OrdenCompraFormatoController extends Controller
             'descripcion',
             'unidad_medida',
             'cantidad',
-            'precio_unitario',
-            'precio_total',
+            'marca_prov1',
+            'precio_unitario_prov1',
+            'precio_total_prov1',
+            'marca_prov2',
+            'precio_unitario_prov2',
+            'precio_total_prov2',
+            'marca_prov3',
+            'precio_unitario_prov3',
+            'precio_total_prov3',
         ];
     }
 
-    private function renderItemsByTokenRows(Worksheet $sheet, OrdenCompra $ordenCompra, array $rows): void
+    private function renderItemsByTokenRows(Worksheet $sheet, Sumario $sumario, array $rows): void
     {
-        $items = $ordenCompra->items->values();
+        $items = $sumario->items->values();
         $highestColumnIndex = Coordinate::columnIndexFromString($sheet->getHighestColumn());
         $totalRows = count($rows);
 
@@ -380,27 +431,50 @@ class OrdenCompraFormatoController extends Controller
                 'item_unidad_medida' => '',
                 'cantidad' => '',
                 'item_cantidad' => '',
-                'precio_unitario' => '',
-                'item_precio_unitario' => '',
-                'precio_total' => '',
-                'item_precio_total' => '',
+                'marca_prov1' => '',
+                'precio_unitario_prov1' => '',
+                'precio_total_prov1' => '',
+                'marca_prov2' => '',
+                'precio_unitario_prov2' => '',
+                'precio_total_prov2' => '',
+                'marca_prov3' => '',
+                'precio_unitario_prov3' => '',
+                'precio_total_prov3' => '',
             ];
         }
 
-        return [
+        $cantidad = (float) ($item->cantidad ?? 0);
+        $byOption = [];
+
+        foreach ($item->opciones as $opcion) {
+            $idx = (int) ($opcion->opcion_numero ?? 0);
+            if ($idx >= 1 && $idx <= 3) {
+                $byOption[$idx] = $opcion;
+            }
+        }
+
+        $tokenValues = [
             'item' => (string) ($item->item ?? $fallbackIndex),
             'item_n' => (string) ($item->item ?? $fallbackIndex),
             'descripcion' => (string) ($item->descripcion ?? ''),
             'item_descripcion' => (string) ($item->descripcion ?? ''),
             'unidad_medida' => (string) ($item->unidad_medida ?? 'UND'),
             'item_unidad_medida' => (string) ($item->unidad_medida ?? 'UND'),
-            'cantidad' => (float) ($item->cantidad ?? 0),
-            'item_cantidad' => (float) ($item->cantidad ?? 0),
-            'precio_unitario' => (float) ($item->precio_unitario ?? 0),
-            'item_precio_unitario' => (float) ($item->precio_unitario ?? 0),
-            'precio_total' => (float) ($item->precio_total ?? 0),
-            'item_precio_total' => (float) ($item->precio_total ?? 0),
+            'cantidad' => $cantidad,
+            'item_cantidad' => $cantidad,
         ];
+
+        for ($provider = 1; $provider <= 3; $provider++) {
+            $option = $byOption[$provider] ?? null;
+            $unit = (float) ($option?->precio_unitario ?? 0);
+            $total = (float) ($option?->precio_total ?? ($cantidad * $unit));
+
+            $tokenValues['marca_prov' . $provider] = (string) ($option?->marca ?? '');
+            $tokenValues['precio_unitario_prov' . $provider] = $option ? $unit : '';
+            $tokenValues['precio_total_prov' . $provider] = $option ? $total : '';
+        }
+
+        return $tokenValues;
     }
 
     private function replaceGlobalTokens(Worksheet $sheet, array $tokens): void
@@ -523,38 +597,26 @@ class OrdenCompraFormatoController extends Controller
         return (bool) preg_match($pattern, $value);
     }
 
+    private function checkboxLeading(string $label, bool $checked): string
+    {
+        return ($checked ? '■ ' : '□ ') . $label;
+    }
+
+    private function checkboxTrailing(string $label, bool $checked): string
+    {
+        return $label . ' ' . ($checked ? '■' : '□');
+    }
+
     private function normalizeSheetForPdf(Worksheet $sheet): void
     {
         $pageSetup = $sheet->getPageSetup();
         $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . self::PDF_PRINT_AREA_END);
-
-        $pageMargins = $sheet->getPageMargins();
-        $pageMargins->setTop(0.5);
-        $pageMargins->setBottom(0.5);
-        $pageMargins->setLeft(0.5);
-        $pageMargins->setRight(0.5);
-
-        $pageSetup->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
+        $pageSetup->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
         $pageSetup->setFitToPage(true);
         $pageSetup->setFitToWidth(1);
         $pageSetup->setFitToHeight(1);
         $pageSetup->setHorizontalCentered(true);
-        $pageSetup->setVerticalCentered(true);
-    }
-
-    private function numberToWordsEs(float $number): string
-    {
-        $integerPart = (int) floor($number);
-        $decimalPart = (int) round(($number - $integerPart) * 100);
-
-        if (class_exists(NumberFormatter::class)) {
-            $formatter = new NumberFormatter('es_VE', NumberFormatter::SPELLOUT);
-            $words = (string) $formatter->format($integerPart);
-        } else {
-            $words = number_format((float) $integerPart, 0, ',', '.');
-        }
-
-        return mb_strtoupper(trim($words) . ' CON ' . str_pad((string) $decimalPart, 2, '0', STR_PAD_LEFT) . '/100');
+        $pageSetup->setVerticalCentered(false);
     }
 }

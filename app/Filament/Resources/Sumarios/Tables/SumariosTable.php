@@ -443,6 +443,13 @@ class SumariosTable
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record) => new HtmlString(self::renderInspectionSummary($record))),
 
+                Action::make('previewPdfSumario')
+                    ->label('Vista PDF Sumario')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->url(fn ($record) => route('sumarios.formato.print', ['sumario' => $record]))
+                    ->visible(fn ($record, $livewire): bool => self::isHistoryTab($livewire))
+                    ->openUrlInNewTab(),
+
                 Action::make('verSolicitudAsociadaHistorial')
                     ->label('Ver solicitud asociada')
                     ->icon(Heroicon::OutlinedClipboardDocumentList)

@@ -6,6 +6,7 @@ use App\Models\Cargo;
 use App\Models\Departamento;
 use App\Models\User;
 use Database\Seeders\ImpresoraSeeder;
+use Database\Seeders\InformacionAgarcorpSeeder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -549,6 +550,7 @@ class DatabaseSeeder extends Seeder
 
         // ===== EJECUTAR SEEDER DE IMPRESORAS =====
         $this->call(ImpresoraSeeder::class);
+        $this->call(InformacionAgarcorpSeeder::class);
 
         // ===== USUARIO TECNICO PRINCIPAL A.I.T =====
         $aitPrimaryRole = Role::where('name', 'A.I.T')->first();
