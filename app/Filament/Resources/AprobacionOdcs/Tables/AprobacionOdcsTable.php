@@ -59,7 +59,8 @@ class AprobacionOdcsTable
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
-                    ->state(fn (): string => 'PENDIENTE APROBACION GERENCIA FINANZAS'),
+                    ->state(fn ($record): string => self::humanReadableWorkflowState($record))
+                    ->color(fn ($record): string => self::colorForWorkflowState($record)),
             ])
             ->recordActions([
                 Action::make('verSolicitudAsociada')
@@ -89,6 +90,7 @@ class AprobacionOdcsTable
                     ->label('Aprobacion de ODC')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
                     ->color('success')
+                    ->visible(fn ($record): bool => (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
                     ->modalHeading(fn ($record): string => 'Resumen ODC | ' . (string) ($record->correlativo_odc ?? ('#' . $record->id)))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar')
@@ -233,6 +235,40 @@ class AprobacionOdcsTable
                     )),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function humanReadableWorkflowState(mixed $record): string
+    {
+        if ((string) ($record->estado ?? '') === 'RECHAZADA' && (string) ($record->rechazo_etapa ?? '') === 'gerencia_finanzas') {
+            return 'RECHAZADA POR GERENCIA FINANZAS';
+        }
+
+        return match ((string) ($record->workflow_post_compra ?? '')) {
+            'PENDIENTE_APROBACION_GERENCIA_FINANZAS' => 'PENDIENTE APROBACION GERENCIA FINANZAS',
+            'PENDIENTE_PAGO_FINANZAS' => 'ENVIADA A PAGOS',
+            'PAGO_REGISTRADO_FINANZAS' => 'PAGO REGISTRADO',
+            'PAGADO_Y_EN_TRANSITO' => 'PAGADA Y EN TRANSITO',
+            'DOCUMENTO_RECEPCION_CARGADO_PROCURA' => 'ENTREGADA A ALMACEN',
+            'EN_TRANSICION_ALMACEN' => 'EN TRANSICION ALMACEN',
+            'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'PENDIENTE ENTRADA FINAL',
+            'FACTURA_ENVIADA_ADMINISTRACION' => 'FACTURA ENVIADA A ADMINISTRACION',
+            'BACKUP_FACTURA_COMPLETADO' => 'FACTURA CARGADA',
+            'CERRADA_CONFORME' => 'CERRADA CONFORME',
+            default => (string) ($record->estado ?? '-'),
+        };
+    }
+
+    private static function colorForWorkflowState(mixed $record): string
+    {
+        if ((string) ($record->estado ?? '') === 'RECHAZADA' && (string) ($record->rechazo_etapa ?? '') === 'gerencia_finanzas') {
+            return 'danger';
+        }
+
+        return match ((string) ($record->workflow_post_compra ?? '')) {
+            'PENDIENTE_APROBACION_GERENCIA_FINANZAS' => 'warning',
+            'PENDIENTE_PAGO_FINANZAS', 'PAGO_REGISTRADO_FINANZAS', 'PAGADO_Y_EN_TRANSITO' => 'success',
+            default => 'gray',
+        };
     }
 
     private static function getSolicitudViewSchema(): array

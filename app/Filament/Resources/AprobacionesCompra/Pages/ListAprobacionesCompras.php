@@ -22,6 +22,7 @@ class ListAprobacionesCompras extends ListRecords
     public function getTabs(): array
     {
         $user = auth()->user();
+        $pendingCount = AprobacionesCompraResource::countPendingApprovalNotifications($user);
 
         $reviewTabLabel = $user?->hasRole(SolicitudCompraFlow::APPROVER_ROLES)
             ? 'Bandeja de aprobaciones'
@@ -29,6 +30,7 @@ class ListAprobacionesCompras extends ListRecords
 
         $tabs = [
             'bandeja_revision' => Tab::make($reviewTabLabel)
+                ->badge($pendingCount > 0 ? (string) $pendingCount : null)
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::pendingAreaInboxQuery($query, $user)),
         ];
 

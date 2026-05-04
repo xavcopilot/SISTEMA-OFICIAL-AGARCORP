@@ -17,7 +17,7 @@ class ListDailyWithdrawals extends ListRecords
     {
         return [
             'pendientes' => Tab::make('Pendientes')
-                ->badge((string) DailyWithdrawal::query()->pending()->count())
+                ->badge(($pendingCount = DailyWithdrawal::query()->pending()->count()) > 0 ? (string) $pendingCount : null)
                 ->modifyQueryUsing(fn ($query) => $query->where('status', 'pendiente')),
 
             'historial' => Tab::make('Historial')

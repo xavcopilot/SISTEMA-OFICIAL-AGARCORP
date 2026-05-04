@@ -168,7 +168,7 @@ Alias equivalentes (mismo resultado):
 - `firma_elaborado`: Inserta la firma PNG del usuario que elaboró.
 - `elaborado_por_nombre`: Nombre de la persona que elaboró la orden.
 - `elaborado_por_cargo`: Cargo de la persona que elaboró la orden.
-- `firma_aprobado`: Inserta la firma PNG del usuario que aprobó.
+- `firma_aprobado`: Inserta la firma PNG del usuario que aprobó de Gerencia Finanzas.
 - `aprobado_por_nombre`: Nombre de la persona que aprobó la orden.
 - `aprobado_por_cargo`: Cargo de la persona que aprobó la orden.
 
@@ -499,8 +499,8 @@ Formatos soportados de token:
 - `prioridad_mejor_precio` (ejemplo generado: `MEJOR PRECIO ■`)
 - `prioridad_mejor_servicio` (ejemplo generado: `MEJOR SERVICIO/CALIDAD □`)
 - `firma_elaborado` (inserta la firma PNG del elaborador)
-- `firma_aprobado` (alias PNG del usuario revisor)
-- `firma_revisado` (inserta la firma PNG del revisor)
+- `firma_aprobado` (inserta la firma PNG de Gerencia de Finanzas)
+- `firma_revisado` (inserta la firma PNG del Validador de Finanzas)
 - `elaborado_por_nombre`
 - `elaborado_por_cargo`
 - `elaborado_fecha` (formato `d/m/Y`)

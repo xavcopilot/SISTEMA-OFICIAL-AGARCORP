@@ -6,7 +6,9 @@ use App\Filament\Resources\OrdenesCompra\Pages;
 use App\Filament\Resources\OrdenesCompra\Schemas\OrdenCompraForm;
 use App\Filament\Resources\OrdenesCompra\Tables\OrdenesCompraTable;
 use App\Models\OrdenCompra;
+use App\Models\Sumario;
 use BackedEnum;
+use App\Support\SumarioFinanceApprovalService;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -92,28 +94,77 @@ class OrdenCompraResource extends Resource
             return null;
         }
 
-        $count = static::getEloquentQuery()
-            ->where(function (Builder $query): Builder {
-                return $query
-                    ->whereIn('workflow_post_compra', [
-                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
-                        'PENDIENTE_PAGO_FINANZAS',
-                        'PAGO_REGISTRADO_FINANZAS',
-                        'PAGADO_Y_EN_TRANSITO',
-                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
-                        'EN_TRANSICION_ALMACEN',
-                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
-                        'FACTURA_ENVIADA_ADMINISTRACION',
-                    ])
-                    ->orWhere(function (Builder $rejectedQuery): Builder {
-                        return $rejectedQuery
-                            ->where('estado', 'RECHAZADA')
-                            ->where('rechazo_etapa', 'gerencia_finanzas');
-                    });
-            })
-            ->count();
+        $count = static::countCreationNotifications()
+            + static::countCorrectionNotifications()
+            + static::countPaymentNotifications();
 
         return $count > 0 ? (string) $count : null;
+    }
+
+    public static function countCreationNotifications(): int
+    {
+        if (! self::hasReadAccess()) {
+            return 0;
+        }
+
+        $sumarios = Sumario::query()
+            ->with(['ordenesCompra', 'items.opciones', 'items.solicitudCompraItem.solicitudCompra'])
+            ->where('workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
+            ->orderByDesc('id')
+            ->get();
+
+        if ($sumarios->isEmpty()) {
+            return 0;
+        }
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        return (int) $sumarios
+            ->filter(function (Sumario $sumario) use ($service): bool {
+                $groups = $service->pendingProviderGroups($sumario)
+                    ->filter(function (array $group) use ($sumario): bool {
+                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
+
+                        if (filled($group['provider_id'])) {
+                            $query->where('proveedor_id', (int) $group['provider_id']);
+                        }
+
+                        $query->where(function ($workflowQuery): void {
+                            $workflowQuery
+                                ->whereNull('workflow_post_compra')
+                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+                        });
+
+                        return ! $query->exists();
+                    })
+                    ->values();
+
+                return $groups->isNotEmpty();
+            })
+            ->count();
+    }
+
+    public static function countCorrectionNotifications(): int
+    {
+        if (! self::hasReadAccess()) {
+            return 0;
+        }
+
+        return (int) static::getEloquentQuery()
+            ->where('estado', 'RECHAZADA')
+            ->where('rechazo_etapa', 'gerencia_finanzas')
+            ->count();
+    }
+
+    public static function countPaymentNotifications(): int
+    {
+        if (! self::hasReadAccess()) {
+            return 0;
+        }
+
+        return (int) static::getEloquentQuery()
+            ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')
+            ->count();
     }
 
     public static function getNavigationBadgeColor(): ?string

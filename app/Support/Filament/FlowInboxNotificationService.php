@@ -32,7 +32,7 @@ class FlowInboxNotificationService
             [
                 'resource' => SolicitudCompraResource::class,
                 'module' => 'Solicitudes',
-                'description' => 'Solicitudes con pendientes de firma, revision o correccion.',
+                'description' => 'Seguimiento del progreso de tus solicitudes cuando cambian de estado dentro del flujo.',
             ],
             [
                 'resource' => AprobacionesCompraResource::class,

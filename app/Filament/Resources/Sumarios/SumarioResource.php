@@ -6,6 +6,7 @@ use App\Filament\Resources\Sumarios\Pages;
 use App\Filament\Resources\Sumarios\Schemas\SumarioForm;
 use App\Filament\Resources\Sumarios\Tables\SumariosTable;
 use App\Models\Sumario;
+use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -72,36 +73,40 @@ class SumarioResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $user = auth()->user();
-
-        if (! $user || ! self::hasReadAccess()) {
-            return null;
-        }
-
-        $query = static::getModel()::query();
-
-        if ($user->can('ApprovePayment:Sumario')) {
-            $query->where('workflow_estado', 'VALIDADO_FINANZAS');
-        } elseif ($user->can('ValidateFinance:Sumario') && ! $user->can('ApprovePayment:Sumario')) {
-            $query->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS');
-        } elseif ($user->can('GenerateOdcs:Sumario')) {
-            $query->whereIn('workflow_estado', [
-                'APROBADO_GERENCIA_FINANZAS',
-                'RECHAZADO_GERENCIA_FINANZAS',
-            ]);
-        } elseif ($user->can('Create:Sumario') || $user->can('Update:Sumario')) {
-            $query->whereIn('workflow_estado', [
-                'BORRADOR',
-                'RECHAZADO_VALIDACION_FINANZAS',
-                'RECHAZADO_GERENCIA_FINANZAS',
-            ]);
-        } else {
-            return null;
-        }
-
-        $count = (int) $query->count();
+        $count = static::countCreationNotifications() + static::countCorrectionNotifications();
 
         return $count > 0 ? (string) $count : null;
+    }
+
+    public static function countCreationNotifications(?User $user = null): int
+    {
+        $user ??= auth()->user();
+
+        if (! $user || ! static::canAccess() || ! self::hasReadAccess()) {
+            return 0;
+        }
+
+        return (int) static::getModel()::query()
+            ->where('workflow_estado', 'BORRADOR')
+            ->whereHas('solicitudCompra.items', fn (Builder $itemsQuery): Builder => $itemsQuery
+                ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)'))
+            ->count();
+    }
+
+    public static function countCorrectionNotifications(?User $user = null): int
+    {
+        $user ??= auth()->user();
+
+        if (! $user || ! static::canAccess() || ! self::hasReadAccess()) {
+            return 0;
+        }
+
+        return (int) static::getModel()::query()
+            ->whereIn('workflow_estado', [
+                'RECHAZADO_VALIDACION_FINANZAS',
+                'RECHAZADO_GERENCIA_FINANZAS',
+            ])
+            ->count();
     }
 
     public static function getNavigationBadgeColor(): ?string

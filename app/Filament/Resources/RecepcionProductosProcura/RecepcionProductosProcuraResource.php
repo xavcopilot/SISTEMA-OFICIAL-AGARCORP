@@ -79,7 +79,9 @@ class RecepcionProductosProcuraResource extends Resource
             return null;
         }
 
-        $count = static::getEloquentQuery()->count();
+        $count = static::getEloquentQuery()
+            ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
+            ->count();
 
         return $count > 0 ? (string) $count : null;
     }

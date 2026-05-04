@@ -15,6 +15,7 @@ class ListFacturasCompras extends ListRecords
     {
         return [
             'por_enviar' => Tab::make('Facturas por enviar')
+                ->badge(FacturasCompraResource::getNavigationBadge())
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereNull('factura_enviada_administracion_at')),
             'enviadas' => Tab::make('Facturas enviadas')

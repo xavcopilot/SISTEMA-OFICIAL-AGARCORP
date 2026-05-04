@@ -62,6 +62,7 @@ class OrdenCompraFormatoController extends Controller
             'sumario.solicitudCompra',
             'sumario.elaboradoPor.cargo',
             'sumario.revisadoPor.cargo',
+            'sumario.decisionGerenciaPor.cargo',
         ]);
 
         $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
@@ -161,7 +162,7 @@ class OrdenCompraFormatoController extends Controller
         $sumario = $ordenCompra->sumario;
         $informacionImpresa = InformacionAgarcorp::current();
         $elaboradoPor = $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor;
-        $aprobadoPor = $ordenCompra->aprobadoPor ?: $sumario?->revisadoPor;
+        $aprobadoPor = $ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor;
 
         $elaboradoFecha = (string) ($ordenCompra->elaborado_firmado_at
             ? 'Registrada el ' . $ordenCompra->elaborado_firmado_at->format('d/m/Y H:i')
@@ -222,7 +223,7 @@ class OrdenCompraFormatoController extends Controller
         $sumario = $ordenCompra->sumario;
         $signaturePaths = [
             'firma_elaborado' => $this->resolveSignatureImagePath($ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor),
-            'firma_aprobado' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->revisadoPor),
+            'firma_aprobado' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor),
         ];
 
         $highestRow = $sheet->getHighestRow();

@@ -6,6 +6,7 @@ use App\Filament\Resources\AprobacionesCompra\Pages;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
 use App\Filament\Resources\SolicitudesCompra\Tables\SolicitudesCompraTable;
 use App\Models\SolicitudCompra;
+use App\Models\User;
 use App\Support\SolicitudCompraFlow;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -88,15 +89,20 @@ class AprobacionesCompraResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $user = auth()->user();
-
-        if (! $user || ! SolicitudCompraFlow::isReviewer($user)) {
-            return null;
-        }
-
-        $count = SolicitudCompraFlow::pendingAreaInboxQuery(static::getModel()::query(), $user)->count();
+        $count = static::countPendingApprovalNotifications();
 
         return $count > 0 ? (string) $count : null;
+    }
+
+    public static function countPendingApprovalNotifications(?User $user = null): int
+    {
+        $user ??= auth()->user();
+
+        if (! $user || ! SolicitudCompraFlow::isReviewer($user)) {
+            return 0;
+        }
+
+        return (int) SolicitudCompraFlow::pendingAreaInboxQuery(static::getModel()::query(), $user)->count();
     }
 
     public static function getNavigationBadgeColor(): ?string

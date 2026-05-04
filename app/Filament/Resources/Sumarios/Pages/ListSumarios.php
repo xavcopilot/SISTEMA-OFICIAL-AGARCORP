@@ -28,13 +28,18 @@ class ListSumarios extends ListRecords
 
     public function getTabs(): array
     {
+        $creationCount = SumarioResource::countCreationNotifications();
+        $correctionCount = SumarioResource::countCorrectionNotifications();
+
         return [
             'creacion_sumarios' => Tab::make('Creación de Sumarios')
+                ->badge($creationCount > 0 ? (string) $creationCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_estado', 'BORRADOR')
                     ->whereHas('solicitudCompra.items', fn (Builder $itemsQuery): Builder => $itemsQuery
                         ->whereRaw('COALESCE(cantidad_pedida, COALESCE(cantidad_a_comprar, cantidad_solicitada)) > COALESCE(cantidad_en_sumario, 0)'))),
             'en_correccion' => Tab::make('Sumarios en correccion')
+                ->badge($correctionCount > 0 ? (string) $correctionCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereIn('workflow_estado', [
                         'PENDIENTE_VALIDACION_FINANZAS',

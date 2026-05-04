@@ -6,6 +6,7 @@ use App\Filament\Resources\SolicitudesCompra\Pages;
 use App\Filament\Resources\SolicitudesCompra\Schemas\SolicitudCompraForm;
 use App\Filament\Resources\SolicitudesCompra\Tables\SolicitudesCompraTable;
 use App\Models\SolicitudCompra;
+use App\Models\User;
 use App\Support\SolicitudCompraFlow;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -68,15 +69,20 @@ class SolicitudCompraResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $user = auth()->user();
+        $count = static::countRequesterNotifications();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function countRequesterNotifications(?User $user = null): int
+    {
+        $user ??= auth()->user();
 
         if (! $user || ! static::canAccess()) {
-            return null;
+            return 0;
         }
 
-        // Para el solicitante, el badge del centro de notificaciones no debe dispararse
-        // al crear/borrador; solo cuando la solicitud ya avanzo a un nuevo estado del flujo.
-        $count = static::getModel()::query()
+        return (int) static::getModel()::query()
             ->where('solicitado_por_user_id', $user->id)
             ->whereNotIn('estado', [
                 SolicitudCompra::ESTADO_BORRADOR,
@@ -84,8 +90,6 @@ class SolicitudCompraResource extends Resource
             ])
             ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
             ->count();
-
-        return $count > 0 ? (string) $count : null;
     }
 
     public static function getNavigationBadgeColor(): ?string

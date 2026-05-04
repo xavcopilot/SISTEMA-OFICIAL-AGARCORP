@@ -15,6 +15,7 @@ class ListAdministracionFacturas extends ListRecords
     {
         return [
             'recibidas' => Tab::make('Facturas recibidas')
+                ->badge(AdministracionFacturasResource::getNavigationBadge())
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereNull('factura_procesada_administracion_at')),
             'cargadas' => Tab::make('Facturas cargadas')

@@ -15,9 +15,11 @@ class ListSolicitudCompras extends ListRecords
     public function getTabs(): array
     {
         $user = auth()->user();
+        $misSolicitudesCount = SolicitudCompraResource::countRequesterNotifications($user);
 
         return [
             'mis_solicitudes' => Tab::make('Mis solicitudes')
+                ->badge($misSolicitudesCount > 0 ? (string) $misSolicitudesCount : null)
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterRequestsQuery($query, $user)),
             'historial_conformidades' => Tab::make('Historial de Conformidades')
                 ->modifyQueryUsing(fn ($query) => SolicitudCompraFlow::requesterConformidadHistoryQuery($query, $user)),

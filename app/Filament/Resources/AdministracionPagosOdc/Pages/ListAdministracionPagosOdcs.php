@@ -15,6 +15,7 @@ class ListAdministracionPagosOdcs extends ListRecords
     {
         return [
             'pagos_pendientes' => Tab::make('Pagos Pendientes')
+                ->badge(AdministracionPagosOdcResource::getNavigationBadge())
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')),
             'pagos_registrados' => Tab::make('Pagos Registrados')

@@ -24,7 +24,7 @@ class ListOrdenesCompra extends ListRecords
 
         return [
             'creacion_odc' => Tab::make('Creacion de ODC')
-                ->badge((string) count($pendingSumarioIds))
+                ->badge(($creationCount = count($pendingSumarioIds)) > 0 ? (string) $creationCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->from('sumarios as ordenes_compra')
                     ->leftJoin('solicitud_compras', 'solicitud_compras.id', '=', 'ordenes_compra.solicitud_compra_id')
@@ -46,7 +46,7 @@ class ListOrdenesCompra extends ListRecords
                         DB::raw('1 as is_sumario_pending_odc_row'),
                     ])),
             'odc_en_correcciones' => Tab::make('ODC en correcciones')
-                ->badge((string) $this->odcEnCorreccionesCount())
+                ->badge(($correctionsCount = $this->odcEnCorreccionesCount()) > 0 ? (string) $correctionsCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where(function (Builder $correccionesQuery): Builder {
                         return $correccionesQuery
@@ -58,6 +58,7 @@ class ListOrdenesCompra extends ListRecords
                             });
                     })),
             'pagos_odc' => Tab::make('Pagos de ODC')
+                ->badge(($pagosCount = $this->pagosOdcCount()) > 0 ? (string) $pagosCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')),
             'historial_odc' => Tab::make('Historial de ODC')
@@ -106,6 +107,10 @@ class ListOrdenesCompra extends ListRecords
     {
         parent::mount();
 
+        if (blank($this->activeTab)) {
+            $this->activeTab = 'creacion_odc';
+        }
+
         if (session()->has('status')) {
             Notification::make()
                 ->title((string) session('status'))
@@ -120,6 +125,13 @@ class ListOrdenesCompra extends ListRecords
                 ->danger()
                 ->send();
         }
+    }
+
+    public function updatedActiveTab(): void
+    {
+        $this->resetTable();
+        $this->cachedDefaultTableColumnState = null;
+        $this->applyTableColumnManager();
     }
 
     protected function getTablePollingInterval(): ?string
@@ -255,15 +267,15 @@ class ListOrdenesCompra extends ListRecords
     private function odcEnCorreccionesCount(): int
     {
         return OrdenCompra::query()
-            ->where(function (Builder $query): Builder {
-                return $query
-                    ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
-                    ->orWhere(function (Builder $rechazadasQuery): Builder {
-                        return $rechazadasQuery
-                            ->where('estado', 'RECHAZADA')
-                            ->where('rechazo_etapa', 'gerencia_finanzas');
-                    });
-            })
+            ->where('estado', 'RECHAZADA')
+            ->where('rechazo_etapa', 'gerencia_finanzas')
+            ->count();
+    }
+
+    private function pagosOdcCount(): int
+    {
+        return OrdenCompra::query()
+            ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')
             ->count();
     }
 
@@ -354,10 +366,10 @@ class ListOrdenesCompra extends ListRecords
     private function resolveActiveTab(): string
     {
         if (method_exists($this, 'getActiveTab')) {
-            return (string) $this->getActiveTab();
+            return (string) ($this->getActiveTab() ?: 'creacion_odc');
         }
 
-        return (string) ($this->activeTab ?? '');
+        return (string) ($this->activeTab ?: 'creacion_odc');
     }
 
     private function renderConformidadesUsuariosHtml(): string

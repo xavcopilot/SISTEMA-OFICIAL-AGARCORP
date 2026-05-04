@@ -60,6 +60,8 @@ class SumarioFormatoController extends Controller
             'solicitudCompra',
             'elaboradoPor.cargo',
             'revisadoPor.cargo',
+            'validadoPor',
+            'decisionGerenciaPor',
             'items.opciones.proveedor',
         ]);
 
@@ -258,8 +260,8 @@ class SumarioFormatoController extends Controller
     {
         $signaturePaths = [
             'firma_elaborado' => $this->resolveSignatureImagePath($sumario->elaboradoPor),
-            'firma_aprobado' => $this->resolveSignatureImagePath($sumario->revisadoPor),
-            'firma_revisado' => $this->resolveSignatureImagePath($sumario->revisadoPor),
+            'firma_aprobado' => $this->resolveSignatureImagePath($sumario->decisionGerenciaPor),
+            'firma_revisado' => $this->resolveSignatureImagePath($sumario->validadoPor),
         ];
 
         $highestRow = $sheet->getHighestRow();
