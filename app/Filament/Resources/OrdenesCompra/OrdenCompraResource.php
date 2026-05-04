@@ -143,6 +143,14 @@ class OrdenCompraResource extends Resource
             return false;
         }
 
+        if ($user->hasRole('Procura')
+            && in_array((string) ($record->workflow_post_compra ?? ''), [
+                'PAGO_REGISTRADO_FINANZAS',
+                'PAGADO_Y_EN_TRANSITO',
+            ], true)) {
+            return true;
+        }
+
         return $user->can('GenerateOdcs:Sumario')
             && in_array((string) ($record->workflow_post_compra ?? ''), [
                 'BORRADOR_ODC',

@@ -122,6 +122,11 @@ class ListOrdenesCompra extends ListRecords
         }
     }
 
+    protected function getTablePollingInterval(): ?string
+    {
+        return $this->resolveActiveTab() === 'odc_en_correcciones' ? '2s' : null;
+    }
+
     private function renderPendingSumariosHtml(): string
     {
         $sumarios = Sumario::query()
@@ -385,6 +390,7 @@ class ListOrdenesCompra extends ListRecords
             }
 
             $groupedRows[$department][] = [
+                'id' => (string) $orden->getKey(),
                 'odc' => (string) ($orden->correlativo_odc ?: ('#' . $orden->id)),
                 'solicitud' => $solicitud,
                 'workflow' => (string) ($orden->workflow_post_compra ?: '-'),
@@ -392,7 +398,6 @@ class ListOrdenesCompra extends ListRecords
                 'rejected' => $rejected,
                 'pending' => $pending,
                 'total' => $total,
-                'url' => OrdenCompraResource::getUrl('edit', ['record' => $orden]),
             ];
         }
 
@@ -417,6 +422,11 @@ class ListOrdenesCompra extends ListRecords
                 . '</tr></thead><tbody>';
 
             foreach ($rows as $row) {
+                $openOdcButton = sprintf(
+                    '<button type="button" wire:click="mountTableAction(\'verResumenOdc\', \'%s\')" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;cursor:pointer;">Abrir ODC</button>',
+                    e((string) $row['id'])
+                );
+
                 $html .= '<tr>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['odc']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['solicitud']) . '</td>'
@@ -426,7 +436,7 @@ class ListOrdenesCompra extends ListRecords
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['pending']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['total']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">'
-                    . '<a href="' . e((string) $row['url']) . '" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;">Abrir ODC</a>'
+                        . $openOdcButton
                     . '</td>'
                     . '</tr>';
             }

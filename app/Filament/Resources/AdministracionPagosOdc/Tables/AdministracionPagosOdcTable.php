@@ -5,12 +5,14 @@ namespace App\Filament\Resources\AdministracionPagosOdc\Tables;
 use App\Models\OrdenCompraComprobante;
 use App\Models\User;
 use App\Support\Filament\DatabaseNotificationSender;
+use App\Support\OdcModalSummaryRenderer;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
 
 class AdministracionPagosOdcTable
 {
@@ -51,6 +53,16 @@ class AdministracionPagosOdcTable
                         : 'PENDIENTE PAGO FINANZAS')),
             ])
             ->recordActions([
+                Action::make('verResumenOdc')
+                    ->label('Ver resumen ODC')
+                    ->icon(Heroicon::OutlinedClipboardDocumentList)
+                    ->color('gray')
+                    ->modalHeading(fn ($record): string => 'Resumen ODC | ' . (string) ($record->correlativo_odc ?? ('#' . $record->id)))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record))),
+
                 Action::make('registrarPago')
                     ->label('Subir imagen y marcar pagado')
                     ->icon(Heroicon::OutlinedArrowUpTray)

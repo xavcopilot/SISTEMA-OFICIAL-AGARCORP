@@ -31,12 +31,6 @@ class AdministracionPagosOdcResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        $user = auth()->user();
-
-        if ($user && $user->hasRole('Gerencia de Finanzas')) {
-            return 'Administracion de Pagos ODC';
-        }
-
         return 'Realizacion de Pagos ODC';
     }
 
@@ -75,10 +69,7 @@ class AdministracionPagosOdcResource extends Resource
             return false;
         }
 
-        // Gerencia de Finanzas ve "Administracion de Pagos ODC"
-        // Finanzas Pagos ve "Realizacion de Pagos ODC"
-        return $user->hasRole('Gerencia de Finanzas')
-            || $user->hasRole('Finanzas Pagos');
+        return $user->hasRole('Finanzas Pagos');
     }
 
     public static function shouldRegisterNavigation(): bool

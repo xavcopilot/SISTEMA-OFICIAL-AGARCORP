@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sumarios\Schemas;
 
+use App\Models\Proveedor;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
 use App\Models\User;
@@ -332,12 +333,75 @@ class SumarioForm
                                     ->content(new HtmlString('<div class="sdc-label-box">PROVEEDOR 3</div>'))
                                     ->columnSpan(4),
 
+                                Select::make('proveedor_a_catalogo_id')
+                                    ->hiddenLabel()
+                                    ->placeholder('Buscar proveedor 1')
+                                    ->options(fn (): array => self::providerCatalogOptions())
+                                    ->searchable()
+                                    ->preload()
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                        if (filled($state)) {
+                                            return;
+                                        }
+
+                                        $set('proveedor_a_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_a_nombre') ?? '')));
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_a_nombre', $set);
+                                    })
+                                    ->columnSpan(4),
+
+                                Select::make('proveedor_b_catalogo_id')
+                                    ->hiddenLabel()
+                                    ->placeholder('Buscar proveedor 2')
+                                    ->options(fn (): array => self::providerCatalogOptions())
+                                    ->searchable()
+                                    ->preload()
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                        if (filled($state)) {
+                                            return;
+                                        }
+
+                                        $set('proveedor_b_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_b_nombre') ?? '')));
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_b_nombre', $set);
+                                    })
+                                    ->columnSpan(4),
+
+                                Select::make('proveedor_c_catalogo_id')
+                                    ->hiddenLabel()
+                                    ->placeholder('Buscar proveedor 3')
+                                    ->options(fn (): array => self::providerCatalogOptions())
+                                    ->searchable()
+                                    ->preload()
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                        if (filled($state)) {
+                                            return;
+                                        }
+
+                                        $set('proveedor_c_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_c_nombre') ?? '')));
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_c_nombre', $set);
+                                    })
+                                    ->columnSpan(4),
+
                                 TextInput::make('proveedor_a_nombre')
                                     ->hiddenLabel()
                                     ->placeholder('Nombre proveedor 1')
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_a_catalogo_id', $set);
+                                    })
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_b_nombre')
@@ -346,6 +410,9 @@ class SumarioForm
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_b_catalogo_id', $set);
+                                    })
                                     ->columnSpan(4),
 
                                 TextInput::make('proveedor_c_nombre')
@@ -354,6 +421,9 @@ class SumarioForm
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_c_catalogo_id', $set);
+                                    })
                                     ->columnSpan(4),
                             ]),
                     ])
@@ -872,7 +942,7 @@ class SumarioForm
     public static function financeReviewerOptions(): array
     {
         return User::query()
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Validador Finanzas', 'Gerencia de Finanzas']))
+            ->whereHas('roles', fn ($query) => $query->where('name', 'Validador Finanzas'))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->mapWithKeys(fn (User $user): array => [$user->id => $user->name])
@@ -1108,6 +1178,49 @@ class SumarioForm
         $set('total_compra_prov1', round($totalProv1, 2));
         $set('total_compra_prov2', round($totalProv2, 2));
         $set('total_compra_prov3', round($totalProv3, 2));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function providerCatalogOptions(): array
+    {
+        return Proveedor::query()
+            ->orderBy('nombre')
+            ->pluck('nombre', 'id')
+            ->map(fn ($name): string => trim((string) $name))
+            ->all();
+    }
+
+    private static function resolveProviderIdByName(string $name): ?int
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Proveedor::query()
+            ->whereRaw('LOWER(nombre) = ?', [mb_strtolower($name)])
+            ->value('id');
+    }
+
+    private static function syncProviderNameFromCatalog(int $providerId, string $targetNameField, callable $set): void
+    {
+        if ($providerId <= 0) {
+            return;
+        }
+
+        $name = (string) (Proveedor::query()->whereKey($providerId)->value('nombre') ?? '');
+
+        if (trim($name) !== '') {
+            $set($targetNameField, $name);
+        }
+    }
+
+    private static function syncProviderCatalogFromName(string $name, string $targetCatalogField, callable $set): void
+    {
+        $set($targetCatalogField, self::resolveProviderIdByName($name));
     }
 
     /**

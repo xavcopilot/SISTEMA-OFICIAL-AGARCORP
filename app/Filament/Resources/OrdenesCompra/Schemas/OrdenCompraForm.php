@@ -96,6 +96,17 @@ class OrdenCompraForm
                                     ->default(true)
                                     ->live()
                                     ->dehydrated(false)
+                                    ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                        $hasProviderId = (int) ($get('proveedor_id') ?? 0) > 0;
+                                        $set('es_proveedor_registrado', $hasProviderId);
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        if ((bool) $state) {
+                                            return;
+                                        }
+
+                                        $set('proveedor_id', null);
+                                    })
                                     ->columnSpanFull(),
 
                                 Select::make('proveedor_id')
@@ -120,9 +131,11 @@ class OrdenCompraForm
                                         return (int) $provider->id;
                                     })
                                     ->afterStateHydrated(function ($state, callable $set): void {
+                                        $set('es_proveedor_registrado', (int) ($state ?? 0) > 0);
                                         self::hydrateProviderFields((int) ($state ?? 0), $set);
                                     })
                                     ->afterStateUpdated(function ($state, callable $set): void {
+                                        $set('es_proveedor_registrado', (int) ($state ?? 0) > 0);
                                         self::hydrateProviderFields((int) ($state ?? 0), $set);
                                     })
                                     ->columnSpan(8),
@@ -132,6 +145,14 @@ class OrdenCompraForm
                                     ->maxLength(255)
                                     ->visible(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
                                     ->live()
+                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                        if (trim((string) ($state ?? '')) === '') {
+                                            return;
+                                        }
+
+                                        $set('es_proveedor_registrado', false);
+                                        $set('proveedor_id', null);
+                                    })
                                     ->dehydrated(false)
                                     ->columnSpan(8),
 
@@ -235,41 +256,29 @@ class OrdenCompraForm
                                     ->schema([
                                         TextInput::make('item')
                                             ->label('Codigo')
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(1),
 
                                         TextInput::make('descripcion')
                                             ->label('Descripcion')
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(4),
 
                                         TextInput::make('unidad_medida')
                                             ->label('Unidad MED')
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(2),
 
                                         TextInput::make('cantidad')
                                             ->label('Cantidad')
                                             ->numeric()
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_unitario')
                                             ->label(new HtmlString('<span style="white-space: nowrap;">Valor Unitario</span>'))
                                             ->numeric()
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(2),
 
                                         TextInput::make('precio_total')
                                             ->label('Valor Total')
                                             ->numeric()
-                                            ->disabled()
-                                            ->dehydrated(false)
                                             ->columnSpan(3),
                                     ]),
                             ])
@@ -299,14 +308,12 @@ class OrdenCompraForm
                                 TextInput::make('sub_total')
                                     ->label('Sub total')
                                     ->numeric()
-                                    ->disabled()
                                     ->dehydrated()
                                     ->columnSpan(2),
 
                                 TextInput::make('iva_16')
                                     ->label('IVA 16%')
                                     ->numeric()
-                                    ->disabled()
                                     ->dehydrated()
                                     ->columnSpan(2),
 
@@ -322,20 +329,15 @@ class OrdenCompraForm
                                 TextInput::make('total_general')
                                     ->label('Total')
                                     ->numeric()
-                                    ->disabled()
                                     ->dehydrated()
                                     ->columnSpan(3),
 
                                 TextInput::make('estado')
                                     ->label('Estado')
-                                    ->disabled()
-                                    ->dehydrated(false)
                                     ->columnSpan(6),
 
                                 TextInput::make('workflow_post_compra')
                                     ->label('Flujo post-compra')
-                                    ->disabled()
-                                    ->dehydrated(false)
                                     ->columnSpan(6),
                             ]),
                     ])

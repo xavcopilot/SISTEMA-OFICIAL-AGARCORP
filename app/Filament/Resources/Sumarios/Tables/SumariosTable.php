@@ -658,6 +658,8 @@ class SumariosTable
             ->color('success')
             ->modalWidth('7xl')
             ->form([
+                Hidden::make('sumario_id'),
+
                 Hidden::make('sumario_encabezado_html')
                     ->dehydrated(false),
 
@@ -725,100 +727,151 @@ class SumariosTable
                         || (string) ($get('error_formato') ?? 'NO') === 'SI'),
             ])
             ->modalSubmitActionLabel('Enviar a Procura')
+            ->extraModalFooterActions(fn (Action $action): array => [
+                Action::make('rechazarSumarioGerencia')
+                    ->label('Rechazar')
+                    ->color('danger')
+                    ->cancelParentActions(false)
+                    ->disabled(function (Action $action): bool {
+                        $rawData = $action->getParentAction()?->getRawData();
+
+                        return ! self::shouldShowGerenciaRejectButton(is_array($rawData) ? $rawData : []);
+                    })
+                    ->action(function (Action $action): void {
+                        $rawData = $action->getParentAction()?->getRawData();
+
+                        self::processGerenciaDecision(
+                            is_array($rawData) ? $rawData : [],
+                            null,
+                            true
+                        );
+                    }),
+            ])
             ->visible(fn ($record, $livewire): bool => ($forApprovalModule || (! self::isCreationTab($livewire) && ! self::isHistoryTab($livewire)))
                 && self::canGerenciaFinanceDecision($record)
                 && in_array((string) ($record->workflow_estado ?? ''), ['VALIDADO_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS'], true))
             ->fillForm(fn ($record): array => [
+                'sumario_id' => (int) $record->id,
                 'sumario_encabezado_html' => self::renderGerenciaHeaderSummary($record),
                 'sumario_pie_html' => self::renderGerenciaFooterSummary($record),
                 'error_formato' => 'NO',
                 'items_revision' => self::buildGerenciaItemRevisionPayload($record),
             ])
             ->action(function (array $data, $record): void {
-                $rows = collect($data['items_revision'] ?? [])
-                    ->filter(fn ($row): bool => is_array($row) && filled($row['sumario_item_id'] ?? null))
-                    ->values();
-
-                if ($rows->isEmpty()) {
-                    Notification::make()
-                        ->title('Sin items para validar')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                $hasRejectedRows = $rows->contains(fn (array $row): bool => (string) ($row['resultado'] ?? '') === 'RECHAZADO');
-                $hasFormatError = (string) ($data['error_formato'] ?? 'NO') === 'SI';
-                $generalComment = trim((string) ($data['comentario_gerencia'] ?? ''));
-
-                if (($hasRejectedRows || $hasFormatError) && $generalComment === '') {
-                    Notification::make()
-                        ->title('Comentario requerido')
-                        ->body('Debes registrar un comentario general cuando marques una X o indiques error de formato.')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                DB::transaction(function () use ($record, $rows, $data, $generalComment, $hasFormatError): void {
-                    $sumario = Sumario::query()->lockForUpdate()->findOrFail($record->id);
-
-                    foreach ($rows as $row) {
-                        SumarioItem::query()
-                            ->where('sumario_id', $sumario->id)
-                            ->whereKey((int) $row['sumario_item_id'])
-                            ->update([
-                                'validacion_gerencia_resultado' => (string) ($row['resultado'] ?? 'CORRECTO'),
-                                'validacion_gerencia_comentario' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
-                                    ? $generalComment
-                                    : null,
-                                'sub_estado' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
-                                    ? 'RECHAZADO_GERENCIA'
-                                    : 'PENDIENTE_OC',
-                            ]);
-                    }
-
-                    $correctCount = $rows->where('resultado', 'CORRECTO')->count();
-                    $rejectedCount = $rows->where('resultado', 'RECHAZADO')->count();
-
-                    if ($hasFormatError) {
-                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
-                        $resultado = 'RECHAZADO';
-                    } elseif ($correctCount === 0) {
-                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
-                        $resultado = 'RECHAZADO';
-                    } elseif ($rejectedCount > 0) {
-                        $workflow = 'RECHAZADO_GERENCIA_FINANZAS';
-                        $resultado = 'RECHAZADO';
-                    } else {
-                        $workflow = 'APROBADO_GERENCIA_FINANZAS';
-                        $resultado = 'APROBADO';
-                    }
-
-                    $sumario->forceFill([
-                        'workflow_estado' => $workflow,
-                        'decision_gerencia_finanzas_at' => now(),
-                        'decision_gerencia_por_user_id' => auth()->id(),
-                        'decision_gerencia_resultado' => $resultado,
-                        'decision_gerencia_comentario' => trim((string) ($data['comentario_gerencia'] ?? '')),
-                    ])->save();
-                });
-
-                Notification::make()
-                    ->title('Validacion de Gerencia registrada')
-                    ->body('La revision por item fue guardada y el sumario regreso a Procura para generar ODC solo con items Correctos.')
-                    ->success()
-                    ->send();
-
-                ActivityNotification::record(
-                    auth()->user(),
-                    'Validacion por item de Gerencia',
-                    'Gerencia de Finanzas valido por item el sumario ' . (string) $record->correlativo_sdc . '.',
-                    'success'
-                );
+                self::processGerenciaDecision($data, $record, false);
             });
+    }
+
+    private static function shouldShowGerenciaRejectButton(array $data): bool
+    {
+        $rows = collect($data['items_revision'] ?? [])
+            ->filter(fn ($row): bool => is_array($row) && filled($row['sumario_item_id'] ?? null))
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return false;
+        }
+
+        $hasRejectedRows = $rows->contains(fn (array $row): bool => (string) ($row['resultado'] ?? '') === 'RECHAZADO');
+        $hasFormatError = (string) ($data['error_formato'] ?? 'NO') === 'SI';
+
+        return $hasRejectedRows || $hasFormatError;
+    }
+
+    private static function processGerenciaDecision(array $data, mixed $record = null, bool $forceReject = false): void
+    {
+        $rows = collect($data['items_revision'] ?? [])
+            ->filter(fn ($row): bool => is_array($row) && filled($row['sumario_item_id'] ?? null))
+            ->values();
+
+        if ($rows->isEmpty()) {
+            Notification::make()
+                ->title('Sin items para validar')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $hasRejectedRows = $rows->contains(fn (array $row): bool => (string) ($row['resultado'] ?? '') === 'RECHAZADO');
+        $hasFormatError = (string) ($data['error_formato'] ?? 'NO') === 'SI';
+        $generalComment = trim((string) ($data['comentario_gerencia'] ?? ''));
+        $mustReject = $forceReject || $hasFormatError || $rows->where('resultado', 'CORRECTO')->count() === 0 || $rows->where('resultado', 'RECHAZADO')->count() > 0;
+
+        if ($forceReject && ! ($hasRejectedRows || $hasFormatError)) {
+            Notification::make()
+                ->title('Accion no disponible')
+                ->body('El boton Rechazar solo se habilita cuando hay items marcados como Incorrectos o error de formato en SI.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        if (($mustReject || $hasRejectedRows || $hasFormatError) && $generalComment === '') {
+            Notification::make()
+                ->title('Comentario requerido')
+                ->body('Debes registrar un comentario general cuando marques una X o indiques error de formato.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $sumarioId = (int) ($record->id ?? ($data['sumario_id'] ?? 0));
+
+        if ($sumarioId <= 0) {
+            Notification::make()
+                ->title('Sumario no encontrado')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $sumario = DB::transaction(function () use ($sumarioId, $rows, $generalComment, $mustReject): Sumario {
+            $sumario = Sumario::query()->lockForUpdate()->findOrFail($sumarioId);
+
+            foreach ($rows as $row) {
+                SumarioItem::query()
+                    ->where('sumario_id', $sumario->id)
+                    ->whereKey((int) $row['sumario_item_id'])
+                    ->update([
+                        'validacion_gerencia_resultado' => (string) ($row['resultado'] ?? 'CORRECTO'),
+                        'validacion_gerencia_comentario' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
+                            ? $generalComment
+                            : null,
+                        'sub_estado' => (string) ($row['resultado'] ?? '') === 'RECHAZADO'
+                            ? 'RECHAZADO_GERENCIA'
+                            : 'PENDIENTE_OC',
+                    ]);
+            }
+
+            $sumario->forceFill([
+                'workflow_estado' => $mustReject ? 'RECHAZADO_GERENCIA_FINANZAS' : 'APROBADO_GERENCIA_FINANZAS',
+                'decision_gerencia_finanzas_at' => now(),
+                'decision_gerencia_por_user_id' => auth()->id(),
+                'decision_gerencia_resultado' => $mustReject ? 'RECHAZADO' : 'APROBADO',
+                'decision_gerencia_comentario' => $generalComment,
+            ])->save();
+
+            return $sumario;
+        });
+
+        Notification::make()
+            ->title($mustReject ? 'Sumario rechazado por Gerencia' : 'Sumario aprobado por Gerencia')
+            ->body($mustReject
+                ? 'La revision fue guardada y el sumario regreso a Procura para correccion.'
+                : 'La revision fue guardada y el sumario quedo aprobado por Gerencia de Finanzas.')
+            ->success()
+            ->send();
+
+        ActivityNotification::record(
+            auth()->user(),
+            $mustReject ? 'Validacion por item de Gerencia (Rechazado)' : 'Validacion por item de Gerencia (Aprobado)',
+            'Gerencia de Finanzas valido por item el sumario ' . (string) $sumario->correlativo_sdc . ' con resultado ' . ($mustReject ? 'RECHAZADO' : 'APROBADO') . '.',
+            $mustReject ? 'warning' : 'success'
+        );
     }
 
     private static function formatSolicitudDateTime(mixed $record): string
@@ -867,9 +920,20 @@ class SumariosTable
             $meta = (float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0);
             $incluida = (float) ($item->cantidad_en_sumario ?? 0);
             $faltante = max(0, $meta - $incluida);
-            $estado = $faltante > 0 ? 'Pendiente' : 'Incluido completo';
-            $estadoColor = $faltante > 0 ? '#92400e' : '#166534';
-            $estadoBg = $faltante > 0 ? '#fef3c7' : '#dcfce7';
+
+            if ($incluida <= 0) {
+                $estado = 'Pendiente';
+                $estadoColor = '#92400e';
+                $estadoBg = '#fef3c7';
+            } elseif ($faltante > 0) {
+                $estado = 'Parcialmente completado';
+                $estadoColor = '#1d4ed8';
+                $estadoBg = '#dbeafe';
+            } else {
+                $estado = 'Completado';
+                $estadoColor = '#166534';
+                $estadoBg = '#dcfce7';
+            }
 
             return '<tr>'
                 . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($item->item ?: $item->id)) . '</td>'
@@ -883,17 +947,26 @@ class SumariosTable
         })->implode('');
 
         $totalItems = $items->count();
-        $completos = $items->filter(function (SolicitudCompraItem $item): bool {
+        $completados = $items->filter(function (SolicitudCompraItem $item): bool {
             $meta = (float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0);
             $incluida = (float) ($item->cantidad_en_sumario ?? 0);
+            $faltante = max(0, $meta - $incluida);
 
-            return $incluida >= $meta;
+            return $incluida > 0 && $faltante <= 0;
         })->count();
-        $pendientes = $totalItems - $completos;
+        $parcialmenteCompletados = $items->filter(function (SolicitudCompraItem $item): bool {
+            $meta = (float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0);
+            $incluida = (float) ($item->cantidad_en_sumario ?? 0);
+            $faltante = max(0, $meta - $incluida);
+
+            return $incluida > 0 && $faltante > 0;
+        })->count();
+        $pendientes = $items->filter(fn (SolicitudCompraItem $item): bool => (float) ($item->cantidad_en_sumario ?? 0) <= 0)->count();
 
         $summary = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">'
             . '<div style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;"><strong>Total items:</strong> ' . $totalItems . '</div>'
-            . '<div style="padding:8px 10px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4;"><strong>Completos:</strong> ' . $completos . '</div>'
+            . '<div style="padding:8px 10px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4;"><strong>Completados:</strong> ' . $completados . '</div>'
+            . '<div style="padding:8px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;"><strong>Parcialmente completados:</strong> ' . $parcialmenteCompletados . '</div>'
             . '<div style="padding:8px 10px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;"><strong>Pendientes:</strong> ' . $pendientes . '</div>'
             . '</div>';
 

@@ -74,10 +74,14 @@ class SolicitudCompraResource extends Resource
             return null;
         }
 
-        // Este recurso muestra solicitudes del propio solicitante (mis solicitudes + borradores),
-        // por eso el badge debe reflejar solo renglones visibles para ese usuario.
+        // Para el solicitante, el badge del centro de notificaciones no debe dispararse
+        // al crear/borrador; solo cuando la solicitud ya avanzo a un nuevo estado del flujo.
         $count = static::getModel()::query()
             ->where('solicitado_por_user_id', $user->id)
+            ->whereNotIn('estado', [
+                SolicitudCompra::ESTADO_BORRADOR,
+                SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN,
+            ])
             ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
             ->count();
 

@@ -45,8 +45,10 @@ class RecepcionProductosProcuraTable
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
-                    ->state('PAGADO Y EN TRANSITO')
-                    ->color('info'),
+                    ->state(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
+                        ? 'EN ESPERA DE FACTURA'
+                        : 'PAGADO Y EN TRANSITO')
+                    ->color(fn ($record): string => (bool) ($record->factura_pendiente ?? false) ? 'warning' : 'info'),
 
                 TextColumn::make('total_general')
                     ->label('Total general')
@@ -63,11 +65,15 @@ class RecepcionProductosProcuraTable
             ])
             ->recordActions([
                 Action::make('marcarEntregadoAlmacen')
-                    ->label('Cargar Nota/Factura y enviar a Almacén')
+                    ->label(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
+                        ? 'Cargar Factura'
+                        : 'Cargar Nota/Factura y enviar a Almacén')
                     ->icon(Heroicon::OutlinedInboxArrowDown)
                     ->color('warning')
                     ->modalHeading('Cargar documento para Almacen')
-                    ->modalDescription('Agregar Nota de Entrega o Factura segun sea el caso para enviar a Almacen.')
+                    ->modalDescription(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
+                        ? 'Ya existe Nota de Entrega. Debes cargar la FACTURA para completar el proceso administrativo.'
+                        : 'Agregar Nota de Entrega o Factura segun sea el caso para enviar a Almacen.')
                     ->form([
                         Radio::make('tipo_documento_recepcion')
                             ->label('Documento recibido')
@@ -106,6 +112,11 @@ class RecepcionProductosProcuraTable
                     ->action(function (array $data, $record): void {
                         try {
                             $tipoDocumento = (string) ($data['tipo_documento_recepcion'] ?? '');
+
+                            if ((bool) ($record->factura_pendiente ?? false) && strtoupper($tipoDocumento) !== 'FACTURA') {
+                                throw new \RuntimeException('Esta ODC ya tiene Nota de Entrega. Debes cargar la FACTURA para continuar.');
+                            }
+
                             $documentoPath = $tipoDocumento === 'NOTA'
                                 ? ($data['nota_entrega_path'] ?? null)
                                 : ($data['factura_path'] ?? null);
@@ -119,7 +130,9 @@ class RecepcionProductosProcuraTable
 
                             Notification::make()
                                 ->title('Producto entregado a almacen')
-                                ->body('La ODC paso a Recepcion de Materiales Nuevos con su documento de soporte para validacion de Almacen.')
+                                ->body(strtoupper($tipoDocumento) === 'NOTA'
+                                    ? 'La Nota de Entrega se registro para agilizar Almacen/Solicitante. La ODC quedara en espera hasta cargar la FACTURA.'
+                                    : 'La FACTURA fue cargada y la ODC ya no quedara pendiente en Recepcion de Productos.')
                                 ->success()
                                 ->send();
                         } catch (\Throwable $exception) {

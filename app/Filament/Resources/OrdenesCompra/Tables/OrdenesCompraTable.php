@@ -153,7 +153,9 @@ class OrdenesCompraTable
                 TextColumn::make('estado')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state))
+                    ->state(fn ($record, $livewire): string => self::isHistorialOdcTab($livewire)
+                        ? self::resolveHistorialEstado((string) ($record->workflow_post_compra ?? ''), (string) ($record->estado ?? ''))
+                        : str_replace('_', ' ', (string) ($record->estado ?? '')))
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('sub_estado_historial')
@@ -325,9 +327,7 @@ class OrdenesCompraTable
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab()
-                    ->visible(fn ($record, $livewire): bool => self::isHistorialOdcTab($livewire)
-                        && self::isFinalHistorialStage($record)
-                        && filled($record->comprobante_pago_path)),
+                    ->visible(fn (): bool => false),
 
                 Action::make('verDocumentoRecepcionHistorial')
                     ->label(fn ($record): string => (string) ($record->tipo_documento_recepcion ?? '') === 'NOTA'
@@ -339,9 +339,7 @@ class OrdenesCompraTable
                         ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab()
-                    ->visible(fn ($record, $livewire): bool => self::isHistorialOdcTab($livewire)
-                        && self::isFinalHistorialStage($record)
-                        && filled($record->factura_path)),
+                    ->visible(fn (): bool => false),
 
                 Action::make('aprobarGerenciaFinanzas')
                     ->label('Gerencia Finanzas: Aprobar para pago')
@@ -439,7 +437,8 @@ class OrdenesCompraTable
                     ->label('Procura: Marcar Pagado y En Transito')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
                     ->color('info')
-                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
+                    ->visible(fn ($record, $livewire): bool => self::isPagosOdcTab($livewire)
+                        && ! self::isOdcCorreccionesTab($livewire)
                         && self::canConfirmPaymentByProcura($record))
                     ->action(function ($record): void {
                         $record->forceFill([
@@ -719,10 +718,7 @@ class OrdenesCompraTable
                     ->requiresConfirmation()
                     ->modalHeading('Eliminar ODC rechazada')
                     ->modalDescription('Esta accion elimina definitivamente la ODC rechazada del historial.')
-                    ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
-                        && self::isHistorialOdcTab($livewire)
-                        && (string) ($record->workflow_post_compra ?? '') === 'RECHAZADA_SOLICITANTE'
-                        && (bool) auth()->user()?->can('Delete:OrdenCompra'))
+                    ->visible(fn (): bool => false)
                     ->action(function ($record): void {
                         $correlativo = (string) ($record->correlativo_odc ?? ('#' . $record->id));
 
@@ -738,6 +734,7 @@ class OrdenesCompraTable
                 EditAction::make()
                     ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
                         && ! self::isHistorialOdcTab($livewire)
+                        && ! self::isPagosOdcTab($livewire)
                         && (! self::isOdcCorreccionesTab($livewire)
                             || ((string) ($record->estado ?? '') === 'RECHAZADA'
                                 && (string) ($record->rechazo_etapa ?? '') === 'gerencia_finanzas'))),
@@ -919,6 +916,15 @@ class OrdenesCompraTable
     private static function isFinalHistorialStage(mixed $record): bool
     {
         return in_array((string) ($record->workflow_post_compra ?? ''), ['BACKUP_FACTURA_COMPLETADO', 'CERRADA_CONFORME'], true);
+    }
+
+    private static function resolveHistorialEstado(string $workflow, string $estado): string
+    {
+        if (str_contains($workflow, 'RECHAZADA') || strtoupper($estado) === 'RECHAZADA') {
+            return 'RECHAZADA';
+        }
+
+        return 'APROBADA';
     }
 
     private static function humanReadableSubEstado(string $workflow): string

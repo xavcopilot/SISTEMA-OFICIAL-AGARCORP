@@ -98,6 +98,7 @@ class AprobacionOdcsTable
                             ->label('Rechazar ODC')
                             ->icon(Heroicon::OutlinedXCircle)
                             ->color('danger')
+                            ->successRedirectUrl(AprobacionOdcResource::getUrl('index'))
                             ->requiresConfirmation()
                             ->form([
                                 Textarea::make('rechazo_comentario')
@@ -175,6 +176,7 @@ class AprobacionOdcsTable
                             ->label('Enviar a Pago Finanzas')
                             ->icon(Heroicon::OutlinedBanknotes)
                             ->color('success')
+                            ->successRedirectUrl(AprobacionOdcResource::getUrl('index'))
                             ->requiresConfirmation()
                             ->form([
                                 TextInput::make('password')

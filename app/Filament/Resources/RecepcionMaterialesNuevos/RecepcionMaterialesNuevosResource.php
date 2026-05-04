@@ -65,8 +65,12 @@ class RecepcionMaterialesNuevosResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['sumario.solicitudCompra', 'proveedor'])
-            ->where('workflow_post_compra', 'DOCUMENTO_RECEPCION_CARGADO_PROCURA');
+            ->with(['sumario.solicitudCompra.solicitadoPor', 'proveedor'])
+            ->whereIn('workflow_post_compra', [
+                'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                'EN_TRANSICION_ALMACEN',
+                'CONFORMIDAD_POR_ITEMS_COMPLETA',
+            ]);
     }
 
     public static function getNavigationBadge(): ?string

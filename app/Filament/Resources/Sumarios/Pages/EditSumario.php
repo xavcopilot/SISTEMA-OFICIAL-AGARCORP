@@ -465,6 +465,10 @@ class EditSumario extends EditRecord
 
         $data['estado'] = 'EN_ESPERA_APROBACION_GERENCIA';
         $data['workflow_estado'] = 'VALIDADO_FINANZAS';
+        $data['validado_finanzas_at'] = $record->validado_finanzas_at ?: now();
+        $data['validado_por_user_id'] = $record->validado_por_user_id ?: auth()->id();
+        $data['validacion_finanzas_resultado'] = 'APROBADO';
+        $data['validacion_finanzas_comentario'] = null;
         $data['decision_gerencia_finanzas_at'] = null;
         $data['decision_gerencia_por_user_id'] = null;
         $data['decision_gerencia_resultado'] = null;

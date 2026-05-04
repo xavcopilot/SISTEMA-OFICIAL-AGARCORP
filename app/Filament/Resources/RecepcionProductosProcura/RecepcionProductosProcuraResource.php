@@ -50,7 +50,11 @@ class RecepcionProductosProcuraResource extends Resource
     {
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
-            ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO');
+            ->where(function (Builder $query): Builder {
+                return $query
+                    ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
+                    ->orWhere('factura_pendiente', true);
+            });
     }
 
     public static function canAccess(): bool
