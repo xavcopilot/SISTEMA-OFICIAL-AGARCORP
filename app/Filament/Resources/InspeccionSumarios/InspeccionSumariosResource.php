@@ -66,10 +66,6 @@ class InspeccionSumariosResource extends Resource
             return false;
         }
 
-        if ($user->hasRole('Alta Gerencia')) {
-            return true;
-        }
-
         return $user->hasRole('Validador Finanzas');
     }
 

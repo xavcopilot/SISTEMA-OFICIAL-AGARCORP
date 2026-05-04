@@ -61,10 +61,6 @@ class AprobacionSumariosResource extends Resource
             return false;
         }
 
-        if ($user->hasRole('Alta Gerencia')) {
-            return true;
-        }
-
         return $user->hasRole('Gerencia de Finanzas');
     }
 

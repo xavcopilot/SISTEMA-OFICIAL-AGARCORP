@@ -59,12 +59,18 @@ class SolicitudCompraResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check();
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->can('ViewAny:SolicitudCompra') || $user->can('Create:SolicitudCompra');
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->check();
+        return static::canAccess();
     }
 
     public static function getNavigationBadge(): ?string

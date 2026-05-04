@@ -468,14 +468,25 @@ class DatabaseSeeder extends Seeder
 
         // ===== ALTA GERENCIA =====
         // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear, ver y aprobar cuando sea asignado
         // Dashboards: Almacen, Finanzas, Procura
         // Configuraciones: Usuarios, Roles, Departamentos, Cargos, Impresoras
-        // Permisos completos en todo el sistema
-        $allPermissionNames = Permission::query()->pluck('name')->all();
+        // Sin permisos globales: solo acceso operativo a los módulos visibles para su sesión.
         $superAdminRole = Role::firstOrCreate(['name' => 'Alta Gerencia']);
-        if (! empty($allPermissionNames)) {
-            $superAdminRole->syncPermissions($allPermissionNames);
-        }
+
+        $altaGerenciaExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            Permission::query()->whereIn('name', ['ViewAny:SolicitudCompra', 'View:SolicitudCompra', 'Update:SolicitudCompra'])->pluck('name')->all(),
+            ['Manage:Ticket'],
+            Permission::query()->where('name', 'like', '%:User')->pluck('name')->all(),
+            Permission::query()->where('name', 'like', '%:Role')->pluck('name')->all(),
+            Permission::query()->where('name', 'like', '%:Departamento')->pluck('name')->all(),
+            Permission::query()->where('name', 'like', '%:Cargo')->pluck('name')->all(),
+            Permission::query()->where('name', 'like', '%:Impresora')->pluck('name')->all(),
+        )));
+
+        $superAdminRole->syncPermissions($altaGerenciaExactPermissions);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 

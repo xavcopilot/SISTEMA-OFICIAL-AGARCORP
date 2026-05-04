@@ -75,10 +75,6 @@ class AprobacionesCompraResource extends Resource
             return false;
         }
 
-        if ($user->hasRole('Alta Gerencia')) {
-            return true;
-        }
-
         return SolicitudCompraFlow::isReviewer($user);
     }
 

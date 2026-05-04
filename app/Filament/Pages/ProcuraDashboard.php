@@ -2,13 +2,23 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\Procura\OrdenesPorSumarioChart;
+use App\Filament\Widgets\Procura\ResumenProcuraStats;
+use App\Filament\Widgets\Procura\SumariosPorSolicitudChart;
+use App\Filament\Widgets\Procura\TiempoSolicitudASumarioChart;
+use App\Filament\Widgets\Procura\TiempoSumarioAOdcPorAnalistaChart;
 use BackedEnum;
+use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Dashboard;
+use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use UnitEnum;
 
 class ProcuraDashboard extends Dashboard
 {
+    use HasFiltersForm;
+
     protected static string $routePath = 'procura/dashboard';
 
     protected static ?string $title = 'Dashboard de Procura';
@@ -45,9 +55,25 @@ class ProcuraDashboard extends Dashboard
         return static::canAccess();
     }
 
+    public function filtersForm(Schema $schema): Schema
+    {
+        return $schema->components([
+            DatePicker::make('desde')
+                ->label('Desde'),
+            DatePicker::make('hasta')
+                ->label('Hasta'),
+        ]);
+    }
+
     public function getWidgets(): array
     {
-        return [];
+        return [
+            ResumenProcuraStats::class,
+            TiempoSolicitudASumarioChart::class,
+            TiempoSumarioAOdcPorAnalistaChart::class,
+            SumariosPorSolicitudChart::class,
+            OrdenesPorSumarioChart::class,
+        ];
     }
 
     public function getColumns(): int | array
