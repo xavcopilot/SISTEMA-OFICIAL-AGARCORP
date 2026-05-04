@@ -1,9 +1,10 @@
 ﻿<?php
-require __DIR__ . '/vendor/autoload.php';
+$root = dirname(__DIR__, 2);
+require $root . '/vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-$file = __DIR__ . '/storage/app/templates/INVENTARIO.xlsx';
+$file = $root . '/storage/app/templates/INVENTARIO.xlsx';
 $spreadsheet = IOFactory::load($file);
 
 foreach ($spreadsheet->getWorksheetIterator() as $sheet) {

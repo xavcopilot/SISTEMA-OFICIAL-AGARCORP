@@ -1,10 +1,11 @@
 ﻿<?php
-require 'vendor/autoload.php';
+$root = dirname(__DIR__, 2);
+require $root . '/vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-$template = 'storage/app/templates/FORMATO SUM COTIZACIONES.xlsx';
+$template = $root . '/storage/app/templates/FORMATO SUM COTIZACIONES.xlsx';
 $sheet = IOFactory::load($template)->getActiveSheet();
 
 $required = [
