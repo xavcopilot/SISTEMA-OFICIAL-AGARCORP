@@ -20,6 +20,11 @@ class SkuCodeRuleResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Inventario';
 
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        return 'Configuraciones de Inventario';
+    }
+
     protected static ?string $navigationLabel = 'Codificacion SKU';
 
     protected static ?string $modelLabel = 'Regla de codificacion';
@@ -30,29 +35,40 @@ class SkuCodeRuleResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen');
+    }
+
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canViewAny();
+        return static::canAccess();
     }
 
     public static function canViewAny(): bool
     {
-        return auth()->check() && auth()->user()?->can('ViewAny:SkuCodeRule');
+        return static::canAccess();
     }
 
     public static function canCreate(): bool
     {
-        return auth()->check() && auth()->user()?->can('Create:SkuCodeRule');
+        return static::canAccess();
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->check() && auth()->user()?->can('Update:SkuCodeRule');
+        return static::canAccess();
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->check() && auth()->user()?->can('Delete:SkuCodeRule');
+        return static::canAccess();
     }
 
     public static function form(Schema $schema): Schema

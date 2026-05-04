@@ -46,4 +46,20 @@ class ProveedorResource extends Resource
             'edit' => Pages\EditProveedor::route('/{record}/edit'),
         ];
     }
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Procura');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
 }

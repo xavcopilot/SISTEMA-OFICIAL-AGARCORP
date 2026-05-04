@@ -57,7 +57,15 @@ class AprobacionSumariosResource extends Resource
     {
         $user = auth()->user();
 
-        return $user !== null && $user->can('ApprovePayment:Sumario');
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('Alta Gerencia')) {
+            return true;
+        }
+
+        return $user->hasRole('Gerencia de Finanzas');
     }
 
     public static function shouldRegisterNavigation(): bool

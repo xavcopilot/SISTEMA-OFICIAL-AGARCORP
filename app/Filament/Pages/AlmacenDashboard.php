@@ -24,6 +24,17 @@ class AlmacenDashboard extends Dashboard
 
     protected static string | UnitEnum | null $navigationGroup = 'Inventario';
 
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('Alta Gerencia')) {
+            return 'Dashboard';
+        }
+
+        return 'Inventario';
+    }
+
     protected static ?string $navigationLabel = 'Dashboard de Almacen';
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-presentation-chart-line';
@@ -32,7 +43,13 @@ class AlmacenDashboard extends Dashboard
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()?->can('ViewAny:InventoryMovement');
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen') || $user->hasRole('Alta Gerencia');
     }
 
     public static function shouldRegisterNavigation(): bool

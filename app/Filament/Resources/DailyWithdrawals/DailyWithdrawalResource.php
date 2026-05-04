@@ -18,7 +18,7 @@ class DailyWithdrawalResource extends Resource
 {
     protected static ?string $model = DailyWithdrawal::class;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Inventario';
+    protected static string|UnitEnum|null $navigationGroup = 'Retiros y Compras';
 
     protected static ?string $navigationLabel = 'Bandeja de Retiros Diarios';
 
@@ -27,6 +27,22 @@ class DailyWithdrawalResource extends Resource
     protected static ?string $pluralModelLabel = 'Retiros Diarios';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -43,16 +59,6 @@ class DailyWithdrawalResource extends Resource
         return [
             'index' => ListDailyWithdrawals::route('/'),
         ];
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->check() && auth()->user()?->can('ViewAny:DailyWithdrawal');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canAccess();
     }
 
     public static function canViewAny(): bool

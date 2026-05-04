@@ -17,7 +17,7 @@ class RecepcionMaterialesNuevosResource extends Resource
 {
     protected static ?string $model = OrdenCompra::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Compras';
+    protected static string|\UnitEnum|null $navigationGroup = 'Retiros y Compras';
 
     protected static ?string $navigationLabel = 'Recepcion de Materiales Nuevos';
 
@@ -28,6 +28,22 @@ class RecepcionMaterialesNuevosResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
     protected static ?int $navigationSort = 7;
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -51,24 +67,6 @@ class RecepcionMaterialesNuevosResource extends Resource
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
             ->where('workflow_post_compra', 'DOCUMENTO_RECEPCION_CARGADO_PROCURA');
-    }
-
-    public static function canAccess(): bool
-    {
-        $user = auth()->user();
-
-        if (! $user) {
-            return false;
-        }
-
-        $departamento = strtoupper((string) ($user->departamento?->nombre ?? ''));
-
-        return str_contains($departamento, 'ALMAC');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canAccess();
     }
 
     public static function getNavigationBadge(): ?string

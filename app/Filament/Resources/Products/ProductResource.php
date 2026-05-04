@@ -52,6 +52,22 @@ class ProductResource extends Resource
         ];
     }
 
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
+
     public static function canCreate(): bool
     {
         return false;

@@ -5,11 +5,15 @@ namespace App\Filament\Resources\OrdenesCompra\Schemas;
 use App\Models\Proveedor;
 use App\Models\User;
 use App\Support\BcvRateService;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -87,13 +91,21 @@ class OrdenCompraForm
                     ->schema([
                         Grid::make(12)
                             ->schema([
+                                Toggle::make('es_proveedor_registrado')
+                                    ->label('Proveedor registrado en sistema')
+                                    ->default(true)
+                                    ->live()
+                                    ->dehydrated(false)
+                                    ->columnSpanFull(),
+
                                 Select::make('proveedor_id')
                                     ->label('Proveedor')
                                     ->relationship('proveedor', 'nombre')
                                     ->searchable()
                                     ->preload()
-                                    ->required()
+                                    ->nullable()
                                     ->live()
+                                    ->visible(fn (callable $get): bool => (bool) $get('es_proveedor_registrado'))
                                     ->createOptionForm([
                                         TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
                                         TextInput::make('rif')->label('RIF')->required()->maxLength(255),
@@ -105,7 +117,6 @@ class OrdenCompraForm
                                     ])
                                     ->createOptionUsing(function (array $data): int {
                                         $provider = Proveedor::query()->create($data);
-
                                         return (int) $provider->id;
                                     })
                                     ->afterStateHydrated(function ($state, callable $set): void {
@@ -114,6 +125,14 @@ class OrdenCompraForm
                                     ->afterStateUpdated(function ($state, callable $set): void {
                                         self::hydrateProviderFields((int) ($state ?? 0), $set);
                                     })
+                                    ->columnSpan(8),
+
+                                TextInput::make('nombre_proveedor_libre')
+                                    ->label('Nombre del proveedor libre')
+                                    ->maxLength(255)
+                                    ->visible(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
+                                    ->live()
+                                    ->dehydrated(false)
                                     ->columnSpan(8),
 
                                 TextInput::make('rif_proveedor')
@@ -154,6 +173,51 @@ class OrdenCompraForm
                                     ->label('Fecha de entrega')
                                     ->content(fn ($record): HtmlString => self::boxedValue((string) optional($record?->created_at)->format('d/m/Y')))
                                     ->columnSpan(6),
+
+                                Actions::make([
+                                    Action::make('guardar_proveedor_libre')
+                                        ->label('Guardar proveedor en DB')
+                                        ->icon('heroicon-o-plus')
+                                        ->visible(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
+                                        ->requiresConfirmation()
+                                        ->action(function (array $data, callable $set, callable $get): void {
+                                            $nombre = (string) ($get('nombre_proveedor_libre') ?? '');
+                                            $rif = (string) ($get('rif_proveedor') ?? '');
+                                            $direccion = (string) ($get('direccion_proveedor') ?? '');
+                                            $email = (string) ($get('email_proveedor') ?? '');
+                                            $contacto = (string) ($get('contacto_proveedor') ?? '');
+
+                                            if ($nombre === '' || $rif === '') {
+                                                Notification::make()
+                                                    ->title('Datos incompletos')
+                                                    ->body('El nombre y RIF son obligatorios para guardar el proveedor.')
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $provider = Proveedor::query()->create([
+                                                'nombre' => $nombre,
+                                                'rif' => $rif,
+                                                'direccion' => $direccion,
+                                                'email' => $email,
+                                                'contacto' => $contacto,
+                                                'ciudad' => 'Maracaibo',
+                                                'telefono' => '',
+                                            ]);
+
+                                            $set('proveedor_id', $provider->id);
+                                            $set('es_proveedor_registrado', true);
+
+                                            self::hydrateProviderFields((int) $provider->id, $set);
+
+                                            Notification::make()
+                                                ->title('Proveedor guardado')
+                                                ->body('El proveedor "' . $nombre . '" ha sido añadido a la base de datos.')
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
                             ]),
                     ])
                     ->extraAttributes(['style' => 'border:1px solid #86efac;'])
@@ -299,39 +363,6 @@ class OrdenCompraForm
                             ]),
                     ])
                     ->extraAttributes(['style' => 'border:1px solid #86efac;'])
-                    ->columnSpanFull(),
-
-                Section::make('Motivo de rechazo')
-                    ->visible(fn ($record): bool => filled($record?->rechazo_comentario))
-                    ->schema([
-                        Grid::make(12)
-                            ->schema([
-                                TextInput::make('rechazo_etapa')
-                                    ->label('Etapa')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->formatStateUsing(fn (?string $state): string => $state ? strtoupper(str_replace('_', ' ', $state)) : '-')->columnSpan(4),
-                                TextInput::make('rechazo_por_user_id')
-                                    ->label('Rechazada por')
-                                    ->formatStateUsing(fn ($state, $record): string => (string) ($record?->rechazoPor?->name ?: '-'))
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(4),
-                                TextInput::make('rechazo_en')
-                                    ->label('Fecha rechazo')
-                                    ->formatStateUsing(fn ($state): string => filled($state) ? (string) Carbon::parse($state)->format('d/m/Y H:i') : '-')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(4),
-                                Textarea::make('rechazo_comentario')
-                                    ->label('Comentario')
-                                    ->rows(3)
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->columnSpan(12),
-                            ]),
-                    ])
-                    ->extraAttributes(['style' => 'border:1px solid #fca5a5;'])
                     ->columnSpanFull(),
 
                 Section::make('Datos de control')

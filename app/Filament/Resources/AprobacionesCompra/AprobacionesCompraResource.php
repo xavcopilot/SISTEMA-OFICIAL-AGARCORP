@@ -68,7 +68,17 @@ class AprobacionesCompraResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check() && SolicitudCompraFlow::isReviewer(auth()->user());
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('Alta Gerencia')) {
+            return true;
+        }
+
+        return SolicitudCompraFlow::isReviewer($user);
     }
 
     public static function shouldRegisterNavigation(): bool

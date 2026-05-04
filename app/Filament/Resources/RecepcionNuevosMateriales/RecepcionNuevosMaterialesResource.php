@@ -61,16 +61,16 @@ class RecepcionNuevosMaterialesResource extends Resource
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->can('ViewAny:OrdenCompra')) {
+        if (! $user) {
             return false;
         }
 
-        return str_contains(strtoupper((string) ($user->departamento?->nombre ?? '')), 'ALMAC');
+        return $user->hasRole('Almacen');
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return static::canAccess();
     }
 
     public static function canViewAny(): bool

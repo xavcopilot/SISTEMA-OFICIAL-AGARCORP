@@ -17,11 +17,31 @@ class DepartamentoResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Administracion';
 
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        return 'Configuraciones';
+    }
+
     protected static ?string $navigationLabel = 'Departamentos';
     protected static ?string $pluralModelLabel = 'Departamentos';
 
-    // use a built‑in Heroicon constant instead of raw string to avoid SVG lookup errors
-    protected static string|BackedEnum|null $navigationIcon = \Filament\Support\Icons\Heroicon::OutlinedBuildingOffice; 
+    protected static string|BackedEnum|null $navigationIcon = \Filament\Support\Icons\Heroicon::OutlinedBuildingOffice;
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('A.I.T') || $user->hasRole('Alta Gerencia');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    } 
 
     public static function form(Schema $schema): Schema
     {

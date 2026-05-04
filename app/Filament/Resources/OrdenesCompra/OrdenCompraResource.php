@@ -53,14 +53,20 @@ class OrdenCompraResource extends Resource
         return false;
     }
 
-    public static function canViewAny(): bool
+    public static function canAccess(): bool
     {
-        return self::hasReadAccess();
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Procura');
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        return self::hasOperationalReadAccess();
+        return static::canAccess();
     }
 
     public static function canView(Model $record): bool

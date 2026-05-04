@@ -17,7 +17,18 @@ class AdministracionFacturasResource extends Resource
 {
     protected static ?string $model = OrdenCompra::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Pagos';
+    protected static string | \UnitEnum | null $navigationGroup = 'Facturas y Retenciones';
+
+    public static function getNavigationGroup(): string | \UnitEnum | null
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('Administracion')) {
+            return 'Facturas y Retenciones';
+        }
+
+        return 'Pagos';
+    }
 
     protected static ?string $navigationLabel = 'Administracion de Facturas';
 
@@ -59,17 +70,11 @@ class AdministracionFacturasResource extends Resource
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->can('ViewAny:OrdenCompra')) {
+        if (! $user) {
             return false;
         }
 
-        if ($user->hasRole('Procura')) {
-            return false;
-        }
-
-        $departamento = (string) ($user->departamento?->nombre ?? '');
-
-        return in_array($departamento, ['ADMINISTRACIÓN', 'ADMINISTRACION'], true);
+        return $user->hasRole('Administracion');
     }
 
     public static function shouldRegisterNavigation(): bool

@@ -644,6 +644,12 @@ class SolicitudCompraFlow
 
     public static function limitToApprovers(Builder $query): Builder
     {
+        $currentUserId = auth()->id();
+
+        if ($currentUserId) {
+            $query->where('id', '!=', $currentUserId);
+        }
+
         return self::limitUsersByRoles($query, self::APPROVER_ROLES)
             ->orderByRaw("CASE WHEN LOWER(name) LIKE '%johnny%' THEN 0 WHEN LOWER(name) LIKE '%cristina%' THEN 1 WHEN LOWER(name) LIKE '%richard%' THEN 2 ELSE 3 END")
             ->orderBy('name');

@@ -57,7 +57,17 @@ class AprobacionOdcResource extends Resource
 
     public static function canAccess(): bool
     {
-        return (bool) auth()->user()?->hasRole('Gerencia de Finanzas');
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('Alta Gerencia')) {
+            return true;
+        }
+
+        return $user->hasRole('Gerencia de Finanzas');
     }
 
     public static function shouldRegisterNavigation(): bool

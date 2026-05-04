@@ -58,11 +58,11 @@ class FacturasCompraResource extends Resource
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->can('ViewAny:OrdenCompra')) {
+        if (! $user) {
             return false;
         }
 
-        return (string) ($user->departamento?->nombre ?? '') === 'FINANZAS';
+        return $user->hasRole('Finanzas Pagos');
     }
 
     public static function shouldRegisterNavigation(): bool

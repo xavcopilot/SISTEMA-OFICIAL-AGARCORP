@@ -18,11 +18,32 @@ class UserResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Administracion';
 
-    protected static ?string $navigationLabel = 'Usuarios'; // Nombre en el menú lateral
-    protected static ?string $modelLabel = 'Usuario';       // Nombre en singular
-    protected static ?string $pluralModelLabel = 'Usuarios'; // Nombre en plural (para Shield)
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        return 'Configuraciones';
+    }
+
+    protected static ?string $navigationLabel = 'Usuarios';
+    protected static ?string $modelLabel = 'Usuario';
+    protected static ?string $pluralModelLabel = 'Usuarios';
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-users';
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('A.I.T') || $user->hasRole('Alta Gerencia');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
 
     public static function form(Schema $schema): Schema
     {

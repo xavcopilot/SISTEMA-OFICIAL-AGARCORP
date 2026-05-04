@@ -44,6 +44,28 @@ class RoleResource extends Resource
     protected static ?string $modelLabel = 'Rol';
     protected static ?string $pluralModelLabel = 'Roles';
     protected static string|UnitEnum|null $navigationGroup = 'Administracion';
+
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        return 'Configuraciones';
+    }
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('A.I.T') || $user->hasRole('Alta Gerencia');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
+
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-shield-check';
 
     protected static ?string $recordTitleAttribute = 'name';

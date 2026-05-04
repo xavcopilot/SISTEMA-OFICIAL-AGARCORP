@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\InspeccionSumarios;
+namespace App\Filament\Resources\InspeccionOdcs;
 
-use App\Filament\Resources\InspeccionSumarios\Pages;
-use App\Filament\Resources\Sumarios\Schemas\SumarioForm;
-use App\Filament\Resources\Sumarios\Tables\SumariosTable;
-use App\Models\Sumario;
+use App\Filament\Resources\InspeccionOdcs\Pages;
+use App\Filament\Resources\InspeccionOdcs\Tables\InspeccionOdcsTable;
+use App\Models\OrdenCompra;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -14,48 +13,55 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
-class InspeccionSumariosResource extends Resource
+class InspeccionOdcResource extends Resource
 {
-    protected static ?string $model = Sumario::class;
+    protected static ?string $model = OrdenCompra::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Validaciones';
+    protected static ?string $navigationLabel = 'Inspeccion de ODC';
 
-    public static function getNavigationGroup(): string | \UnitEnum | null
-    {
-        return 'Validaciones';
-    }
+    protected static ?string $modelLabel = 'Inspeccion de ODC';
 
-    protected static ?string $navigationLabel = 'Inspeccion de Sumarios';
+    protected static ?string $pluralModelLabel = 'Inspeccion de ODC';
 
-    protected static ?string $modelLabel = 'Inspeccion de Sumario';
+    protected static string|\UnitEnum|null $navigationGroup = 'Validaciones';
 
-    protected static ?string $pluralModelLabel = 'Inspeccion de Sumarios';
-
-    protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected static ?int $navigationSort = 2;
 
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('Validador Finanzas')) {
+            return 'Validaciones';
+        }
+
+        return 'Validaciones';
+    }
+
     public static function form(Schema $schema): Schema
     {
-        return SumarioForm::configure($schema);
+        return $schema;
     }
 
     public static function table(Table $table): Table
     {
-        return SumariosTable::configureForInspection($table);
+        return InspeccionOdcsTable::configure($table);
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListInspeccionSumarios::route('/'),
+            'index' => Pages\ListInspeccionOdcs::route('/'),
         ];
     }
 
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS');
+            ->with(['sumario.solicitudCompra', 'proveedor'])
+            ->where('workflow_post_compra', 'PENDIENTE_VALIDACION_FINANZAS');
     }
 
     public static function canAccess(): bool
@@ -102,6 +108,11 @@ class InspeccionSumariosResource extends Resource
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function canView(Model $record): bool
+    {
+        return static::canAccess();
     }
 
     public static function canEdit(Model $record): bool

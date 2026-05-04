@@ -67,6 +67,8 @@ class DatabaseSeeder extends Seeder
             'Validador Finanzas' => 'validadorfinanzas',
             'Finanzas Pagos'    => 'finanzas',
             'Administracion' => 'administracion',
+            'Mantenimiento' => 'mantenimiento',
+            'S.I.H.O'     => 'siho',
         ];
 
         // creamos departamentos primero
@@ -188,19 +190,9 @@ class DatabaseSeeder extends Seeder
             ->pluck('name')
             ->all();
 
-        foreach (['Alta Gerencia', 'Gerencia de Operaciones', 'Gerencia de Finanzas'] as $extraRole) {
+        foreach (['Alta Gerencia', 'Gerencia de Operaciones'] as $extraRole) {
             $roleModel = Role::firstOrCreate(['name' => $extraRole]);
             $roleModel->givePermissionTo($ticketPermissions);
-
-            if ($extraRole === 'Gerencia de Finanzas') {
-                $roleModel->givePermissionTo(array_merge(
-                    $sumarioReviewPermissions,
-                    $ordenCompraReadPermissions,
-                    $ordenCompraEditPermissions,
-                ));
-
-                $roleModel->givePermissionTo(['ApprovePayment:Sumario']);
-            }
         }
 
         // Mapa desde rol => nombre de departamento (según tu tabla numerada)
@@ -212,6 +204,8 @@ class DatabaseSeeder extends Seeder
             'Validador Finanzas' => 'FINANZAS',
             'Finanzas Pagos' => 'FINANZAS',
             'Administracion' => 'ADMINISTRACIÓN',
+            'Mantenimiento' => 'MANTENIMIENTO',
+            'S.I.H.O' => 'S.I.H.O',
         ];
 
         $roleUserOverrides = [
@@ -243,94 +237,11 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($roles as $rol => $password) {
-            // Creamos o buscamos el rol (Spatie Role)
             $roleModel = Role::firstOrCreate(['name' => $rol]);
-
-            // Asignamos los permisos de Ticket a cada rol
             $roleModel->givePermissionTo($ticketPermissions);
-
-            if (in_array($rol, ['Almacen', 'Procura'], true) && ! empty($solicitudCreatePermissions)) {
-                $roleModel->givePermissionTo($solicitudCreatePermissions);
-            }
-
-            if ($rol === 'Procura' && ! empty($proveedorPermissions)) {
-                $roleModel->givePermissionTo($proveedorPermissions);
-            }
-
-            if ($rol === 'Almacen' && ! empty($inventoryProductPermissions)) {
-                $roleModel->givePermissionTo($inventoryProductPermissions);
-            }
-
-            if ($rol === 'Almacen' && ! empty($inventoryMovementPermissions)) {
-                $roleModel->givePermissionTo($inventoryMovementPermissions);
-            }
-
-            if ($rol === 'Almacen') {
-                $roleModel->givePermissionTo(array_merge(
-                    $inventoryViewPermissions,
-                    $categoryReadWritePermissions,
-                ));
-            }
-
-            if ($rol === 'Procura') {
-                $roleModel->givePermissionTo(array_merge(
-                    $sumarioReviewPermissions,
-                    $sumarioWriteExtraPermissions,
-                    $ordenCompraReadPermissions,
-                ));
-
-                $roleModel->givePermissionTo([
-                    'ProcessReception:OrdenCompra',
-                    'SubmitValidation:Sumario',
-                    'GenerateOdcs:Sumario',
-                ]);
-            }
-
-            if ($rol === 'Finanzas Pagos') {
-                $roleModel->givePermissionTo(array_merge(
-                    $ordenCompraReadPermissions,
-                    $ordenCompraEditPermissions,
-                ));
-            }
-
-            if ($rol === 'Validador Finanzas') {
-                $roleModel->givePermissionTo(array_merge(
-                    $sumarioReviewPermissions,
-                    $ordenCompraReadPermissions,
-                ));
-
-                $roleModel->givePermissionTo(['ValidateFinance:Sumario']);
-            }
-
-            if ($rol === 'Administracion') {
-                $roleModel->givePermissionTo($ordenCompraReadPermissions);
-            }
-
-            if ($rol === 'A.I.T') {
-                $roleModel->givePermissionTo(array_merge(
-                    $inventoryViewPermissions,
-                    $categoryReadWritePermissions,
-                    $categoryDeletePermissions,
-                    $sumarioReviewPermissions,
-                    $sumarioWriteExtraPermissions,
-                    $ordenCompraReadPermissions,
-                    $ordenCompraEditPermissions,
-                    $ordenCompraDeletePermissions,
-                ));
-
-                $roleModel->givePermissionTo([
-                    'Manage:Ticket',
-                    'ProcessReception:OrdenCompra',
-                    'SubmitValidation:Sumario',
-                    'ValidateFinance:Sumario',
-                    'ApprovePayment:Sumario',
-                    'GenerateOdcs:Sumario',
-                ]);
-            }
 
             $override = $roleUserOverrides[$rol] ?? null;
 
-            // Generamos el email de acceso de cada rol base (o usamos override)
             $emailName = str_replace('.', '', strtolower($rol));
             $email = $override['email'] ?? ($emailName . "@agarven.com");
             $name = $override['name'] ?? $rol;
@@ -361,38 +272,217 @@ class DatabaseSeeder extends Seeder
             $user->syncRoles([$roleModel->name]);
         }
 
+        // ── Permisiones exactas por rol según especificaciones ──
+
+        // Helper para obtener permisos de un modelo
+        $permsFor = function (string $model, array $actions = ['ViewAny', 'View', 'Create', 'Update', 'Delete']): array {
+            return Permission::query()
+                ->where(function ($q) use ($model, $actions): void {
+                    foreach ($actions as $action) {
+                        $q->orWhere('name', "{$action}:{$model}");
+                    }
+                })
+                ->pluck('name')
+                ->all();
+        };
+
+        // ===== GERENCIA DE FINANZAS =====
+        // Escritorio, Tickets, Notificaciones, Solicitudes de Compra (crear)
+        // Aprobaciones: Aprobación de Solicitudes, Aprobación de Sumarios, Aprobación de ODC
+        // Pagos: Administración de Pagos ODC
+        // Dashboard: Dashboard de Finanzas
+        // NO ve: Sumario de Cotizaciones, Ordenes de Compra (pero sí puede aprobar sumarios)
+        $gerenciaFinanzasPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Aprobación de Sumarios (permiso de aprobación sin lectura completa del módulo)
+            ['ApprovePayment:Sumario'],
+            // Aprobación de ODC (permiso para aprobar ODCs)
+            Permission::query()->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra', 'Update:OrdenCompra'])->pluck('name')->all(),
+            // Administración de Pagos ODC
+            Permission::query()->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra'])->pluck('name')->all(),
+        )));
+        Role::firstOrCreate(['name' => 'Gerencia de Finanzas'])->syncPermissions($gerenciaFinanzasPermissions);
+
+        // ===== PROCURA =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear y Aprobar
+        // Proveedores: CRUD completo
+        // Compras: Sumario de Cotizaciones, Ordenes de Compra
+        // Productos: Recepción de Productos
+        // Dashboard: Dashboard de Procura
         $procuraExactPermissions = array_values(array_unique(array_merge(
             $ticketPermissions,
             $solicitudCreatePermissions,
+            // Aprobaciones de Compra
+            Permission::query()->whereIn('name', ['ViewAny:SolicitudCompra', 'View:SolicitudCompra', 'Update:SolicitudCompra'])->pluck('name')->all(),
+            // Proveedores
             $proveedorPermissions,
+            // Sumario de Cotizaciones (CRUD completo)
             $sumarioReviewPermissions,
             $sumarioWriteExtraPermissions,
+            ['ProcessReception:OrdenCompra', 'SubmitValidation:Sumario', 'GenerateOdcs:Sumario'],
+            // Ordenes de Compra
             $ordenCompraReadPermissions,
-            [
-                'ProcessReception:OrdenCompra',
-                'SubmitValidation:Sumario',
-                'GenerateOdcs:Sumario',
-            ],
+            $ordenCompraEditPermissions,
+            // Recepción de Productos
+            $inventoryProductPermissions,
         )));
-
-        $gerenciaFinanzasExactPermissions = array_values(array_unique(array_merge(
-            $ticketPermissions,
-            [
-                'ApprovePayment:Sumario',
-                'Update:OrdenCompra',
-            ],
-        )));
-
         Role::firstOrCreate(['name' => 'Procura'])->syncPermissions($procuraExactPermissions);
-        Role::firstOrCreate(['name' => 'Gerencia de Finanzas'])->syncPermissions($gerenciaFinanzasExactPermissions);
+
+        // ===== ALMACEN =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear y Aprobar
+        // Inventario: Consultar Entradas, Consultar Salidas, Registro de Materiales, Almacen ADV, Dashboard
+        // Configuraciones de Inventario: Categorias, Codificacion SKU
+        // Retiros y Compras: Bandeja de Retiros Diarios, Recepcion de Materiales Nuevos
+        $almacenExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Aprobaciones de Compra
+            Permission::query()->whereIn('name', ['ViewAny:SolicitudCompra', 'View:SolicitudCompra', 'Update:SolicitudCompra'])->pluck('name')->all(),
+            // Inventario completo
+            $inventoryProductPermissions,
+            $inventoryMovementPermissions,
+            $inventoryViewPermissions,
+            // Categorias (CRUD sin delete)
+            $categoryReadWritePermissions,
+            // Codificacion SKU
+            Permission::query()->whereIn('name', ['ViewAny:SkuCodeRule', 'View:SkuCodeRule'])->pluck('name')->all(),
+            // Retiros Diarios
+            Permission::query()->whereIn('name', ['ViewAny:DailyWithdrawal', 'View:DailyWithdrawal'])->pluck('name')->all(),
+            // Recepcion de Materiales Nuevos
+            Permission::query()->whereIn('name', ['ViewAny:InventoryMovement', 'View:InventoryMovement', 'Create:InventoryMovement'])->pluck('name')->all(),
+        )));
+        Role::firstOrCreate(['name' => 'Almacen'])->syncPermissions($almacenExactPermissions);
+
+        // ===== A.I.T =====
+        // Escritorio, Tickets, Notificaciones
+        // Configuraciones: Usuarios, Roles, Departamentos, Cargos, Impresoras
+        // Solicitudes de Compra: Crear
+        $aitExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Usuarios
+            $permsFor('User', ['ViewAny', 'View', 'Create', 'Update']),
+            // Roles
+            $permsFor('Role', ['ViewAny', 'View']),
+            // Departamentos
+            $permsFor('Departamento', ['ViewAny', 'View', 'Create', 'Update']),
+            // Cargos
+            $permsFor('Cargo', ['ViewAny', 'View', 'Create', 'Update']),
+            // Impresoras
+            $permsFor('Impresora', ['ViewAny', 'View', 'Create', 'Update', 'Delete']),
+            // Categorias
+            $categoryReadWritePermissions,
+            // Inventario (solo lectura)
+            $inventoryViewPermissions,
+            // Sumario y ODC (solo lectura para soporte)
+            $sumarioReviewPermissions,
+            $ordenCompraReadPermissions,
+            // Permisos custom de gestion de tickets
+            ['Manage:Ticket'],
+        )));
+        Role::firstOrCreate(['name' => 'A.I.T'])->syncPermissions($aitExactPermissions);
+
+        // ===== VALIDADOR FINANZAS =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        // Validaciones: Inspección de Sumarios, Inspección de ODC
+        $validadorFinanzasExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Inspección de Sumarios
+            $sumarioReviewPermissions,
+            ['ValidateFinance:Sumario'],
+            // Inspección de ODC
+            $ordenCompraReadPermissions,
+        )));
+        Role::firstOrCreate(['name' => 'Validador Finanzas'])->syncPermissions($validadorFinanzasExactPermissions);
+
+        // ===== FACTURAS PAGOS =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        // Pagos: Realización de Pagos ODC, Facturas de Compra
+        $finanzasPagosExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Realización de Pagos ODC
+            Permission::query()->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra', 'Update:OrdenCompra'])->pluck('name')->all(),
+            // Facturas de Compra
+            Permission::query()->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra'])->pluck('name')->all(),
+        )));
+        Role::firstOrCreate(['name' => 'Finanzas Pagos'])->syncPermissions($finanzasPagosExactPermissions);
+
+        // ===== ADMINISTRACION =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        // Facturas y Retenciones: Administración de Facturas
+        $administracionExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Administración de Facturas
+            Permission::query()->whereIn('name', ['ViewAny:OrdenCompra', 'View:OrdenCompra'])->pluck('name')->all(),
+        )));
+        Role::firstOrCreate(['name' => 'Administracion'])->syncPermissions($administracionExactPermissions);
+
+        // ===== GERENCIA DE OPERACIONES =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear (no puede elegirse a sí mismo como aprobador)
+        // Aprobaciones de Compra: Aprobar de otros
+        $gerenciaOperacionesExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+            // Aprobaciones de Compra
+            Permission::query()->whereIn('name', ['ViewAny:SolicitudCompra', 'View:SolicitudCompra', 'Update:SolicitudCompra'])->pluck('name')->all(),
+        )));
+        Role::firstOrCreate(['name' => 'Gerencia de Operaciones'])->syncPermissions($gerenciaOperacionesExactPermissions);
+
+        // ===== TALENTO HUMANO =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        $talentoHumanoExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+        )));
+        Role::firstOrCreate(['name' => 'Talento Humano'])->syncPermissions($talentoHumanoExactPermissions);
+
+        // ===== MANTENIMIENTO =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        $mantenimientoExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+        )));
+        Role::firstOrCreate(['name' => 'Mantenimiento'])->syncPermissions($mantenimientoExactPermissions);
+
+        // ===== S.I.H.O =====
+        // Escritorio, Tickets, Notificaciones
+        // Solicitudes de Compra: Crear
+        $sihoExactPermissions = array_values(array_unique(array_merge(
+            $ticketPermissions,
+            $solicitudCreatePermissions,
+        )));
+        Role::firstOrCreate(['name' => 'S.I.H.O'])->syncPermissions($sihoExactPermissions);
+
+        // ===== ALTA GERENCIA =====
+        // Escritorio, Tickets, Notificaciones
+        // Dashboards: Almacen, Finanzas, Procura
+        // Configuraciones: Usuarios, Roles, Departamentos, Cargos, Impresoras
+        // Permisos completos en todo el sistema
+        $allPermissionNames = Permission::query()->pluck('name')->all();
+        $superAdminRole = Role::firstOrCreate(['name' => 'Alta Gerencia']);
+        if (! empty($allPermissionNames)) {
+            $superAdminRole->syncPermissions($allPermissionNames);
+        }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        // ===== CREACION DE USUARIOS EJECUTIVOS =====
         foreach ($executiveUsers as $executiveUser) {
             $departamentoId = Departamento::where('nombre', $executiveUser['departamento'])->value('id');
             $cargoId = Cargo::firstOrCreate(['nombre' => $executiveUser['cargo']])->id;
             $executiveRole = Role::firstOrCreate(['name' => $executiveUser['role']]);
-            $executiveRole->givePermissionTo($ticketPermissions);
 
             $user = User::updateOrCreate([
                 'email' => $executiveUser['email'],
@@ -408,13 +498,7 @@ class DatabaseSeeder extends Seeder
             $user->syncRoles([$executiveRole->name]);
         }
 
-        // Alta Gerencia es el unico rol con permisos completos.
-        $allPermissionNames = Permission::query()->pluck('name')->all();
-        $superAdminRole = Role::firstOrCreate(['name' => 'Alta Gerencia']);
-        if (! empty($allPermissionNames)) {
-            $superAdminRole->syncPermissions($allPermissionNames);
-        }
-
+        // ===== USUARIO ADMIN LEGACY =====
         $adminRole = Role::query()->where('name', 'admin')->first();
         if ($adminRole) {
             $adminRole->givePermissionTo([
@@ -428,7 +512,6 @@ class DatabaseSeeder extends Seeder
         }
 
         // ===== INICIO BLOQUE DEMO (ELIMINABLE) =====
-        // Usuario de prueba para demostraciones con acceso total al sistema.
         $demoDepartamentoId = Departamento::firstOrCreate(['nombre' => 'PRUEBA'])->id;
         $demoCargoId = Cargo::firstOrCreate(['nombre' => 'PRUEBA'])->id;
         $demoRole = Role::firstOrCreate(['name' => 'Demo Prueba']);
@@ -452,59 +535,26 @@ class DatabaseSeeder extends Seeder
         $demoUser->syncRoles([$demoRole->name, 'Alta Gerencia', 'Almacen']);
         // ===== FIN BLOQUE DEMO (ELIMINABLE) =====
 
-        // A.I.T mantiene acceso a lo actual, pero sin heredar automaticamente
-        // permisos futuros fuera de estos modulos.
-        $aitAllowedSubjects = [
-            'Ticket',
-            'SolicitudCompra',
-            'User',
-            'Role',
-            'Cargo',
-            'Departamento',
-            'Impresora',
-            'Category',
-            'InventoryMovement',
-            'Sumario',
-            'OrdenCompra',
-        ];
-
-        $aitPermissionNames = Permission::query()
-            ->where(function ($query) use ($aitAllowedSubjects): void {
-                foreach ($aitAllowedSubjects as $subject) {
-                    $query->orWhere('name', 'like', "%:{$subject}");
-                }
-            })
-            ->where('name', '!=', 'Create:Ticket')
-            ->pluck('name')
-            ->all();
-
-        $aitRole = Role::firstOrCreate(['name' => 'A.I.T']);
-        if (! empty($aitPermissionNames)) {
-            $aitRole->syncPermissions($aitPermissionNames);
-        }
-
-        // Reforzamos permisos: reglas de codificacion solo para A.I.T y Alta Gerencia.
+        // ===== REFORZAR SKU CODE RULE SOLO PARA A.I.T, ALTA GERENCIA Y ALMACEN =====
         $skuCodeRulePermissionNames = Permission::query()
             ->where('name', 'like', '%:SkuCodeRule')
             ->pluck('name')
             ->all();
 
         if (! empty($skuCodeRulePermissionNames)) {
-            foreach (Role::query()->whereNotIn('name', ['A.I.T', 'Alta Gerencia'])->get() as $role) {
+            foreach (Role::query()->whereNotIn('name', ['A.I.T', 'Alta Gerencia', 'Almacen'])->get() as $role) {
                 $role->revokePermissionTo($skuCodeRulePermissionNames);
             }
-
-            $aitRole->givePermissionTo($skuCodeRulePermissionNames);
         }
 
-        // Ejecutar el seeder dedicado de impresoras (centralizado en su propio archivo)
+        // ===== EJECUTAR SEEDER DE IMPRESORAS =====
         $this->call(ImpresoraSeeder::class);
 
-        // --- 🚀 USUARIO TECNICO PRINCIPAL A.I.T ---
+        // ===== USUARIO TECNICO PRINCIPAL A.I.T =====
         $aitPrimaryRole = Role::where('name', 'A.I.T')->first();
 
         $aitPrimaryUser = User::updateOrCreate(
-            ['email' => 'xavierdpdev@gmail.com'], 
+            ['email' => 'xavierdpdev@gmail.com'],
             [
                 'name'             => 'Xavier Prado',
                 'password'         => Hash::make('Xavidev17'),
@@ -515,15 +565,27 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Se mantiene como usuario tecnico con permisos de gestion.
         $aitPrimaryUser->syncRoles([$aitPrimaryRole->name]);
 
-        // ===== INICIO BLOQUE FIRMA DEFAULT GLOBAL =====
-        // Homologa la clave de firma para pruebas de flujo en todos los usuarios.
+        // ===== USUARIO TECNICO SECUNDARIO A.I.T =====
+        $aitSecondaryUser = User::updateOrCreate(
+            ['email' => 'Gabriel.carrasco@agarven.com'],
+            [
+                'name'             => 'Gabriel Carrasco',
+                'password'         => Hash::make('1212'),
+                'cargo_id'         => Cargo::firstOrCreate(['nombre' => 'Técnico'])->id,
+                'firma_password'   => Hash::make('firma'),
+                'email_verified_at'=> now(),
+                'departamento_id'  => Departamento::where('nombre', 'A.I.T')->value('id'),
+            ]
+        );
+
+        $aitSecondaryUser->syncRoles([$aitPrimaryRole->name]);
+
+        // ===== FIRMA DEFAULT GLOBAL =====
         User::query()->update([
             'firma_password' => Hash::make($defaultSignaturePassword),
         ]);
-        // ===== FIN BLOQUE FIRMA DEFAULT GLOBAL =====
 
         User::query()->update([
             'withdrawal_password' => Hash::make($defaultWithdrawalPassword),

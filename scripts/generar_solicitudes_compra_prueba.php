@@ -29,6 +29,8 @@ $cantidad = max(1, (int) ($opts['cantidad'] ?? 3));
 $itemsPorSolicitud = max(1, (int) ($opts['items'] ?? 4));
 $prefijo = trim((string) ($opts['prefijo'] ?? 'SC-APROB-PRUEBA'));
 
+fwrite(STDERR, "Parametros recibidos: cantidad={$cantidad}, items={$itemsPorSolicitud}, prefijo={$prefijo}\n");
+
 $solicitanteId = resolveUserId((int) ($opts['solicitante_id'] ?? 0), fn (): ?int => User::query()->orderBy('id')->value('id'));
 $almacenId = resolveUserId((int) ($opts['almacen_id'] ?? 0), fn (): ?int => SolicitudCompraFlow::defaultAlmacenUserId());
 $aprobadorId = resolveUserId((int) ($opts['aprobador_id'] ?? 0), fn (): ?int => User::query()

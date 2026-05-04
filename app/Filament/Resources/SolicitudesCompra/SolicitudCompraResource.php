@@ -63,7 +63,7 @@ class SolicitudCompraResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->check() && ! SolicitudCompraFlow::isApproverOnly(auth()->user());
+        return auth()->check();
     }
 
     public static function getNavigationBadge(): ?string
@@ -96,11 +96,7 @@ class SolicitudCompraResource extends Resource
 
     public static function canCreate(): bool
     {
-        $user = auth()->user();
-
-        return static::canAccess()
-            && $user !== null
-            && ! $user->hasRole(SolicitudCompraFlow::APPROVER_ROLES);
+        return static::canAccess();
     }
 
     public static function canView(Model $record): bool

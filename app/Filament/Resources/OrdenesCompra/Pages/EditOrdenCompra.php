@@ -6,6 +6,7 @@ use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Sumario;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
@@ -21,15 +22,41 @@ class EditOrdenCompra extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
-            Action::make('eliminarParaHistorial')
+        $actions = [];
+
+        if ((string) ($this->record->estado ?? '') === 'RECHAZADA'
+            && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas') {
+            $actions[] = Action::make('verMotivoRechazo')
+                ->label('Motivo de rechazo')
+                ->color('warning')
+                ->modalHeading('Motivo de rechazo - Gerencia de Finanzas')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Cerrar')
+                ->modalWidth('2xl')
+                ->fillForm(fn (): array => [
+                    'rechazo_etapa' => strtoupper(str_replace('_', ' ', (string) $this->record->rechazo_etapa)),
+                    'rechazo_por_nombre' => (string) ($this->record->rechazoPor?->name ?? '-'),
+                    'rechazo_en' => filled($this->record->rechazo_en)
+                        ? (string) \Illuminate\Support\Carbon::parse($this->record->rechazo_en)->format('d/m/Y H:i')
+                        : '-',
+                    'rechazo_comentario' => (string) ($this->record->rechazo_comentario ?? ''),
+                ])
+                ->schema([
+                    \Filament\Schemas\Components\Grid::make(3)
+                        ->schema([
+                            TextInput::make('rechazo_etapa')->label('Etapa')->disabled(),
+                            TextInput::make('rechazo_por_nombre')->label('Rechazada por')->disabled(),
+                            TextInput::make('rechazo_en')->label('Fecha rechazo')->disabled(),
+                        ]),
+                    Textarea::make('rechazo_comentario')->label('Comentario')->rows(3)->disabled(),
+                ]);
+
+            $actions[] = Action::make('eliminarParaHistorial')
                 ->label('Eliminar para Historial')
                 ->color('danger')
                 ->requiresConfirmation()
                 ->modalHeading('Enviar rechazo a historial')
                 ->modalDescription('La ODC quedara como rechazada definitiva en historial y ya no podra corregirse.')
-                ->visible(fn (): bool => (string) ($this->record->estado ?? '') === 'RECHAZADA'
-                    && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas')
                 ->action(function (): void {
                     $this->record->forceFill([
                         'rechazo_etapa' => 'historial',
@@ -42,34 +69,17 @@ class EditOrdenCompra extends EditRecord
                         ->send();
 
                     $this->refreshFormData(['rechazo_etapa']);
-                }),
+                });
+        }
 
-            Action::make('enviarGerenciaFinanzas')
-                ->label('Enviar a Gerencia Finanzas')
-                ->color('success')
-                ->requiresConfirmation()
-                ->form([
-                    TextInput::make('password')
-                        ->label('Clave de firma')
-                        ->password()
-                        ->required(),
-                    TextInput::make('password_confirmation')
-                        ->label('Repetir clave de firma')
-                        ->password()
-                        ->required(),
-                ])
-                ->visible(fn (): bool => (string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC'
-                    && (string) ($this->record->estado ?? '') !== 'RECHAZADA')
-                ->action(function (array $data): void {
-                    $this->submitToGerenciaFinanzas($data);
-                }),
-        ];
+        return $actions;
     }
 
     protected function getFormActions(): array
     {
         if ((string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC'
-            && (string) ($this->record->estado ?? '') !== 'RECHAZADA') {
+            && ((string) ($this->record->estado ?? '') !== 'RECHAZADA'
+                || (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas')) {
             return [
                 Action::make('submitToGerenciaFinanzas')
                     ->label('Enviar ODC a Gerencia Finanzas')
@@ -157,22 +167,42 @@ class EditOrdenCompra extends EditRecord
 
         $this->save(false, false);
 
+        $isRejectedCorrection = (string) ($this->record->estado ?? '') === 'RECHAZADA'
+            && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas';
+
         $this->record->forceFill([
             'elaborado_por_user_id' => $this->record->elaborado_por_user_id ?: auth()->id(),
             'elaborado_firmado_at' => now(),
             'estado' => 'PENDIENTE_APROBACION',
             'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+            'rechazo_etapa' => null,
+            'rechazo_comentario' => null,
+            'rechazo_por_user_id' => null,
+            'rechazo_en' => null,
         ])->save();
 
-        $this->syncSumarioWorkflowAfterSignatureSend();
+        if ($isRejectedCorrection) {
+            $sumarioId = (int) ($this->record->sumario_id ?? 0);
+
+            if ($sumarioId > 0) {
+                Sumario::query()->whereKey($sumarioId)->update([
+                    'estado' => 'REVISADO_FINANZAS',
+                    'workflow_estado' => 'APROBADO_GERENCIA_FINANZAS',
+                ]);
+            }
+        } else {
+            $this->syncSumarioWorkflowAfterSignatureSend();
+        }
 
         Notification::make()
-            ->title('ODC enviada a Gerencia Finanzas')
-            ->body('La orden quedo en espera de aprobacion de Gerencia de Finanzas.')
+            ->title($isRejectedCorrection ? 'ODC corregida y reenviada' : 'ODC enviada a Gerencia Finanzas')
+            ->body($isRejectedCorrection
+                ? 'La ODC corregida fue reenviada a Gerencia de Finanzas para nueva revision.'
+                : 'La orden quedo en espera de aprobacion de Gerencia de Finanzas.')
             ->success()
             ->send();
 
-        $this->refreshFormData(['elaborado_por_user_id', 'elaborado_firmado_at', 'estado', 'workflow_post_compra']);
+        $this->refreshFormData(['elaborado_por_user_id', 'elaborado_firmado_at', 'estado', 'workflow_post_compra', 'rechazo_etapa', 'rechazo_comentario', 'rechazo_por_user_id', 'rechazo_en']);
     }
 
     private function submitToPagoFinanzas(array $data): void

@@ -49,7 +49,13 @@ class InventoryMovementResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()?->can('ViewAny:InventoryMovement');
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Almacen');
     }
 
     public static function shouldRegisterNavigation(): bool

@@ -46,6 +46,7 @@ class ListOrdenesCompra extends ListRecords
                         DB::raw('1 as is_sumario_pending_odc_row'),
                     ])),
             'odc_en_correcciones' => Tab::make('ODC en correcciones')
+                ->badge((string) $this->odcEnCorreccionesCount())
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where(function (Builder $correccionesQuery): Builder {
                         return $correccionesQuery
@@ -244,6 +245,21 @@ class ListOrdenesCompra extends ListRecords
     private function pendingSumariosCount(): int
     {
         return count($this->pendingSumarioIdsWithPendingProviders());
+    }
+
+    private function odcEnCorreccionesCount(): int
+    {
+        return OrdenCompra::query()
+            ->where(function (Builder $query): Builder {
+                return $query
+                    ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
+                    ->orWhere(function (Builder $rechazadasQuery): Builder {
+                        return $rechazadasQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->where('rechazo_etapa', 'gerencia_finanzas');
+                    });
+            })
+            ->count();
     }
 
     /**

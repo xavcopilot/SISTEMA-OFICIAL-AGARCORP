@@ -29,6 +29,17 @@ class AdministracionPagosOdcResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
+    public static function getNavigationLabel(): string
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('Gerencia de Finanzas')) {
+            return 'Administracion de Pagos ODC';
+        }
+
+        return 'Realizacion de Pagos ODC';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema;
@@ -64,8 +75,10 @@ class AdministracionPagosOdcResource extends Resource
             return false;
         }
 
-        return $user->hasRole('Finanzas Pagos')
-            && $user->can('Update:OrdenCompra');
+        // Gerencia de Finanzas ve "Administracion de Pagos ODC"
+        // Finanzas Pagos ve "Realizacion de Pagos ODC"
+        return $user->hasRole('Gerencia de Finanzas')
+            || $user->hasRole('Finanzas Pagos');
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -103,7 +116,13 @@ class AdministracionPagosOdcResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return false;
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('Finanzas Pagos');
     }
 
     public static function canDelete(Model $record): bool

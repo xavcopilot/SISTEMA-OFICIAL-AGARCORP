@@ -58,13 +58,7 @@ class PagosProcuraResource extends Resource
 
     public static function canAccess(): bool
     {
-        $user = auth()->user();
-
-        if (! $user || ! $user->can('Update:OrdenCompra')) {
-            return false;
-        }
-
-        return (string) ($user->departamento?->nombre ?? '') === 'FINANZAS';
+        return false;
     }
 
     public static function shouldRegisterNavigation(): bool

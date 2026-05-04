@@ -17,7 +17,7 @@ class RecepcionProductosProcuraResource extends Resource
 {
     protected static ?string $model = OrdenCompra::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Pagos';
+    protected static string|\UnitEnum|null $navigationGroup = 'Productos';
 
     protected static ?string $navigationLabel = 'Recepcion de Productos';
 
@@ -61,7 +61,7 @@ class RecepcionProductosProcuraResource extends Resource
             return false;
         }
 
-        return $user->hasRole('Procura') || $user->can('ProcessReception:OrdenCompra');
+        return $user->hasRole('Procura');
     }
 
     public static function shouldRegisterNavigation(): bool

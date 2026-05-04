@@ -21,7 +21,23 @@ class CargoResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = \Filament\Support\Icons\Heroicon::OutlinedIdentification;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Administracion';
+    protected static string|\UnitEnum|null $navigationGroup = 'Configuraciones';
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole('A.I.T') || $user->hasRole('Alta Gerencia');
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -40,10 +56,5 @@ class CargoResource extends Resource
             'create' => Pages\CreateCargo::route('/create'),
             'edit' => Pages\EditCargo::route('/{record}/edit'),
         ];
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->check() && auth()->user()?->can('ViewAny:Cargo');
     }
 }
