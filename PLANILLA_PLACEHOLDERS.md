@@ -51,6 +51,8 @@ Puedes usar cualquiera de estas variantes para cada token:
 - `fecha_almacen` (formato `d/m/Y`)
 - `fecha_aprobador` (formato `d/m/Y`)
 - `fecha_receptor` (formato `d/m/Y`)
+- `hora_receptor` (formato `H:i:s`)
+- `hora` (alias de `hora_receptor`)
 
 ## Placeholders de detalle (items)
 
@@ -97,6 +99,7 @@ Esa fila será detectada y repetida automáticamente para cada item.
 - Recibido por: `{{recibido_por}}`
 - Cargo receptor: `{{cargo_receptor}}`
 - Firma receptor: usar `{{firma_receptor}}` para que el sistema coloque allí el PNG si existe
+- Hora receptor: `{{hora_receptor}}`
 
 ## Firmas PNG en PDF/Excel
 
@@ -105,6 +108,7 @@ Esa fila será detectada y repetida automáticamente para cada item.
 - Si no hay PNG cargado y solo existe una firma logica, el bloque de firma queda sin imagen en la planilla.
 - Recomendacion: deja cada placeholder de firma en una celda dedicada dentro del recuadro visual de firma.
 - Fecha receptor: `{{fecha_receptor}}`
+- Hora receptor: `{{hora_receptor}}`
 
 ## Nota importante
 

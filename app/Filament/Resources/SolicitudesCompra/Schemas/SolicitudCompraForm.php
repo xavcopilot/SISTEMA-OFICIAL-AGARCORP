@@ -38,13 +38,13 @@ class SolicitudCompraForm
                             ->schema([
                                 TextInput::make('codigo_control')
                                     ->label('N° de control')
-                                    ->placeholder('Se definirá nomenclatura')
+                                    ->placeholder('Se definirá al firmar la solicitud')
                                     ->disabled()
                                     ->dehydrated(false),
 
                                 TextInput::make('codigo_control_procura')
                                     ->label('N° de control procura')
-                                    ->placeholder('Se definirá nomenclatura')
+                                    ->placeholder('Se definirá por Procura')
                                     ->disabled()
                                     ->dehydrated(false),
 
