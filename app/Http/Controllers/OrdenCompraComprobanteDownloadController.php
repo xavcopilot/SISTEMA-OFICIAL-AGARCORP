@@ -18,11 +18,23 @@ class OrdenCompraComprobanteDownloadController extends Controller
         }
 
         if (Storage::disk('odc_comprobantes')->exists($path)) {
+            if (request()->boolean('inline')) {
+                return Storage::disk('odc_comprobantes')->response($path, $downloadName, [
+                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+                ]);
+            }
+
             return Storage::disk('odc_comprobantes')->download($path, $downloadName);
         }
 
         // Fallback para comprobantes antiguos guardados en el disco public.
         if (Storage::disk('public')->exists($path)) {
+            if (request()->boolean('inline')) {
+                return Storage::disk('public')->response($path, $downloadName, [
+                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+                ]);
+            }
+
             return Storage::disk('public')->download($path, $downloadName);
         }
 

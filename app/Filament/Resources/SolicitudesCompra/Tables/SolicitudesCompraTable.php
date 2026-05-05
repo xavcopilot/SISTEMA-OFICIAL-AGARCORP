@@ -601,6 +601,23 @@ class SolicitudesCompraTable
                             ->dehydrated(false),
                     ]),
 
+                Action::make('verArchivosHistorialProcura')
+                    ->label('Ver Archivos')
+                    ->icon(Heroicon::OutlinedFolderOpen)
+                    ->color('primary')
+                    ->visible(fn (SolicitudCompra $record, $livewire): bool => self::isProcuraHistoryTab($livewire)
+                        && filled($record->fecha_receptor))
+                    ->modalHeading(fn (SolicitudCompra $record): string => 'Archivos de la solicitud ' . (string) ($record->codigo_control ?: $record->id))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->schema([
+                        Placeholder::make('archivos_historial_procura')
+                            ->hiddenLabel()
+                            ->content(fn (SolicitudCompra $record): HtmlString => new HtmlString(self::renderFilesHubView($record)))
+                            ->dehydrated(false),
+                    ]),
+
                 Action::make('verGestion')
                     ->label('Ver')
                     ->icon(Heroicon::OutlinedEye)
@@ -990,6 +1007,11 @@ class SolicitudesCompraTable
         };
     }
 
+    private static function isProcuraHistoryTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveApprovalTab($livewire) === 'historial_procura';
+    }
+
     private static function approvalRoleState(SolicitudCompra $record, mixed $livewire = null): array
     {
         $roleKey = self::currentApprovalRoleKey($livewire);
@@ -1251,6 +1273,136 @@ class SolicitudesCompraTable
         return '<div style="border:1px solid #d1d5db;border-radius:10px;padding:10px;background:#f9fafb;">'
             . '<div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;">' . e($title) . '</div>'
             . '<div style="font-size:20px;font-weight:700;color:#111827;">' . e($value) . '</div>'
+            . '</div>';
+    }
+
+    private static function renderFilesHubView(SolicitudCompra $record): string
+    {
+        $record->loadMissing([
+            'sumarios.ordenesCompra',
+        ]);
+
+        $sumarios = $record->sumarios
+            ->filter(fn (Sumario $sumario): bool => ! in_array((string) ($sumario->workflow_estado ?? $sumario->estado ?? ''), ['BORRADOR', 'RECHAZADO'], true)
+                && ! in_array((string) ($sumario->estado ?? ''), ['BORRADOR', 'RECHAZADO'], true))
+            ->sortBy(fn (Sumario $sumario): string => (string) ($sumario->correlativo_sdc ?: str_pad((string) $sumario->id, 10, '0', STR_PAD_LEFT)))
+            ->values();
+
+        $sumariosCount = $sumarios->count();
+        $odcsCount = $sumarios->sum(fn (Sumario $sumario): int => (int) $sumario->ordenesCompra->count());
+        $documentosCount = 1
+            + $sumariosCount
+            + $odcsCount
+            + $sumarios->sum(function (Sumario $sumario): int {
+                return $sumario->ordenesCompra->sum(function (OrdenCompra $ordenCompra): int {
+                    $count = 0;
+
+                    if (filled($ordenCompra->comprobante_pago_path)) {
+                        $count++;
+                    }
+
+                    if (filled($ordenCompra->factura_path)) {
+                        $count++;
+                    }
+
+                    return $count;
+                });
+            });
+
+        $solicitudPdfUrl = route('solicitudes-compra.formato.print', ['solicitudCompra' => $record]);
+
+        $sumariosHtml = $sumarios->map(function (Sumario $sumario): string {
+            $sumarioPdfUrl = route('sumarios.formato.print', ['sumario' => $sumario]);
+
+            $odcsHtml = $sumario->ordenesCompra
+                ->sortBy(fn (OrdenCompra $ordenCompra): string => (string) ($ordenCompra->correlativo_odc ?: str_pad((string) $ordenCompra->id, 10, '0', STR_PAD_LEFT)))
+                ->map(function (OrdenCompra $ordenCompra): string {
+                    $odcPdfUrl = route('ordenes-compra.formato.print', ['ordenCompra' => $ordenCompra]);
+                    $comprobanteUrl = filled($ordenCompra->comprobante_pago_path)
+                        ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $ordenCompra, 'inline' => 1])
+                        : null;
+                    $documentoRecepcionUrl = filled($ordenCompra->factura_path)
+                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1])
+                        : null;
+                    $documentoRecepcionLabel = strtoupper((string) ($ordenCompra->tipo_documento_recepcion ?? '')) === 'NOTA'
+                        ? 'Ver nota de entrega'
+                        : 'Ver factura';
+
+                    $links = [
+                        '<a href="' . e($odcPdfUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#1d4ed8;background:#eff6ff;">Vista PDF ODC</a>',
+                    ];
+
+                    if ($comprobanteUrl) {
+                        $links[] = '<a href="' . e($comprobanteUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#065f46;background:#ecfdf5;">Ver comprobante</a>';
+                    }
+
+                    if ($documentoRecepcionUrl) {
+                        $links[] = '<a href="' . e($documentoRecepcionUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#92400e;background:#fffbeb;">' . e($documentoRecepcionLabel) . '</a>';
+                    }
+
+                    $badges = [
+                        '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#f3f4f6;color:#374151;font-size:11px;">Estado: ' . e((string) ($ordenCompra->estado ?? 'N/A')) . '</span>',
+                    ];
+
+                    if (filled($ordenCompra->workflow_post_compra)) {
+                        $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#eef2ff;color:#4338ca;font-size:11px;">Workflow: ' . e((string) $ordenCompra->workflow_post_compra) . '</span>';
+                    }
+
+                    if (! $comprobanteUrl) {
+                        $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#fff7ed;color:#9a3412;font-size:11px;">Sin comprobante</span>';
+                    }
+
+                    if (! $documentoRecepcionUrl) {
+                        $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#fef2f2;color:#b91c1c;font-size:11px;">Sin factura/nota</span>';
+                    }
+
+                    return '<div style="border:1px solid #dbeafe;border-radius:10px;padding:12px;background:#ffffff;display:grid;gap:10px;">'
+                        . '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">'
+                        . '<div>'
+                        . '<div style="font-size:14px;font-weight:700;color:#0f172a;">ODC ' . e((string) ($ordenCompra->correlativo_odc ?: ('#' . $ordenCompra->id))) . '</div>'
+                        . '<div style="font-size:12px;color:#64748b;">Proveedor: ' . e((string) ($ordenCompra->proveedor?->nombre ?? 'No definido')) . '</div>'
+                        . '</div>'
+                        . '<div style="display:flex;gap:6px;flex-wrap:wrap;">' . implode('', $badges) . '</div>'
+                        . '</div>'
+                        . '<div style="display:flex;gap:8px;flex-wrap:wrap;">' . implode('', $links) . '</div>'
+                        . '</div>';
+                })
+                ->implode('');
+
+            if ($odcsHtml === '') {
+                $odcsHtml = '<div style="border:1px dashed #cbd5e1;border-radius:10px;padding:12px;color:#64748b;background:#f8fafc;">Este sumario aun no tiene ODC generadas.</div>';
+            }
+
+            return '<section style="border:1px solid #d1d5db;border-radius:12px;padding:14px;background:#f8fafc;display:grid;gap:12px;">'
+                . '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">'
+                . '<div>'
+                . '<div style="font-size:15px;font-weight:700;color:#111827;">Sumario ' . e((string) ($sumario->correlativo_sdc ?: ('#' . $sumario->id))) . '</div>'
+                . '<div style="font-size:12px;color:#6b7280;">Estado: ' . e((string) ($sumario->estado ?? 'N/A')) . '</div>'
+                . '</div>'
+                . '<a href="' . e($sumarioPdfUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#1d4ed8;background:#eff6ff;">Vista PDF Sumario</a>'
+                . '</div>'
+                . '<div style="display:grid;gap:10px;">' . $odcsHtml . '</div>'
+                . '</section>';
+        })->implode('');
+
+        if ($sumariosHtml === '') {
+            $sumariosHtml = '<div style="border:1px dashed #cbd5e1;border-radius:12px;padding:16px;background:#f8fafc;color:#64748b;">Esta solicitud aun no tiene sumarios ni ODC asociadas. Cuando se vayan generando, apareceran aqui.</div>';
+        }
+
+        return '<div style="display:grid;gap:14px;">'
+            . '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">'
+            . self::trackingCard('Solicitud PDF', '1')
+            . self::trackingCard('Sumarios', (string) $sumariosCount)
+            . self::trackingCard('Archivos detectados', (string) $documentosCount)
+            . '</div>'
+            . '<section style="border:1px solid #d1d5db;border-radius:12px;padding:14px;background:#ffffff;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+            . '<div>'
+            . '<div style="font-size:15px;font-weight:700;color:#111827;">Solicitud ' . e((string) ($record->codigo_control ?: ('#' . $record->id))) . '</div>'
+            . '<div style="font-size:12px;color:#6b7280;">N° usuario: ' . e((string) ($record->numero_solicitud_usuario ?: $record->id)) . ' | ODC totales: ' . e((string) $odcsCount) . '</div>'
+            . '</div>'
+            . '<a href="' . e($solicitudPdfUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#1d4ed8;background:#eff6ff;">Vista PDF Solicitud</a>'
+            . '</section>'
+            . '<div style="display:grid;gap:12px;">' . $sumariosHtml . '</div>'
             . '</div>';
     }
 

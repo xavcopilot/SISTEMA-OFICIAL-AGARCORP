@@ -21,11 +21,23 @@ class OrdenCompraDocumentoRecepcionDownloadController extends Controller
         $disk = $this->resolveReceptionDisk($tipoDocumento);
 
         if (Storage::disk($disk)->exists($path)) {
+            if (request()->boolean('inline')) {
+                return Storage::disk($disk)->response($path, $downloadName, [
+                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+                ]);
+            }
+
             return Storage::disk($disk)->download($path, $downloadName);
         }
 
         // Fallback para documentos historicos guardados en public.
         if (Storage::disk('public')->exists($path)) {
+            if (request()->boolean('inline')) {
+                return Storage::disk('public')->response($path, $downloadName, [
+                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+                ]);
+            }
+
             return Storage::disk('public')->download($path, $downloadName);
         }
 
