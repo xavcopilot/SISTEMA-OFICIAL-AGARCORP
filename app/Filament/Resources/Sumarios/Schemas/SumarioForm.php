@@ -6,6 +6,7 @@ use App\Models\Proveedor;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
 use App\Models\User;
+use App\Support\SumarioProviderGrouping;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
@@ -289,7 +290,7 @@ class SumarioForm
                                         // Al cambiar la solicitud base, los items deben iniciar desmarcados.
                                         $set('selected_item_ids', []);
                                         $set('comparativo_items', []);
-                                        self::setColumnTotals([], $set);
+                                        self::setColumnTotals([], $set, fn (string $path) => null);
                                     })
                                     ->columnSpan(6),
 
@@ -348,8 +349,9 @@ class SumarioForm
 
                                         $set('proveedor_a_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_a_nombre') ?? '')));
                                     })
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_a_nombre', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
 
@@ -368,8 +370,9 @@ class SumarioForm
 
                                         $set('proveedor_b_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_b_nombre') ?? '')));
                                     })
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_b_nombre', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
 
@@ -388,8 +391,9 @@ class SumarioForm
 
                                         $set('proveedor_c_catalogo_id', self::resolveProviderIdByName((string) ($get('proveedor_c_nombre') ?? '')));
                                     })
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderNameFromCatalog((int) ($state ?? 0), 'proveedor_c_nombre', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
 
@@ -399,8 +403,9 @@ class SumarioForm
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_a_catalogo_id', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
 
@@ -410,8 +415,9 @@ class SumarioForm
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_b_catalogo_id', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
 
@@ -421,8 +427,9 @@ class SumarioForm
                                     ->required()
                                     ->maxLength(255)
                                     ->live()
-                                    ->afterStateUpdated(function ($state, callable $set): void {
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_c_catalogo_id', $set);
+                                        self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
                                     ->columnSpan(4),
                             ]),
@@ -598,15 +605,15 @@ class SumarioForm
                             ->reorderable(false)
                             ->default([])
                             ->live()
-                            ->afterStateHydrated(function ($state, callable $set): void {
+                            ->afterStateHydrated(function ($state, callable $set, callable $get): void {
                                 $rows = self::recalculateRows($state ?? []);
                                 $set('comparativo_items', $rows);
-                                self::setColumnTotals($rows, $set);
+                                self::setColumnTotals($rows, $set, $get);
                             })
-                            ->afterStateUpdated(function ($state, callable $set): void {
+                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                 $rows = self::recalculateRows($state ?? []);
                                 $set('comparativo_items', $rows);
-                                self::setColumnTotals($rows, $set);
+                                self::setColumnTotals($rows, $set, $get);
                             })
                             ->schema([
                                 Grid::make(21)
@@ -757,12 +764,11 @@ class SumarioForm
 
                                         Select::make('proveedor_seleccionado')
                                             ->label('SELECCION')
-                                            ->options(fn (callable $get): array => [
-                                                '' => 'Sin seleccionar',
-                                                'A' => (string) ($get('../../proveedor_a_nombre') ?: 'Proveedor 1'),
-                                                'B' => (string) ($get('../../proveedor_b_nombre') ?: 'Proveedor 2'),
-                                                'C' => (string) ($get('../../proveedor_c_nombre') ?: 'Proveedor 3'),
-                                            ])
+                                            ->options(fn (callable $get): array => SumarioProviderGrouping::selectionOptions([
+                                                1 => (string) ($get('../../proveedor_a_nombre') ?? ''),
+                                                2 => (string) ($get('../../proveedor_b_nombre') ?? ''),
+                                                3 => (string) ($get('../../proveedor_c_nombre') ?? ''),
+                                            ]))
                                             ->default('')
                                             ->extraAttributes(['class' => 'sdc-divider-sel'])
                                             ->columnSpan(2),
@@ -785,27 +791,54 @@ class SumarioForm
                                     ->columnSpan(3),
 
                                 TextInput::make('total_compra_prov1')
-                                    ->label(fn (callable $get): string => (string) ($get('proveedor_a_nombre') ?: 'Proveedor 1'))
+                                    ->label(fn (callable $get): string => SumarioProviderGrouping::totalLabel([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 1))
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
                                     ->default(0)
+                                    ->visible(fn (callable $get): bool => SumarioProviderGrouping::totalVisible([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 1))
                                     ->columnSpan(3),
 
                                 TextInput::make('total_compra_prov2')
-                                    ->label(fn (callable $get): string => (string) ($get('proveedor_b_nombre') ?: 'Proveedor 2'))
+                                    ->label(fn (callable $get): string => SumarioProviderGrouping::totalLabel([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 2))
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
                                     ->default(0)
+                                    ->visible(fn (callable $get): bool => SumarioProviderGrouping::totalVisible([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 2))
                                     ->columnSpan(3),
 
                                 TextInput::make('total_compra_prov3')
-                                    ->label(fn (callable $get): string => (string) ($get('proveedor_c_nombre') ?: 'Proveedor 3'))
+                                    ->label(fn (callable $get): string => SumarioProviderGrouping::totalLabel([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 3))
                                     ->numeric()
                                     ->disabled()
                                     ->dehydrated()
                                     ->default(0)
+                                    ->visible(fn (callable $get): bool => SumarioProviderGrouping::totalVisible([
+                                        1 => (string) ($get('proveedor_a_nombre') ?? ''),
+                                        2 => (string) ($get('proveedor_b_nombre') ?? ''),
+                                        3 => (string) ($get('proveedor_c_nombre') ?? ''),
+                                    ], 3))
                                     ->columnSpan(3),
 
                                 Select::make('prioridad')
@@ -992,7 +1025,7 @@ class SumarioForm
                 }
             }
 
-            self::setColumnTotals(self::recalculateRows($existingRows), $set);
+            self::setColumnTotals(self::recalculateRows($existingRows), $set, $get);
 
             return;
         }
@@ -1002,7 +1035,7 @@ class SumarioForm
         if ($selectedIds === []) {
             $set('selected_item_ids', []);
             $set('comparativo_items', []);
-            self::setColumnTotals([], $set);
+            self::setColumnTotals([], $set, $get);
 
             return;
         }
@@ -1060,7 +1093,7 @@ class SumarioForm
     {
         if ($solicitudId <= 0 || $selectedIds === []) {
             $set('comparativo_items', []);
-            self::setColumnTotals([], $set);
+            self::setColumnTotals([], $set, fn (string $path) => null);
 
             return;
         }
@@ -1117,7 +1150,7 @@ class SumarioForm
         $rows = self::recalculateRows($rows);
 
         $set('comparativo_items', $rows);
-        self::setColumnTotals($rows, $set);
+        self::setColumnTotals($rows, $set, fn (string $path) => null);
     }
 
     public static function recalculateRows(array $rows): array
@@ -1145,39 +1178,19 @@ class SumarioForm
             ->all();
     }
 
-    public static function setColumnTotals(array $rows, callable $set): void
+    public static function setColumnTotals(array $rows, callable $set, ?callable $get = null): void
     {
-        $totalProv1 = 0.0;
-        $totalProv2 = 0.0;
-        $totalProv3 = 0.0;
+        $providerNames = [
+            1 => (string) ($get ? $get('proveedor_a_nombre') : ''),
+            2 => (string) ($get ? $get('proveedor_b_nombre') : ''),
+            3 => (string) ($get ? $get('proveedor_c_nombre') : ''),
+        ];
 
-        foreach ($rows as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
+        $totals = SumarioProviderGrouping::groupedTotalsFromRows($providerNames, $rows);
 
-            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
-
-            if ($selected === '1') {
-                $selected = 'A';
-            } elseif ($selected === '2') {
-                $selected = 'B';
-            } elseif ($selected === '3') {
-                $selected = 'C';
-            }
-
-            if ($selected === 'A') {
-                $totalProv1 += filled($row['precio_total_prov1'] ?? null) ? (float) $row['precio_total_prov1'] : 0;
-            } elseif ($selected === 'B') {
-                $totalProv2 += filled($row['precio_total_prov2'] ?? null) ? (float) $row['precio_total_prov2'] : 0;
-            } elseif ($selected === 'C') {
-                $totalProv3 += filled($row['precio_total_prov3'] ?? null) ? (float) $row['precio_total_prov3'] : 0;
-            }
-        }
-
-        $set('total_compra_prov1', round($totalProv1, 2));
-        $set('total_compra_prov2', round($totalProv2, 2));
-        $set('total_compra_prov3', round($totalProv3, 2));
+        $set('total_compra_prov1', $totals[1]);
+        $set('total_compra_prov2', $totals[2]);
+        $set('total_compra_prov3', $totals[3]);
     }
 
     /**

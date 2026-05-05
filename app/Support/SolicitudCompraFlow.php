@@ -125,7 +125,8 @@ class SolicitudCompraFlow
 
     public static function canDeleteRequest(?User $user, SolicitudCompra $solicitudCompra): bool
     {
-        return self::canManageDraft($user, $solicitudCompra);
+        return self::canManageDraft($user, $solicitudCompra)
+            || self::canDeleteRejectedRequest($user, $solicitudCompra);
     }
 
     public static function canManageDraft(?User $user, SolicitudCompra $solicitudCompra): bool
@@ -234,6 +235,11 @@ class SolicitudCompraFlow
 
         // Cada version rechazada solo se corrige una vez: si ya existe una version posterior, se bloquea.
         return ! self::hasNewerVersion($solicitudCompra);
+    }
+
+    public static function canDeleteRejectedRequest(?User $user, SolicitudCompra $solicitudCompra): bool
+    {
+        return self::canEditRejectedRequest($user, $solicitudCompra);
     }
 
     private static function hasNewerVersion(SolicitudCompra $solicitudCompra): bool
@@ -373,6 +379,21 @@ class SolicitudCompraFlow
             ->where('solicitado_por_user_id', $user->id)
             ->where('estado', '!=', 'BORRADOR')
             ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
+            ->where(function (Builder $stateQuery): void {
+                $stateQuery
+                    ->where('estado', '!=', 'RECHAZADA')
+                    ->orWhere(function (Builder $rejectedQuery): void {
+                        $rejectedQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->whereNotExists(function ($subQuery): void {
+                                $subQuery
+                                    ->selectRaw('1')
+                                    ->from('solicitud_compras as newer_versions')
+                                    ->whereColumn('newer_versions.codigo_control', 'solicitud_compras.codigo_control')
+                                    ->whereColumn('newer_versions.id', '>', 'solicitud_compras.id');
+                            });
+                    });
+            })
             ->orderByDesc('updated_at');
     }
 
@@ -422,7 +443,21 @@ class SolicitudCompraFlow
 
         return $query
             ->where('solicitado_por_user_id', $user->id)
-            ->where('estado', SolicitudCompra::ESTADO_COMPLETADA)
+            ->where(function (Builder $historyQuery): void {
+                $historyQuery
+                    ->where('estado', SolicitudCompra::ESTADO_COMPLETADA)
+                    ->orWhere(function (Builder $rejectedQuery): void {
+                        $rejectedQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->whereExists(function ($subQuery): void {
+                                $subQuery
+                                    ->selectRaw('1')
+                                    ->from('solicitud_compras as newer_versions')
+                                    ->whereColumn('newer_versions.codigo_control', 'solicitud_compras.codigo_control')
+                                    ->whereColumn('newer_versions.id', '>', 'solicitud_compras.id');
+                            });
+                    });
+            })
             ->orderByDesc('updated_at');
     }
 

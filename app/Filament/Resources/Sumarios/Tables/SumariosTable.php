@@ -472,6 +472,7 @@ class SumariosTable
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderCorrectionBoard($record)))
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canUseCorrectionBoard($record)),
 
@@ -490,6 +491,7 @@ class SumariosTable
                             ->required(),
                     ])
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canSubmitForFinanceValidation($record))
                     ->action(function (array $data, $record): void {
@@ -531,6 +533,7 @@ class SumariosTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canValidateFinance($record)
                         && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
@@ -569,6 +572,7 @@ class SumariosTable
                             ->rows(4),
                     ])
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canValidateFinance($record)
                         && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
@@ -603,6 +607,7 @@ class SumariosTable
                     ->color('success')
                     ->url(fn (): string => OrdenCompraResource::getUrl('index'))
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canGenerateOdcs($record))
                     ->openUrlInNewTab(false),
@@ -615,6 +620,7 @@ class SumariosTable
                     ->modalHeading('Enviar sumario corregido a Gerencia Finanzas')
                     ->modalDescription('Solo se habilita cuando todos los items rechazados ya fueron corregidos.')
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canUseCorrectionBoard($record)
                         && self::canSendCorrectedSumarioToGerencia($record))
@@ -651,6 +657,7 @@ class SumariosTable
 
                 DeleteAction::make()
                     ->visible(fn ($record, $livewire): bool => ! self::isCreationTab($livewire)
+                        && ! self::isCorrectionTab($livewire)
                         && ! self::isHistoryTab($livewire)
                         && self::canDeleteDraft($record)),
             ])

@@ -10,6 +10,8 @@ class SumarioModalSummaryRenderer
             'solicitudCompra',
             'elaboradoPor',
             'revisadoPor',
+            'validadoPor',
+            'decisionGerenciaPor',
             'items.opciones',
         ]);
 
@@ -17,6 +19,7 @@ class SumarioModalSummaryRenderer
             . '<div style="margin-bottom:8px;font-weight:700;">Cuadro comparativo de cotizaciones</div>'
             . self::renderComparativeTable($sumario)
             . self::renderFooterSummary($sumario)
+            . self::renderRejectionSummary($sumario)
             . self::renderGeneralCommentSummary($sumario);
     }
 
@@ -26,6 +29,8 @@ class SumarioModalSummaryRenderer
             'solicitudCompra',
             'elaboradoPor',
             'revisadoPor',
+            'validadoPor',
+            'decisionGerenciaPor',
             'items.opciones',
         ]);
 
@@ -38,6 +43,8 @@ class SumarioModalSummaryRenderer
             'solicitudCompra',
             'elaboradoPor',
             'revisadoPor',
+            'validadoPor',
+            'decisionGerenciaPor',
             'items.opciones',
         ]);
 
@@ -101,14 +108,22 @@ class SumarioModalSummaryRenderer
     private static function renderFooterSummary(mixed $sumario): string
     {
         $providerNames = self::resolveProviderColumnNames($sumario);
+        $groupedConfig = SumarioProviderGrouping::build($providerNames);
         $selectedTotals = self::resolveSelectedProviderTotals($sumario);
+        $totalsHtml = '';
+
+        foreach ([1, 2, 3] as $slot) {
+            if (! ($groupedConfig['total_visible'][$slot] ?? false)) {
+                continue;
+            }
+
+            $totalsHtml .= '<div><strong>Total compra Prov. (' . e($groupedConfig['total_labels'][$slot] ?? ('Proveedor ' . $slot)) . '):</strong> $ ' . number_format((float) ($selectedTotals[$slot] ?? 0), 2, ',', '.') . '</div>';
+        }
 
         return '<div style="margin-top:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
             . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Pie del formato</div>'
             . '<div style="padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;">'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[1]) . '):</strong> $ ' . number_format((float) ($selectedTotals[1] ?? 0), 2, ',', '.') . '</div>'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[2]) . '):</strong> $ ' . number_format((float) ($selectedTotals[2] ?? 0), 2, ',', '.') . '</div>'
-            . '<div><strong>Total compra Prov. (' . e($providerNames[3]) . '):</strong> $ ' . number_format((float) ($selectedTotals[3] ?? 0), 2, ',', '.') . '</div>'
+            . $totalsHtml
             . '<div><strong>Prioridad:</strong> ' . e(str_replace('_', ' ', (string) ($sumario->prioridad ?? '-'))) . '</div>'
             . '<div><strong>Elaborado por:</strong> ' . e((string) ($sumario->elaboradoPor?->name ?? '-')) . '</div>'
             . '<div><strong>Revisado por:</strong> ' . e((string) ($sumario->revisadoPor?->name ?? '-')) . '</div>'
@@ -131,29 +146,58 @@ class SumarioModalSummaryRenderer
             . '</div>';
     }
 
+    private static function renderRejectionSummary(mixed $sumario): string
+    {
+        $rejection = self::resolveRejectionSummaryData($sumario);
+
+        if ($rejection === null) {
+            return '';
+        }
+
+        return '<div style="margin-top:10px;border:1px solid #fecaca;border-radius:10px;overflow:hidden;">'
+            . '<div style="padding:10px 12px;background:#fef2f2;font-weight:700;color:#991b1b;">Detalle del rechazo</div>'
+            . '<div style="padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;">'
+            . '<div><strong>Rechazado por:</strong> ' . e($rejection['user']) . '</div>'
+            . '<div><strong>Area:</strong> ' . e($rejection['stage']) . '</div>'
+            . '<div><strong>Resultado:</strong> RECHAZADO</div>'
+            . '<div style="grid-column:1 / -1;"><strong>Motivo de rechazo:</strong><br>' . nl2br(e($rejection['comment'])) . '</div>'
+            . '</div>'
+            . '</div>';
+    }
+
+    /**
+     * @return array{user:string,stage:string,comment:string}|null
+     */
+    private static function resolveRejectionSummaryData(mixed $sumario): ?array
+    {
+        $gerenciaComment = trim((string) ($sumario->decision_gerencia_comentario ?? ''));
+        $finanzasComment = trim((string) ($sumario->validacion_finanzas_comentario ?? ''));
+
+        if ((string) ($sumario->decision_gerencia_resultado ?? '') === 'RECHAZADO' || $gerenciaComment !== '') {
+            return [
+                'user' => (string) ($sumario->decisionGerenciaPor?->name ?? 'No registrado'),
+                'stage' => 'Gerencia de Finanzas',
+                'comment' => $gerenciaComment !== '' ? $gerenciaComment : 'Sin motivo registrado.',
+            ];
+        }
+
+        if ((string) ($sumario->validacion_finanzas_resultado ?? '') === 'RECHAZADO' || $finanzasComment !== '') {
+            return [
+                'user' => (string) ($sumario->validadoPor?->name ?? 'No registrado'),
+                'stage' => 'Validacion Finanzas',
+                'comment' => $finanzasComment !== '' ? $finanzasComment : 'Sin motivo registrado.',
+            ];
+        }
+
+        return null;
+    }
+
     /**
      * @return array<int, float>
      */
     private static function resolveSelectedProviderTotals(mixed $sumario): array
     {
-        $totals = [
-            1 => 0.0,
-            2 => 0.0,
-            3 => 0.0,
-        ];
-
-        foreach ($sumario->items ?? [] as $item) {
-            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
-            $selectedProvider = (int) ($selectedOption?->opcion_numero ?? 0);
-
-            if (! in_array($selectedProvider, [1, 2, 3], true)) {
-                continue;
-            }
-
-            $totals[$selectedProvider] += (float) ($selectedOption?->precio_total ?? 0);
-        }
-
-        return $totals;
+        return SumarioProviderGrouping::groupedTotalsFromSumario($sumario);
     }
 
     /**
@@ -161,49 +205,19 @@ class SumarioModalSummaryRenderer
      */
     private static function resolveProviderColumnNames(mixed $sumario): array
     {
-        $names = [
-            1 => 'Proveedor 1',
-            2 => 'Proveedor 2',
-            3 => 'Proveedor 3',
-        ];
-
-        foreach ($sumario->items ?? [] as $item) {
-            foreach ($item->opciones ?? [] as $opcion) {
-                $number = (int) ($opcion->opcion_numero ?? 0);
-
-                if (! in_array($number, [1, 2, 3], true)) {
-                    continue;
-                }
-
-                $name = trim((string) ($opcion->proveedor_nombre ?? ''));
-                if ($name !== '') {
-                    $names[$number] = $name;
-                }
-            }
-        }
-
-        return $names;
+        return SumarioProviderGrouping::providerNamesFromSumario($sumario);
     }
 
     private static function renderComparativeTable(mixed $sumario): string
     {
         $rows = '';
-        $totalSeleccionadoProv1 = 0.0;
-        $totalSeleccionadoProv2 = 0.0;
-        $totalSeleccionadoProv3 = 0.0;
+        $groupedProviderConfig = SumarioProviderGrouping::build(self::resolveProviderColumnNames($sumario));
+        $groupedTotals = SumarioProviderGrouping::groupedTotalsFromSumario($sumario);
 
         foreach ($sumario->items as $sumarioItem) {
             $opciones = $sumarioItem->opciones->keyBy('opcion_numero');
             $selectedOption = $sumarioItem->opciones->firstWhere('seleccionada', true);
             $selectedOptionNumber = (int) ($selectedOption?->opcion_numero ?? 0);
-
-            if ($selectedOptionNumber === 1) {
-                $totalSeleccionadoProv1 += (float) ($opciones->get(1)?->precio_total ?? 0);
-            } elseif ($selectedOptionNumber === 2) {
-                $totalSeleccionadoProv2 += (float) ($opciones->get(2)?->precio_total ?? 0);
-            } elseif ($selectedOptionNumber === 3) {
-                $totalSeleccionadoProv3 += (float) ($opciones->get(3)?->precio_total ?? 0);
-            }
 
             $styleProv1 = $selectedOptionNumber === 1
                 ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;'
@@ -251,6 +265,16 @@ class SumarioModalSummaryRenderer
             . '<div><strong>Moneda:</strong> $ USD</div>'
             . '</div>';
 
+        $footerTotals = '';
+
+        foreach ([1, 2, 3] as $slot) {
+            if (! ($groupedProviderConfig['total_visible'][$slot] ?? false)) {
+                continue;
+            }
+
+            $footerTotals .= '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra ' . e($groupedProviderConfig['total_labels'][$slot] ?? ('Proveedor ' . $slot)) . ': <strong>$ ' . number_format((float) ($groupedTotals[$slot] ?? 0), 2, ',', '.') . '</strong></td>';
+        }
+
         $table = '<div style="overflow:auto;">'
             . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
             . '<thead>'
@@ -277,9 +301,7 @@ class SumarioModalSummaryRenderer
             . '<tfoot>'
             . '<tr style="background:#f9fafb;font-weight:600;">'
             . '<td colspan="3" style="border:1px solid #d1d5db;padding:8px;"></td>'
-            . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 1: <strong>$ ' . number_format($totalSeleccionadoProv1, 2, ',', '.') . '</strong></td>'
-            . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 2: <strong>$ ' . number_format($totalSeleccionadoProv2, 2, ',', '.') . '</strong></td>'
-            . '<td colspan="4" style="border:1px solid #d1d5db;padding:8px;text-align:center;white-space:nowrap;">Total compra Proveedor 3: <strong>$ ' . number_format($totalSeleccionadoProv3, 2, ',', '.') . '</strong></td>'
+            . $footerTotals
             . '<td colspan="1" style="border:1px solid #d1d5db;padding:8px;"></td>'
             . '</tr>'
             . '</tfoot>'

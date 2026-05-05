@@ -11,6 +11,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
+use App\Support\SumarioProviderGrouping;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -208,6 +209,15 @@ class EditSumario extends EditRecord
                     'estado' => 'RECHAZADO',
                 ])->save();
 
+                $solicitudItemIds = $sumario->items()
+                    ->pluck('solicitud_compra_item_id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->filter(fn (int $id): bool => $id > 0)
+                    ->values()
+                    ->all();
+
+                SolicitudItemTrackingService::syncByItemIds($solicitudItemIds);
+
                 Notification::make()
                     ->title('Enviado a historial')
                     ->body('El sumario fue marcado como RECHAZADO definitivo y movido al historial.')
@@ -285,32 +295,15 @@ class EditSumario extends EditRecord
         $currentWorkflow = (string) ($this->record->workflow_estado ?? 'BORRADOR');
         $currentEstado = (string) ($this->record->estado ?? 'BORRADOR');
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+        $totals = SumarioProviderGrouping::groupedTotalsFromRows([
+            1 => (string) ($data['proveedor_a_nombre'] ?? ''),
+            2 => (string) ($data['proveedor_b_nombre'] ?? ''),
+            3 => (string) ($data['proveedor_c_nombre'] ?? ''),
+        ], $rows);
 
-        $totals = [
-            'A' => 0.0,
-            'B' => 0.0,
-            'C' => 0.0,
-        ];
-
-        foreach ($rows as $row) {
-            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
-
-            if (! in_array($selected, ['A', 'B', 'C'], true)) {
-                continue;
-            }
-
-            $key = 'precio_total_prov' . match ($selected) {
-                'A' => '1',
-                'B' => '2',
-                'C' => '3',
-            };
-
-            $totals[$selected] += filled($row[$key] ?? null) ? (float) $row[$key] : 0.0;
-        }
-
-        $data['total_compra_prov1'] = round($totals['A'], 2);
-        $data['total_compra_prov2'] = round($totals['B'], 2);
-        $data['total_compra_prov3'] = round($totals['C'], 2);
+        $data['total_compra_prov1'] = $totals[1];
+        $data['total_compra_prov2'] = $totals[2];
+        $data['total_compra_prov3'] = $totals[3];
 
         if ($currentWorkflow === 'BORRADOR') {
             $data['estado'] = 'BORRADOR';

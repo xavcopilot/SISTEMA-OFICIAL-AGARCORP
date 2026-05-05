@@ -335,10 +335,10 @@ class ViewSolicitudCompra extends ViewRecord
 
         if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI') {
             if ($this->hasPendingItemsForSumario($record)) {
-                $this->ensureDraftSumarioForSolicitud($record);
+                $draftSumario = $this->ensureDraftSumarioForSolicitud($record);
 
-                $this->redirect(SumarioResource::getUrl('index', [
-                    'activeTab' => 'creacion_sumarios',
+                $this->redirect(SumarioResource::getUrl('edit', [
+                    'record' => $draftSumario,
                 ]), navigate: true);
 
                 return;
@@ -360,22 +360,23 @@ class ViewSolicitudCompra extends ViewRecord
             ->exists();
     }
 
-    private function ensureDraftSumarioForSolicitud(SolicitudCompra $record): void
+    private function ensureDraftSumarioForSolicitud(SolicitudCompra $record): Sumario
     {
         $existingDraft = Sumario::query()
             ->where('solicitud_compra_id', $record->id)
             ->where('workflow_estado', 'BORRADOR')
-            ->exists();
+            ->latest('id')
+            ->first();
 
         if ($existingDraft) {
-            return;
+            return $existingDraft;
         }
 
         $tipoOrden = str_contains(strtoupper((string) ($record->tipo_solicitud ?? '')), 'SERVICIO')
             ? 'SERVICIO'
             : 'COMPRA';
 
-        Sumario::query()->create([
+        return Sumario::query()->create([
             'solicitud_compra_id' => $record->id,
             'correlativo_sdc' => ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc'),
             'fecha' => now()->toDateString(),

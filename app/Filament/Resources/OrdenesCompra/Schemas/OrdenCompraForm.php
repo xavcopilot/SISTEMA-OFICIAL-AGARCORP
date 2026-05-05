@@ -180,14 +180,20 @@ class OrdenCompraForm
                                     ->maxLength(255)
                                     ->columnSpan(2),
 
-                                Placeholder::make('telefono_proveedor_preview')
+                                TextInput::make('telefono_proveedor')
                                     ->label('Numero telefono')
-                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->proveedor?->telefono ?? '-')))
+                                    ->maxLength(50)
+                                    ->required(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
+                                    ->disabled(fn (callable $get): bool => (bool) $get('es_proveedor_registrado'))
+                                    ->dehydrated(false)
                                     ->columnSpan(2),
 
-                                Placeholder::make('ciudad_proveedor_preview')
+                                TextInput::make('ciudad_proveedor')
                                     ->label('Ciudad')
-                                    ->content(fn ($record): HtmlString => self::boxedValue((string) ($record?->proveedor?->ciudad ?? '-')))
+                                    ->maxLength(255)
+                                    ->required(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
+                                    ->disabled(fn (callable $get): bool => (bool) $get('es_proveedor_registrado'))
+                                    ->dehydrated(false)
                                     ->columnSpan(6),
 
                                 Placeholder::make('fecha_entrega_preview')
@@ -207,6 +213,8 @@ class OrdenCompraForm
                                             $direccion = (string) ($get('direccion_proveedor') ?? '');
                                             $email = (string) ($get('email_proveedor') ?? '');
                                             $contacto = (string) ($get('contacto_proveedor') ?? '');
+                                            $ciudad = (string) ($get('ciudad_proveedor') ?? '');
+                                            $telefono = (string) ($get('telefono_proveedor') ?? '');
 
                                             if ($nombre === '' || $rif === '') {
                                                 Notification::make()
@@ -223,8 +231,8 @@ class OrdenCompraForm
                                                 'direccion' => $direccion,
                                                 'email' => $email,
                                                 'contacto' => $contacto,
-                                                'ciudad' => 'Maracaibo',
-                                                'telefono' => '',
+                                                'ciudad' => $ciudad,
+                                                'telefono' => $telefono,
                                             ]);
 
                                             $set('proveedor_id', $provider->id);
@@ -334,10 +342,12 @@ class OrdenCompraForm
 
                                 TextInput::make('estado')
                                     ->label('Estado')
+                                    ->readOnly()
                                     ->columnSpan(6),
 
                                 TextInput::make('workflow_post_compra')
                                     ->label('Flujo post-compra')
+                                    ->readOnly()
                                     ->columnSpan(6),
                             ]),
                     ])
@@ -494,6 +504,8 @@ class OrdenCompraForm
         $set('direccion_proveedor', (string) ($provider->direccion ?? ''));
         $set('email_proveedor', (string) ($provider->email ?? ''));
         $set('contacto_proveedor', (string) ($provider->contacto ?? ''));
+        $set('ciudad_proveedor', (string) ($provider->ciudad ?? ''));
+        $set('telefono_proveedor', (string) ($provider->telefono ?? ''));
     }
 
     private static function totalInWords(float $amount): string

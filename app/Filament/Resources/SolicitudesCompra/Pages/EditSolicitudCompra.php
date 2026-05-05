@@ -88,8 +88,17 @@ class EditSolicitudCompra extends EditRecord
                 ->action(function (array $data): void {
                     $this->submitDraft($data);
                 }),
+            Action::make('deleteRejectedRequest')
+                ->label('Eliminar solicitud')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->record instanceof SolicitudCompra && SolicitudCompraFlow::canDeleteRejectedRequest(auth()->user(), $this->record))
+                ->schema($this->getDraftSubmissionSchema())
+                ->action(function (array $data): void {
+                    $this->deleteRejectedRequest($data);
+                }),
             DeleteAction::make()
-                ->visible(fn (): bool => $this->record instanceof SolicitudCompra && SolicitudCompraFlow::canDeleteRequest(auth()->user(), $this->record)),
+                ->visible(fn (): bool => $this->record instanceof SolicitudCompra && SolicitudCompraFlow::canManageDraft(auth()->user(), $this->record)),
         ];
     }
 
@@ -475,5 +484,28 @@ class EditSolicitudCompra extends EditRecord
         );
 
         $this->redirect(static::getResource()::getUrl('view', ['record' => $submittedRecord]));
+    }
+
+    private function deleteRejectedRequest(array $data): void
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof SolicitudCompra || ! SolicitudCompraFlow::canDeleteRejectedRequest(auth()->user(), $record)) {
+            return;
+        }
+
+        if (! $this->validateSignatureSubmission($data)) {
+            return;
+        }
+
+        $record->delete();
+
+        Notification::make()
+            ->title('Solicitud eliminada')
+            ->body('La solicitud rechazada se elimino y quedo sin efecto.')
+            ->success()
+            ->send();
+
+        $this->redirect(SolicitudCompraResource::getUrl('index', ['activeTab' => 'mis_solicitudes']));
     }
 }

@@ -666,8 +666,12 @@ class SolicitudesCompraTable
                 ->color('info')
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
                 ->schema(self::procuraSignatureSchema())
-                ->action(function (array $data) use ($record): void {
-                    self::signProcuraFromModal($record, $data);
+                ->action(function (array $data) use ($record) {
+                    $redirectUrl = self::signProcuraFromModal($record, $data);
+
+                    if (filled($redirectUrl)) {
+                        return redirect($redirectUrl);
+                    }
                 }),
 
             Action::make('rechazarProcuraDesdeModal')
@@ -808,12 +812,12 @@ class SolicitudesCompraTable
         );
     }
 
-    private static function signProcuraFromModal(SolicitudCompra $record, array $data): void
+    private static function signProcuraFromModal(SolicitudCompra $record, array $data): ?string
     {
         $record = $record->fresh();
 
         if (! SolicitudCompraFlow::canSignProcura(auth()->user(), $record) || ! self::validatePassword($data)) {
-            return;
+            return null;
         }
 
         $record->forceFill([
@@ -839,8 +843,14 @@ class SolicitudesCompraTable
         );
 
         if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI' && self::hasPendingItemsForSumario($record)) {
-            self::ensureDraftSumarioForSolicitud($record);
+            $draftSumario = self::ensureDraftSumarioForSolicitud($record);
+
+            return SumarioResource::getUrl('edit', [
+                'record' => $draftSumario,
+            ]);
         }
+
+        return null;
     }
 
     private static function rejectFromModal(SolicitudCompra $record, array $data, string $etapa): void
@@ -932,22 +942,23 @@ class SolicitudesCompraTable
         return false;
     }
 
-    private static function ensureDraftSumarioForSolicitud(SolicitudCompra $record): void
+    private static function ensureDraftSumarioForSolicitud(SolicitudCompra $record): Sumario
     {
         $existingDraft = Sumario::query()
             ->where('solicitud_compra_id', $record->id)
             ->where('workflow_estado', 'BORRADOR')
-            ->exists();
+            ->latest('id')
+            ->first();
 
         if ($existingDraft) {
-            return;
+            return $existingDraft;
         }
 
         $tipoOrden = str_contains(strtoupper((string) ($record->tipo_solicitud ?? '')), 'SERVICIO')
             ? 'SERVICIO'
             : 'COMPRA';
 
-        Sumario::query()->create([
+        return Sumario::query()->create([
             'solicitud_compra_id' => $record->id,
             'correlativo_sdc' => ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc'),
             'fecha' => now()->toDateString(),
@@ -1266,6 +1277,7 @@ class SolicitudesCompraTable
 
         $sumarios = Sumario::query()
             ->where('solicitud_compra_id', $solicitudId)
+            ->whereNotIn('workflow_estado', ['BORRADOR', 'RECHAZADO'])
             ->with(['ordenesCompra:id,sumario_id,correlativo_odc'])
             ->orderBy('id')
             ->get();

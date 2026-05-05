@@ -12,6 +12,7 @@ class OdcModalSummaryRenderer
             'items',
             'elaboradoPor.cargo',
             'aprobadoPor.cargo',
+            'rechazoPor',
         ]);
 
         $rows = '';
@@ -91,6 +92,34 @@ class OdcModalSummaryRenderer
             . '<div><strong>Cargo aprobado:</strong> ' . e((string) ($odc->aprobadoPor?->cargo?->nombre ?? '-')) . '</div>'
             . '</div>'
             . '</div>'
+            . self::renderRejectionSummary($odc)
             . '</div>';
+    }
+
+    private static function renderRejectionSummary(mixed $odc): string
+    {
+        if (strtoupper((string) ($odc->estado ?? '')) !== 'RECHAZADA') {
+            return '';
+        }
+
+        return '<div style="border:1px solid #fecaca;border-radius:10px;overflow:hidden;">'
+            . '<div style="padding:10px 12px;background:#fef2f2;font-weight:700;color:#991b1b;">Detalle del rechazo</div>'
+            . '<div style="padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12px;">'
+            . '<div><strong>Etapa:</strong> ' . e(self::rejectionStageLabel((string) ($odc->rechazo_etapa ?? ''))) . '</div>'
+            . '<div><strong>Rechazada por:</strong> ' . e((string) ($odc->rechazoPor?->name ?? '-')) . '</div>'
+            . '<div><strong>Fecha rechazo:</strong> ' . e(filled($odc->rechazo_en) ? (string) optional($odc->rechazo_en)->format('d/m/Y H:i') : '-') . '</div>'
+            . '<div style="grid-column:1 / -1;"><strong>Motivo de rechazo:</strong><br>' . nl2br(e((string) ($odc->rechazo_comentario ?: 'Sin comentario registrado.'))) . '</div>'
+            . '</div>'
+            . '</div>';
+    }
+
+    private static function rejectionStageLabel(string $stage): string
+    {
+        return match ($stage) {
+            'validacion_finanzas' => 'Validacion Finanzas',
+            'gerencia_finanzas' => 'Gerencia de Finanzas',
+            'historial' => 'Historial',
+            default => str_replace('_', ' ', strtoupper($stage ?: '-')),
+        };
     }
 }

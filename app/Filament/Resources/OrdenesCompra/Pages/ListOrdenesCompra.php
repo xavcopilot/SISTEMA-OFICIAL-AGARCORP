@@ -6,6 +6,7 @@ use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\OrdenCompra;
 use App\Models\Sumario;
 use App\Support\SumarioFinanceApprovalService;
+use App\Support\SumarioProviderGrouping;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
@@ -54,7 +55,7 @@ class ListOrdenesCompra extends ListRecords
                             ->orWhere(function (Builder $rechazadasQuery): Builder {
                                 return $rechazadasQuery
                                     ->where('estado', 'RECHAZADA')
-                                    ->where('rechazo_etapa', 'gerencia_finanzas');
+                                    ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas']);
                             });
                     })),
             'pagos_odc' => Tab::make('Pagos de ODC')
@@ -268,7 +269,7 @@ class ListOrdenesCompra extends ListRecords
     {
         return OrdenCompra::query()
             ->where('estado', 'RECHAZADA')
-            ->where('rechazo_etapa', 'gerencia_finanzas')
+            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas'])
             ->count();
     }
 
@@ -329,24 +330,7 @@ class ListOrdenesCompra extends ListRecords
      */
     private function resolveSelectedProviderTotals(Sumario $sumario): array
     {
-        $totals = [
-            1 => 0.0,
-            2 => 0.0,
-            3 => 0.0,
-        ];
-
-        foreach ($sumario->items ?? [] as $item) {
-            $selectedOption = $item->opciones->firstWhere('seleccionada', true);
-            $selectedProvider = (int) ($selectedOption?->opcion_numero ?? 0);
-
-            if (! in_array($selectedProvider, [1, 2, 3], true)) {
-                continue;
-            }
-
-            $totals[$selectedProvider] += (float) ($selectedOption?->precio_total ?? 0);
-        }
-
-        return $totals;
+        return SumarioProviderGrouping::groupedTotalsFromSumario($sumario);
     }
 
     private function humanReadableWorkflowState(string $state): string

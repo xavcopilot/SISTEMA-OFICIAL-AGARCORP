@@ -33,7 +33,13 @@ class SolicitudItemTrackingService
 
         $sumarioByItem = DB::table('sumario_items')
             ->selectRaw('solicitud_compra_item_id, COALESCE(SUM(cantidad), 0) AS total')
+            ->join('sumarios', 'sumarios.id', '=', 'sumario_items.sumario_id')
             ->whereIn('solicitud_compra_item_id', $itemIds)
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('sumarios.workflow_estado')
+                    ->orWhere('sumarios.workflow_estado', '!=', 'RECHAZADO');
+            })
             ->groupBy('solicitud_compra_item_id')
             ->pluck('total', 'solicitud_compra_item_id');
 

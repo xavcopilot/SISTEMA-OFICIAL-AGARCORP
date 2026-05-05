@@ -88,13 +88,10 @@ class SolicitudCompraResource extends Resource
             return 0;
         }
 
-        return (int) static::getModel()::query()
-            ->where('solicitado_por_user_id', $user->id)
+        return (int) SolicitudCompraFlow::requesterRequestsQuery(static::getModel()::query(), $user)
             ->whereNotIn('estado', [
-                SolicitudCompra::ESTADO_BORRADOR,
                 SolicitudCompra::ESTADO_EN_ESPERA_ALMACEN,
             ])
-            ->where('estado', '!=', SolicitudCompra::ESTADO_COMPLETADA)
             ->count();
     }
 

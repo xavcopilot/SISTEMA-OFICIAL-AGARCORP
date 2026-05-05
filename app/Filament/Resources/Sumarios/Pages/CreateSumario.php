@@ -11,6 +11,7 @@ use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use App\Support\ControlCodeGenerator;
+use App\Support\SumarioProviderGrouping;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -134,36 +135,19 @@ class CreateSumario extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
-
-        $totals = [
-            'A' => 0.0,
-            'B' => 0.0,
-            'C' => 0.0,
-        ];
-
-        foreach ($rows as $row) {
-            $selected = strtoupper(trim((string) ($row['proveedor_seleccionado'] ?? '')));
-
-            if (! in_array($selected, ['A', 'B', 'C'], true)) {
-                continue;
-            }
-
-            $key = 'precio_total_prov' . match ($selected) {
-                'A' => '1',
-                'B' => '2',
-                'C' => '3',
-            };
-
-            $totals[$selected] += filled($row[$key] ?? null) ? (float) $row[$key] : 0.0;
-        }
+        $totals = SumarioProviderGrouping::groupedTotalsFromRows([
+            1 => (string) ($data['proveedor_a_nombre'] ?? ''),
+            2 => (string) ($data['proveedor_b_nombre'] ?? ''),
+            3 => (string) ($data['proveedor_c_nombre'] ?? ''),
+        ], $rows);
 
         $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
             ? trim((string) $data['correlativo_sdc'])
             : ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
 
-        $data['total_compra_prov1'] = round($totals['A'], 2);
-        $data['total_compra_prov2'] = round($totals['B'], 2);
-        $data['total_compra_prov3'] = round($totals['C'], 2);
+        $data['total_compra_prov1'] = $totals[1];
+        $data['total_compra_prov2'] = $totals[2];
+        $data['total_compra_prov3'] = $totals[3];
 
         if ($this->isSubmittingForValidation) {
             $data['estado'] = 'PENDIENTE_REVISION_FINANZAS';

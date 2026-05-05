@@ -7,6 +7,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItemOpcion;
 use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
+use App\Support\SumarioProviderGrouping;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -181,6 +182,7 @@ class SumarioFormatoController extends Controller
         $isMejorServicio = str_contains($prioridad, 'SERVICIO') || str_contains($prioridad, 'CALIDAD');
 
         [$provider1, $provider2, $provider3] = $this->resolveProviderHeaders($sumario);
+        $groupedTotals = SumarioProviderGrouping::groupedTotalsFromSumario($sumario);
 
         $fechaElaborado = optional($sumario->enviado_validacion_finanzas_at ?? $sumario->created_at)->format('d/m/Y');
         $fechaRevisado = optional($sumario->decision_gerencia_finanzas_at ?? $sumario->updated_at)->format('d/m/Y');
@@ -220,9 +222,9 @@ class SumarioFormatoController extends Controller
             'tiempo_entrega_2' => (string) ($sumario->tiempo_entrega ?? ''),
             'tiempo_entrega_3' => (string) ($sumario->tiempo_entrega ?? ''),
 
-            'total_compra_prov1' => (float) ($sumario->total_compra_prov1 ?? 0),
-            'total_compra_prov2' => (float) ($sumario->total_compra_prov2 ?? 0),
-            'total_compra_prov3' => (float) ($sumario->total_compra_prov3 ?? 0),
+            'total_compra_prov1' => $groupedTotals[1],
+            'total_compra_prov2' => $groupedTotals[2],
+            'total_compra_prov3' => $groupedTotals[3],
 
             'observaciones' => (string) ($sumario->observaciones ?? ''),
             'prioridad_mejor_precio' => $this->checkboxTrailing('MEJOR PRECIO', ! $isMejorServicio),
@@ -239,19 +241,7 @@ class SumarioFormatoController extends Controller
 
     private function resolveProviderHeaders(Sumario $sumario): array
     {
-        $providers = [1 => '', 2 => '', 3 => ''];
-
-        foreach ($sumario->items as $item) {
-            foreach ($item->opciones as $opcion) {
-                $index = (int) ($opcion->opcion_numero ?? 0);
-
-                if ($index < 1 || $index > 3 || $providers[$index] !== '') {
-                    continue;
-                }
-
-                $providers[$index] = (string) ($opcion->proveedor_nombre ?: $opcion->proveedor?->nombre ?: '');
-            }
-        }
+        $providers = SumarioProviderGrouping::providerNamesFromSumario($sumario);
 
         return [$providers[1], $providers[2], $providers[3]];
     }

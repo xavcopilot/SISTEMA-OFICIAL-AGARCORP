@@ -31,7 +31,11 @@ $prefijo = trim((string) ($opts['prefijo'] ?? 'SC-APROB-PRUEBA'));
 
 fwrite(STDERR, "Parametros recibidos: cantidad={$cantidad}, items={$itemsPorSolicitud}, prefijo={$prefijo}\n");
 
-$solicitanteId = resolveUserId((int) ($opts['solicitante_id'] ?? 0), fn (): ?int => User::query()->orderBy('id')->value('id'));
+$solicitanteId = resolveUserId((int) ($opts['solicitante_id'] ?? 0), fn (): ?int => User::query()
+	->where('email', 'xavierdpdev@gmail.com')
+	->orWhere('email', 'prueba@gmail.com')
+	->orderBy('id')
+	->value('id'));
 $almacenId = resolveUserId((int) ($opts['almacen_id'] ?? 0), fn (): ?int => SolicitudCompraFlow::defaultAlmacenUserId());
 $aprobadorId = resolveUserId((int) ($opts['aprobador_id'] ?? 0), fn (): ?int => User::query()
 	->whereHas('roles', function (Builder $roleQuery): void {

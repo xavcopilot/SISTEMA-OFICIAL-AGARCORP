@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrdenesCompra\Tables;
 
+use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Departamento;
 use App\Models\Product;
 use App\Models\Sumario;
@@ -293,6 +294,16 @@ class OrdenesCompraTable
                     ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record)))
                     ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
                         && (self::isOdcCorreccionesTab($livewire) || self::isHistorialOdcTab($livewire))),
+
+                Action::make('editarOdcCorreccion')
+                    ->label('Editar ODC')
+                    ->icon(Heroicon::OutlinedPencilSquare)
+                    ->color('warning')
+                    ->url(fn ($record): string => OrdenCompraResource::getUrl('edit', ['record' => $record]))
+                    ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
+                        && self::isOdcCorreccionesTab($livewire)
+                        && (string) ($record->estado ?? '') === 'RECHAZADA'
+                        && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)),
 
                 Action::make('verSumarioOdc')
                     ->label('Ver sumario')
@@ -732,12 +743,15 @@ class OrdenesCompraTable
                     }),
 
                 EditAction::make()
+                    ->label('Editar ODC')
+                    ->icon(Heroicon::OutlinedPencilSquare)
                     ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
                         && ! self::isHistorialOdcTab($livewire)
                         && ! self::isPagosOdcTab($livewire)
+                        && ! self::isOdcCorreccionesTab($livewire)
                         && (! self::isOdcCorreccionesTab($livewire)
                             || ((string) ($record->estado ?? '') === 'RECHAZADA'
-                                && (string) ($record->rechazo_etapa ?? '') === 'gerencia_finanzas'))),
+                                && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)))),
             ])
             ->defaultSort('created_at', 'desc');
     }

@@ -24,12 +24,14 @@ class EditOrdenCompra extends EditRecord
     {
         $actions = [];
 
+        $rechazoEtapa = (string) ($this->record->rechazo_etapa ?? '');
+
         if ((string) ($this->record->estado ?? '') === 'RECHAZADA'
-            && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas') {
+            && in_array($rechazoEtapa, ['gerencia_finanzas', 'validacion_finanzas'], true)) {
             $actions[] = Action::make('verMotivoRechazo')
                 ->label('Motivo de rechazo')
                 ->color('warning')
-                ->modalHeading('Motivo de rechazo - Gerencia de Finanzas')
+                ->modalHeading('Motivo de rechazo - ' . $this->rejectionStageLabel($rechazoEtapa))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Cerrar')
                 ->modalWidth('2xl')
@@ -79,10 +81,10 @@ class EditOrdenCompra extends EditRecord
     {
         if ((string) ($this->record->workflow_post_compra ?? '') === 'BORRADOR_ODC'
             && ((string) ($this->record->estado ?? '') !== 'RECHAZADA'
-                || (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas')) {
+                || in_array((string) ($this->record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true))) {
             return [
-                Action::make('submitToGerenciaFinanzas')
-                    ->label('Enviar ODC a Gerencia Finanzas')
+                Action::make('submitToValidacionFinanzas')
+                    ->label('Enviar ODC')
                     ->color('success')
                     ->requiresConfirmation()
                     ->form([
@@ -96,7 +98,7 @@ class EditOrdenCompra extends EditRecord
                             ->required(),
                     ])
                     ->action(function (array $data): void {
-                        $this->submitToGerenciaFinanzas($data);
+                        $this->submitToValidacionFinanzas($data);
                     }),
                 $this->getCancelFormAction(),
             ];
@@ -159,7 +161,7 @@ class EditOrdenCompra extends EditRecord
         return false;
     }
 
-    private function submitToGerenciaFinanzas(array $data): void
+    private function submitToValidacionFinanzas(array $data): void
     {
         if (! $this->validateSignaturePassword($data)) {
             return;
@@ -173,8 +175,8 @@ class EditOrdenCompra extends EditRecord
         $this->record->forceFill([
             'elaborado_por_user_id' => $this->record->elaborado_por_user_id ?: auth()->id(),
             'elaborado_firmado_at' => now(),
-            'estado' => 'PENDIENTE_APROBACION',
-            'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+            'estado' => 'PENDIENTE_VALIDACION_FINANZAS',
+            'workflow_post_compra' => 'PENDIENTE_VALIDACION_FINANZAS',
             'rechazo_etapa' => null,
             'rechazo_comentario' => null,
             'rechazo_por_user_id' => null,
@@ -195,14 +197,14 @@ class EditOrdenCompra extends EditRecord
         }
 
         Notification::make()
-            ->title($isRejectedCorrection ? 'ODC corregida y reenviada' : 'ODC enviada a Gerencia Finanzas')
+            ->title($isRejectedCorrection ? 'ODC corregida y reenviada' : 'ODC enviada a Validacion Finanzas')
             ->body($isRejectedCorrection
-                ? 'La ODC corregida fue reenviada a Gerencia de Finanzas para nueva revision.'
-                : 'La orden quedo en espera de aprobacion de Gerencia de Finanzas.')
+                ? 'La ODC corregida fue reenviada a Validacion Finanzas para nueva revision.'
+                : 'La orden quedo en espera de revision por Validacion Finanzas.')
             ->success()
             ->send();
 
-        $this->refreshFormData(['elaborado_por_user_id', 'elaborado_firmado_at', 'estado', 'workflow_post_compra', 'rechazo_etapa', 'rechazo_comentario', 'rechazo_por_user_id', 'rechazo_en']);
+        $this->redirect(OrdenCompraResource::getUrl('index'));
     }
 
     private function submitToPagoFinanzas(array $data): void
@@ -242,6 +244,15 @@ class EditOrdenCompra extends EditRecord
     private function canSendToPagoFinanzas(): bool
     {
         return (bool) auth()->user()?->hasRole('Gerencia de Finanzas');
+    }
+
+    private function rejectionStageLabel(string $stage): string
+    {
+        return match ($stage) {
+            'validacion_finanzas' => 'Validacion Finanzas',
+            'gerencia_finanzas' => 'Gerencia de Finanzas',
+            default => strtoupper(str_replace('_', ' ', $stage ?: '-')),
+        };
     }
 
     private function syncSumarioWorkflowAfterSignatureSend(): void

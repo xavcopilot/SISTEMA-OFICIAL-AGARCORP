@@ -152,7 +152,7 @@ class OrdenCompraResource extends Resource
 
         return (int) static::getEloquentQuery()
             ->where('estado', 'RECHAZADA')
-            ->where('rechazo_etapa', 'gerencia_finanzas')
+            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas'])
             ->count();
     }
 
