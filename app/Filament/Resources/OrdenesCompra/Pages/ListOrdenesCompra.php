@@ -4,6 +4,7 @@ namespace App\Filament\Resources\OrdenesCompra\Pages;
 
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\OrdenCompra;
+use App\Models\OrdenCompraItem;
 use App\Models\Sumario;
 use App\Support\SumarioFinanceApprovalService;
 use App\Support\SumarioProviderGrouping;
@@ -135,6 +136,84 @@ class ListOrdenesCompra extends ListRecords
         $this->resetTable();
         $this->cachedDefaultTableColumnState = null;
         $this->applyTableColumnManager();
+    }
+
+    public function marcarDevolucionPlanificada(string $ordenId): void
+    {
+        $ordenCompra = OrdenCompra::query()
+            ->with('items:id,orden_compra_id,decision_solicitante')
+            ->find((int) $ordenId);
+
+        if (! $ordenCompra) {
+            Notification::make()
+                ->title('ODC no encontrada')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        if (! $ordenCompra->items->contains(fn (OrdenCompraItem $item): bool => (string) $item->decision_solicitante === 'RECHAZADO')) {
+            Notification::make()
+                ->title('Sin rechazos para planificar')
+                ->body('Esta ODC no tiene items rechazados por el solicitante.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $ordenCompra->forceFill([
+            'workflow_post_compra' => 'DEVOLUCION_PLANIFICADA',
+            'devolucion_motivo' => $ordenCompra->devolucion_motivo ?: 'Devolucion planificada con proveedor por rechazo del solicitante.',
+        ])->save();
+
+        Notification::make()
+            ->title('Devolucion planificada')
+            ->body('La ODC quedo marcada como devolucion planificada con proveedor.')
+            ->success()
+            ->send();
+    }
+
+    public function marcarDevolucionRealizada(string $ordenId): void
+    {
+        $ordenCompra = OrdenCompra::query()
+            ->with('items')
+            ->find((int) $ordenId);
+
+        if (! $ordenCompra) {
+            Notification::make()
+                ->title('ODC no encontrada')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        DB::transaction(function () use ($ordenCompra): void {
+            OrdenCompraItem::query()
+                ->where('orden_compra_id', (int) $ordenCompra->id)
+                ->where('decision_solicitante', 'RECHAZADO')
+                ->update([
+                    'decision_solicitante' => null,
+                    'motivo_rechazo_solicitante' => null,
+                    'conformidad_solicitante_at' => null,
+                    'estado_recepcion' => 'ZONA_TRANSICION',
+                    'entregado_at' => null,
+                ]);
+
+            $ordenCompra->forceFill([
+                'workflow_post_compra' => 'DEVOLUCION_REALIZADA',
+                'conformidad_solicitante_at' => null,
+                'conformidad_por_user_id' => null,
+            ])->save();
+        });
+
+        Notification::make()
+            ->title('Devolucion realizada')
+            ->body('Los items rechazados quedaron listos para una nueva conformidad del solicitante.')
+            ->success()
+            ->send();
     }
 
     protected function getTablePollingInterval(): ?string
@@ -361,7 +440,7 @@ class ListOrdenesCompra extends ListRecords
     private function renderConformidadesUsuariosHtml(): string
     {
         $ordenes = OrdenCompra::query()
-            ->with(['sumario.solicitudCompra', 'items'])
+            ->with(['sumario.solicitudCompra.solicitadoPor', 'proveedor', 'items'])
             ->whereNotNull('recepcion_procesada_at')
             ->orderByDesc('id')
             ->limit(300)
@@ -371,17 +450,75 @@ class ListOrdenesCompra extends ListRecords
             return '<div style="padding:12px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;">No hay conformidades registradas aun.</div>';
         }
 
+        $rejectedSolicitudItemIds = $ordenes
+            ->flatMap(fn (OrdenCompra $orden) => $orden->items
+                ->where('decision_solicitante', 'RECHAZADO')
+                ->pluck('solicitud_compra_item_id'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $attendedSolicitudItemIds = OrdenCompraItem::query()
+            ->when(
+                $rejectedSolicitudItemIds->isNotEmpty(),
+                fn ($query) => $query->whereIn('solicitud_compra_item_id', $rejectedSolicitudItemIds),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
+            ->where(function ($query): void {
+                $query
+                    ->where('decision_solicitante', 'ACEPTADO')
+                    ->orWhereNotNull('procesado_almacen_at')
+                    ->orWhere('estado_recepcion', 'ENTREGADO_SOLICITANTE');
+            })
+            ->pluck('solicitud_compra_item_id')
+            ->filter()
+            ->unique()
+            ->flip();
+
         $groupedRows = [];
 
         foreach ($ordenes as $orden) {
             $department = (string) ($orden->sumario?->solicitudCompra?->departamento_solicitante ?: $orden->departamento_solicitante ?: 'SIN DEPARTAMENTO');
             $solicitud = (string) ($orden->sumario?->solicitudCompra?->codigo_control ?: ($orden->sumario?->solicitud_compra_id ?: '-'));
+            $solicitante = (string) ($orden->sumario?->solicitudCompra?->solicitadoPor?->name ?: '-');
 
             $items = $orden->items;
             $accepted = (int) $items->where('decision_solicitante', 'ACEPTADO')->count();
             $rejected = (int) $items->where('decision_solicitante', 'RECHAZADO')->count();
-            $pending = (int) $items->whereNull('decision_solicitante')->count();
+            $deliveredComplete = (int) $items
+                ->filter(fn ($item): bool => (string) ($item->decision_solicitante ?? '') === 'ACEPTADO'
+                    && (string) ($item->estado_recepcion ?? '') === 'ENTREGADO_SOLICITANTE'
+                    && filled($item->procesado_almacen_at))
+                ->count();
             $total = (int) $items->count();
+            $pending = max(0, $total - $deliveredComplete);
+
+            $providerName = (string) ($orden->proveedor?->nombre ?: 'No definido');
+            $providerContact = (string) ($orden->proveedor?->contacto ?: $orden->contacto_proveedor ?: 'No definido');
+            $providerPhone = (string) ($orden->proveedor?->telefono ?: 'No definido');
+
+            $rejectedItems = $items
+                ->where('decision_solicitante', 'RECHAZADO')
+                ->values()
+                ->map(function ($item) use ($attendedSolicitudItemIds, $orden): array {
+                    $solicitudItemId = (int) ($item->solicitud_compra_item_id ?? 0);
+                    $isPlanned = strtoupper((string) ($orden->workflow_post_compra ?? '')) === 'DEVOLUCION_PLANIFICADA';
+                    $attention = $isPlanned
+                        ? 'DEVOLUCION PLANIFICADA'
+                        : ($solicitudItemId > 0 && isset($attendedSolicitudItemIds[$solicitudItemId])
+                            ? 'RECHAZO ATENDIDO'
+                            : 'PENDIENTE POR ATENDER');
+
+                    return [
+                        'item' => (string) ($item->item ?: ('#' . $item->id)),
+                        'descripcion' => (string) ($item->descripcion ?: '-'),
+                        'motivo' => (string) ($item->motivo_rechazo_solicitante ?: 'Sin motivo registrado'),
+                        'estado_atencion' => $attention,
+                    ];
+                })
+                ->all();
+
+            $printUrl = route('ordenes-compra.formato.print', ['ordenCompra' => $orden]);
 
             if (! isset($groupedRows[$department])) {
                 $groupedRows[$department] = [];
@@ -391,11 +528,18 @@ class ListOrdenesCompra extends ListRecords
                 'id' => (string) $orden->getKey(),
                 'odc' => (string) ($orden->correlativo_odc ?: ('#' . $orden->id)),
                 'solicitud' => $solicitud,
-                'workflow' => (string) ($orden->workflow_post_compra ?: '-'),
+                'solicitante' => $solicitante,
+                'workflow_raw' => (string) ($orden->workflow_post_compra ?? ''),
+                'workflow' => self::humanReadableOdcFlow((string) ($orden->workflow_post_compra ?: '-')),
                 'accepted' => $accepted,
                 'rejected' => $rejected,
                 'pending' => $pending,
                 'total' => $total,
+                'provider_name' => $providerName,
+                'provider_contact' => $providerContact,
+                'provider_phone' => $providerPhone,
+                'details' => $rejectedItems,
+                'print_url' => $printUrl,
             ];
         }
 
@@ -411,30 +555,60 @@ class ListOrdenesCompra extends ListRecords
             $html .= '<thead><tr style="background:#fafafa;">'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">ODC</th>'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">Solicitud</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Solicitante</th>'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">Flujo</th>'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">Aceptados</th>'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">Rechazados</th>'
-                . '<th style="border:1px solid #e5e7eb;padding:8px;">Pendientes</th>'
-                . '<th style="border:1px solid #e5e7eb;padding:8px;">Total items</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Pendientes entrega completa</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Total items OC</th>'
+                . '<th style="border:1px solid #e5e7eb;padding:8px;">Detalles</th>'
                 . '<th style="border:1px solid #e5e7eb;padding:8px;">Accion</th>'
                 . '</tr></thead><tbody>';
 
             foreach ($rows as $row) {
-                $openOdcButton = sprintf(
-                    '<button type="button" wire:click="mountTableAction(\'verResumenOdc\', \'%s\')" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;cursor:pointer;">Abrir ODC</button>',
-                    e((string) $row['id'])
-                );
+                $detailItems = collect($row['details'] ?? [])
+                    ->map(function (array $detail): string {
+                        return '<li style="margin-bottom:8px;">'
+                            . '<div><strong>Item:</strong> ' . e((string) ($detail['item'] ?? '-')) . '</div>'
+                            . '<div><strong>Descripcion:</strong> ' . e((string) ($detail['descripcion'] ?? '-')) . '</div>'
+                            . '<div><strong>Motivo rechazo:</strong> ' . e((string) ($detail['motivo'] ?? '-')) . '</div>'
+                                . '<div><strong>Proveedor:</strong> ' . e((string) ($row['provider_name'] ?? '-')) . '</div>'
+                                . '<div><strong>Contacto:</strong> ' . e((string) ($row['provider_contact'] ?? '-')) . '</div>'
+                                . '<div><strong>Telefono:</strong> ' . e((string) ($row['provider_phone'] ?? '-')) . '</div>'
+                            . '<div><strong>Atencion:</strong> ' . e((string) ($detail['estado_atencion'] ?? '-')) . '</div>'
+                            . '</li>';
+                    })
+                    ->implode('');
+
+                $detailsHtml = $detailItems === ''
+                    ? '<span style="color:#6b7280;">Sin rechazos</span>'
+                    : '<details>'
+                        . '<summary style="cursor:pointer;color:#1d4ed8;">Ver detalles</summary>'
+                        . '<ul style="margin:8px 0 0 16px;padding:0;">' . $detailItems . '</ul>'
+                    . '</details>';
+
+                $openOdcButton = '<a href="' . e((string) $row['print_url']) . '" target="_blank" rel="noopener" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;">Vista imprimir</a>';
+                $workflowRaw = strtoupper((string) ($row['workflow_raw'] ?? ''));
+                $planActionButton = (int) ($row['rejected'] ?? 0) > 0 && $workflowRaw !== 'DEVOLUCION_PLANIFICADA' && $workflowRaw !== 'DEVOLUCION_REALIZADA'
+                    ? '<button type="button" wire:click="marcarDevolucionPlanificada(\'' . e((string) $row['id']) . '\')" style="display:inline-block;border:1px solid #a16207;background:#ca8a04;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">Marcar devolucion planificada</button>'
+                    : '';
+                $reopenConformidadButton = $workflowRaw === 'DEVOLUCION_PLANIFICADA'
+                    ? '<button type="button" wire:click="marcarDevolucionRealizada(\'' . e((string) $row['id']) . '\')" style="display:inline-block;border:1px solid #0f766e;background:#0d9488;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">Marcar devolucion realizada</button>'
+                    : '';
+                $actionButtons = '<div style="display:flex;flex-wrap:wrap;gap:6px;">' . $openOdcButton . $planActionButton . $reopenConformidadButton . '</div>';
 
                 $html .= '<tr>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['odc']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e($row['solicitud']) . '</td>'
-                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e(str_replace('_', ' ', $row['workflow'])) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e((string) $row['solicitante']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . e((string) $row['workflow']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['accepted']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['rejected']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['pending']) . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">' . e((string) $row['total']) . '</td>'
+                    . '<td style="border:1px solid #e5e7eb;padding:8px;">' . $detailsHtml . '</td>'
                     . '<td style="border:1px solid #e5e7eb;padding:8px;">'
-                        . $openOdcButton
+                        . $actionButtons
                     . '</td>'
                     . '</tr>';
             }
@@ -445,5 +619,22 @@ class ListOrdenesCompra extends ListRecords
         $html .= '</div>';
 
         return $html;
+    }
+
+    private static function humanReadableOdcFlow(string $workflow): string
+    {
+        $normalized = strtoupper(trim($workflow));
+
+        return match ($normalized) {
+            'DOCUMENTO_RECEPCION_CARGADO_PROCURA' => 'DOCUMENTO CARGADO POR PROCURA',
+            'EN_TRANSICION_ALMACEN' => 'EN TRANSICION A ALMACEN',
+            'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'CONFORMIDAD COMPLETA',
+            'RECHAZADA_SOLICITANTE', 'RECHAZO_SOLICITANTE' => 'RECHAZADA POR SOLICITANTE',
+            'DEVOLUCION_PLANIFICADA' => 'DEVOLUCION PLANIFICADA',
+            'DEVOLUCION_REALIZADA' => 'DEVOLUCION REALIZADA',
+            'CERRADA_CONFORME' => 'CERRADA CONFORME',
+            '' => '-',
+            default => str_replace('_', ' ', $normalized),
+        };
     }
 }

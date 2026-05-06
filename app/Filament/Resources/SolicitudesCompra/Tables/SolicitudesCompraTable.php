@@ -149,6 +149,7 @@ class SolicitudesCompraTable
                             ->reorderable(false)
                             ->schema([
                                 Hidden::make('orden_compra_item_id')->required(),
+                                Hidden::make('cantidad_llegada_raw'),
                                 TextInput::make('item')
                                     ->label('Item')
                                     ->disabled()
@@ -173,6 +174,13 @@ class SolicitudesCompraTable
                                     ])
                                     ->required()
                                     ->live(),
+                                TextInput::make('cantidad_rechazada')
+                                    ->label('Cantidad rechazada')
+                                    ->numeric()
+                                    ->inputMode('decimal')
+                                    ->helperText('El resto de la cantidad llegada se marcara como entregado automaticamente.')
+                                    ->required(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO')
+                                    ->visible(fn (callable $get): bool => (string) ($get('decision') ?? '') === 'RECHAZADO'),
                                 Textarea::make('motivo')
                                     ->label('Motivo (si rechaza)')
                                     ->rows(2)
@@ -253,7 +261,7 @@ class SolicitudesCompraTable
         $ordenCompraId = OrdenCompra::query()
             ->whereHas('sumario', fn ($query) => $query->where('solicitud_compra_id', $record->id))
             ->whereNotNull('recepcion_procesada_at')
-            ->where('workflow_post_compra', 'EN_TRANSICION_ALMACEN')
+            ->whereIn('workflow_post_compra', ['EN_TRANSICION_ALMACEN', 'DEVOLUCION_REALIZADA'])
             ->whereHas('items', fn ($query) => $query->whereNull('decision_solicitante'))
             ->orderByDesc('id')
             ->value('id');
@@ -302,16 +310,17 @@ class SolicitudesCompraTable
                     ->sum('cantidad') ?? 0), 2);
 
                 $cantidadLlegada = round((float) ($item->cantidad ?? 0), 2);
-
-                $faltanteDespuesDeLlegada = max(0, round($cantidadObjetivo - ($cantidadAceptadaHistorica + $cantidadLlegada), 2));
+                $faltanteActual = max(0, round($cantidadObjetivo - $cantidadAceptadaHistorica, 2));
 
                 return [
                     'orden_compra_item_id' => (int) $item->id,
                     'item' => (string) ($item->item ?? ('#' . $item->id)),
                     'descripcion' => (string) ($item->descripcion ?? ''),
+                    'cantidad_llegada_raw' => $cantidadLlegada,
                     'cantidad_llegada' => number_format($cantidadLlegada, 2, ',', '.'),
-                    'faltante_solicitud' => number_format((float) $faltanteDespuesDeLlegada, 2, ',', '.'),
+                    'faltante_solicitud' => number_format((float) $faltanteActual, 2, ',', '.'),
                     'decision' => null,
+                    'cantidad_rechazada' => null,
                     'motivo' => '',
                 ];
             })
@@ -1163,54 +1172,113 @@ class SolicitudesCompraTable
             return self::$generalStateCache[$recordId] = ['label' => 'Recibido por procura', 'color' => 'info'];
         }
 
+        $conformidadSnapshot = self::resolveGeneralConformidadSnapshot($record, $sumarioIds->all());
+
+        if ($conformidadSnapshot['all_completed']) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Solicitud completada', 'color' => 'success'];
+        }
+
+        if ($conformidadSnapshot['accepted_quantity'] > 0) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Completada parcialmente', 'color' => 'warning'];
+        }
+
+        if ($conformidadSnapshot['has_any_decision'] && $conformidadSnapshot['rejected_quantity'] > 0) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Pendiente de devolucion', 'color' => 'danger'];
+        }
+
         $ordenes = OrdenCompra::query()
             ->whereIn('sumario_id', $sumarioIds)
             ->get(['estado', 'workflow_post_compra']);
 
         if ($ordenes->isEmpty()) {
-            return self::$generalStateCache[$recordId] = ['label' => 'En sumario de cotizaciones', 'color' => 'info'];
+            return self::$generalStateCache[$recordId] = ['label' => 'En proceso administrativo', 'color' => 'info'];
         }
 
         $workflows = $ordenes->pluck('workflow_post_compra')->filter()->map(fn ($value): string => (string) $value);
         $estados = $ordenes->pluck('estado')->filter()->map(fn ($value): string => (string) $value);
 
-        if ($workflows->contains('RECHAZO_SOLICITANTE') || $workflows->contains('RECHAZADA_SOLICITANTE')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Con rechazo del solicitante', 'color' => 'danger'];
-        }
-
-        if ($workflows->contains('FACTURA_PROCESADA_ADMINISTRACION') || $workflows->contains('BACKUP_FACTURA_COMPLETADO')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Factura procesada por administracion', 'color' => 'success'];
-        }
-
-        if ($workflows->contains('FACTURA_ENVIADA_ADMINISTRACION')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Factura enviada a administracion', 'color' => 'info'];
-        }
-
         if ($workflows->contains('EN_TRANSICION_ALMACEN')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'En transicion a almacen', 'color' => 'info'];
+            return self::$generalStateCache[$recordId] = ['label' => 'Disponible en zona de transicion', 'color' => 'info'];
         }
 
         if ($workflows->contains('EN_ESPERA_DE_PRODUCTO') || $workflows->contains('ESPERANDO_PRODUCTO')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'En espera de producto', 'color' => 'warning'];
+            return self::$generalStateCache[$recordId] = ['label' => 'Productos en camino', 'color' => 'warning'];
         }
 
-        if ($workflows->contains('PAGO_CONFIRMADO_PROCURA')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Pago confirmado por procura', 'color' => 'info'];
+        if ($workflows->contains('PAGO_CONFIRMADO_PROCURA') || $workflows->contains('PAGO_REGISTRADO_FINANZAS')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'Pago registrado', 'color' => 'info'];
         }
 
-        if ($workflows->contains('PAGO_REGISTRADO_FINANZAS')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Pago registrado por finanzas', 'color' => 'info'];
+        if ($workflows->contains('PENDIENTE_PAGO_FINANZAS')
+            || $estados->contains('PENDIENTE_APROBACION')
+            || $workflows->contains('FACTURA_ENVIADA_ADMINISTRACION')
+            || $workflows->contains('FACTURA_PROCESADA_ADMINISTRACION')
+            || $workflows->contains('BACKUP_FACTURA_COMPLETADO')
+            || $workflows->contains('RECHAZO_SOLICITANTE')
+            || $workflows->contains('RECHAZADA_SOLICITANTE')) {
+            return self::$generalStateCache[$recordId] = ['label' => 'En proceso administrativo', 'color' => 'info'];
         }
 
-        if ($workflows->contains('PENDIENTE_PAGO_FINANZAS')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Pendiente de pago finanzas', 'color' => 'warning'];
+        return self::$generalStateCache[$recordId] = ['label' => 'En proceso administrativo', 'color' => 'info'];
+    }
+
+    /**
+     * @param  array<int, int|string>  $sumarioIds
+     * @return array{accepted_quantity:float,rejected_quantity:float,has_any_decision:bool,all_completed:bool}
+     */
+    private static function resolveGeneralConformidadSnapshot(SolicitudCompra $record, array $sumarioIds): array
+    {
+        $items = SolicitudCompraItem::query()
+            ->where('solicitud_compra_id', (int) $record->id)
+            ->get(['id', 'cantidad_pedida', 'cantidad_a_comprar', 'cantidad_solicitada']);
+
+        if ($items->isEmpty() || $sumarioIds === []) {
+            return [
+                'accepted_quantity' => 0.0,
+                'rejected_quantity' => 0.0,
+                'has_any_decision' => false,
+                'all_completed' => false,
+            ];
         }
 
-        if ($estados->contains('PENDIENTE_APROBACION')) {
-            return self::$generalStateCache[$recordId] = ['label' => 'ODC pendiente de aprobacion', 'color' => 'warning'];
-        }
+        $itemIds = $items->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
-        return self::$generalStateCache[$recordId] = ['label' => 'En proceso de ODC', 'color' => 'gray'];
+        $ocItems = OrdenCompraItem::query()
+            ->whereIn('solicitud_compra_item_id', $itemIds)
+            ->whereHas('ordenCompra', fn ($query) => $query->whereIn('sumario_id', $sumarioIds))
+            ->get(['solicitud_compra_item_id', 'decision_solicitante', 'cantidad'])
+            ->groupBy('solicitud_compra_item_id');
+
+        $acceptedQuantity = round((float) $ocItems
+            ->flatten(1)
+            ->where('decision_solicitante', 'ACEPTADO')
+            ->sum('cantidad'), 2);
+
+        $rejectedQuantity = round((float) $ocItems
+            ->flatten(1)
+            ->where('decision_solicitante', 'RECHAZADO')
+            ->sum('cantidad'), 2);
+
+        $hasAnyDecision = $ocItems
+            ->flatten(1)
+            ->contains(fn ($ocItem): bool => filled($ocItem->decision_solicitante));
+
+        $allCompleted = $items->every(function (SolicitudCompraItem $item) use ($ocItems): bool {
+            $cantidadObjetivo = round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2);
+            $cantidadAceptada = round((float) $ocItems
+                ->get((int) $item->id, collect())
+                ->where('decision_solicitante', 'ACEPTADO')
+                ->sum('cantidad'), 2);
+
+            return $cantidadObjetivo > 0 && $cantidadAceptada >= $cantidadObjetivo;
+        });
+
+        return [
+            'accepted_quantity' => $acceptedQuantity,
+            'rejected_quantity' => $rejectedQuantity,
+            'has_any_decision' => $hasAnyDecision,
+            'all_completed' => $allCompleted,
+        ];
     }
 
     private static function renderTrackingView(SolicitudCompra $record): string
@@ -1225,6 +1293,14 @@ class SolicitudesCompraTable
                 return '<tr>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['item']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['descripcion']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">'
+                    . '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:' . e((string) ($item['estado_bg'] ?? '#f3f4f6')) . ';color:' . e((string) ($item['estado_color'] ?? '#374151')) . ';">' . e((string) ($item['estado_label'] ?? 'Sin procesar')) . '</span>'
+                    . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">'
+                    . '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:' . e((string) ($item['cobertura_bg'] ?? '#f3f4f6')) . ';color:' . e((string) ($item['cobertura_color'] ?? '#374151')) . ';">' . e((string) ($item['cobertura_label'] ?? 'Pendiente')) . '</span>'
+                    . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) ($item['en_cotizacion'] ?? '0,00')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) ($item['en_odc'] ?? '0,00')) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['cantidad_pedida']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['entregados']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['faltantes']) . '</td>'
@@ -1234,7 +1310,7 @@ class SolicitudesCompraTable
             ->implode('');
 
         if ($rows === '') {
-            $rows = '<tr><td colspan="6" style="border:1px solid #d1d5db;padding:10px;text-align:center;color:#6b7280;">Sin items registrados.</td></tr>';
+            $rows = '<tr><td colspan="10" style="border:1px solid #d1d5db;padding:10px;text-align:center;color:#6b7280;">Sin items registrados.</td></tr>';
         }
 
         $sumariosHtml = collect($sumarios)
@@ -1276,6 +1352,10 @@ class SolicitudesCompraTable
             . '<thead><tr style="background:#f3f4f6;">'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Item</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Descripcion</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Estado</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">Cobertura</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">En Cotización</th>'
+            . '<th style="border:1px solid #d1d5db;padding:8px;">En ODC</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Cantidad pedida</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Entregados</th>'
             . '<th style="border:1px solid #d1d5db;padding:8px;">Faltantes</th>'
@@ -1442,7 +1522,7 @@ class SolicitudesCompraTable
         $ocItems = OrdenCompraItem::query()
             ->whereIn('solicitud_compra_item_id', $itemIds)
             ->whereHas('ordenCompra.sumario', fn ($query) => $query->where('solicitud_compra_id', $solicitudId))
-            ->with('ordenCompra:id,correlativo_odc,sumario_id')
+            ->with('ordenCompra:id,correlativo_odc,sumario_id,workflow_post_compra')
             ->get()
             ->groupBy('solicitud_compra_item_id');
 
@@ -1460,6 +1540,12 @@ class SolicitudesCompraTable
             $itemOcRows = $ocItems->get($item->id, collect());
 
             $cantidadPedida = round((float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0), 2);
+            $cantidadComprada = round((float) ($item->cantidad_comprada ?? 0), 2);
+            $cantidadEnSumario = round((float) ($item->cantidad_en_sumario ?? 0), 2);
+            $cantidadEnOdc = round((float) $itemOcRows
+                ->whereNull('decision_solicitante')
+                ->sum('cantidad'), 2);
+            $cantidadEnCotizacion = max(0, round($cantidadEnSumario - $cantidadComprada, 2));
             $cantidadEntregada = round((float) $itemOcRows
                 ->where('decision_solicitante', 'ACEPTADO')
                 ->sum('cantidad'), 2);
@@ -1468,11 +1554,29 @@ class SolicitudesCompraTable
                 ? (int) round(min(100, ($cantidadEntregada / $cantidadPedida) * 100))
                 : 0;
 
+            $estado = self::resolveTrackingItemState(
+                $item,
+                $itemOcRows,
+                $cantidadPedida,
+                $cantidadEntregada,
+                $cantidadEnOdc,
+                $cantidadEnCotizacion
+            );
+            $cobertura = self::resolveTrackingItemCoverage($cantidadPedida, $cantidadEntregada);
+
             $progressAccumulator += $progress;
 
             $rows[] = [
                 'item' => $item->item ?: $item->id,
                 'descripcion' => $item->descripcion,
+                'estado_label' => $estado['label'],
+                'estado_bg' => $estado['bg'],
+                'estado_color' => $estado['color'],
+                'cobertura_label' => $cobertura['label'],
+                'cobertura_bg' => $cobertura['bg'],
+                'cobertura_color' => $cobertura['color'],
+                'en_cotizacion' => number_format($cantidadEnCotizacion, 2, ',', '.'),
+                'en_odc' => number_format($cantidadEnOdc, 2, ',', '.'),
                 'cantidad_pedida' => number_format($cantidadPedida, 2, ',', '.'),
                 'entregados' => number_format($cantidadEntregada, 2, ',', '.'),
                 'faltantes' => number_format($cantidadFaltante, 2, ',', '.'),
@@ -1506,6 +1610,85 @@ class SolicitudesCompraTable
                 ->all(),
             'items' => $rows,
         ];
+    }
+
+    /**
+     * @return array{label:string,bg:string,color:string}
+     */
+    private static function resolveTrackingItemState(SolicitudCompraItem $item, $itemOcRows, float $cantidadPedida, float $cantidadEntregada, float $cantidadEnOdc, float $cantidadEnCotizacion): array
+    {
+        $hasRejected = $itemOcRows->contains(fn ($ocItem): bool => (string) ($ocItem->decision_solicitante ?? '') === 'RECHAZADO');
+        $hasPlannedReturn = $itemOcRows->contains(function ($ocItem): bool {
+            $workflow = strtoupper((string) ($ocItem->ordenCompra?->workflow_post_compra ?? ''));
+
+            return $workflow === 'DEVOLUCION_PLANIFICADA';
+        });
+        $hasReturnCompleted = $itemOcRows->contains(function ($ocItem): bool {
+            $workflow = strtoupper((string) ($ocItem->ordenCompra?->workflow_post_compra ?? ''));
+
+            return $workflow === 'DEVOLUCION_REALIZADA';
+        });
+        $inTransition = $itemOcRows->contains(fn ($ocItem): bool => (string) ($ocItem->estado_recepcion ?? '') === 'ZONA_TRANSICION');
+        $hasOdc = $itemOcRows->isNotEmpty();
+        $inSumario = round((float) ($item->cantidad_en_sumario ?? 0), 2) > 0;
+
+        if ($cantidadPedida > 0 && $cantidadEntregada >= $cantidadPedida) {
+            return ['label' => 'Entregado', 'bg' => '#ecfdf5', 'color' => '#166534'];
+        }
+
+        if ($cantidadEntregada > 0) {
+            if ($cantidadEnOdc > 0) {
+                return ['label' => 'En Orden de Compra', 'bg' => '#eef2ff', 'color' => '#4338ca'];
+            }
+
+            if ($cantidadEnCotizacion > 0) {
+                return ['label' => 'En Cotización', 'bg' => '#eff6ff', 'color' => '#1d4ed8'];
+            }
+
+            return ['label' => 'Entregado parcial', 'bg' => '#fffbeb', 'color' => '#92400e'];
+        }
+
+        if ($hasPlannedReturn) {
+            return ['label' => 'Devolucion planificada', 'bg' => '#fff7ed', 'color' => '#9a3412'];
+        }
+
+        if ($hasReturnCompleted) {
+            return ['label' => 'Devolucion realizada', 'bg' => '#ecfeff', 'color' => '#0f766e'];
+        }
+
+        if ($hasRejected) {
+            return ['label' => 'Rechazado por solicitante', 'bg' => '#fef2f2', 'color' => '#b91c1c'];
+        }
+
+        if ($inTransition) {
+            return ['label' => 'Disponible en Almacen', 'bg' => '#ecfeff', 'color' => '#0f766e'];
+        }
+
+        if ($cantidadEnOdc > 0 || $hasOdc) {
+            return ['label' => 'En Orden de Compra', 'bg' => '#eef2ff', 'color' => '#4338ca'];
+        }
+
+        if ($cantidadEnCotizacion > 0 || $inSumario) {
+            return ['label' => 'En Cotización', 'bg' => '#eff6ff', 'color' => '#1d4ed8'];
+        }
+
+        return ['label' => 'Sin procesar', 'bg' => '#f3f4f6', 'color' => '#374151'];
+    }
+
+    /**
+     * @return array{label:string,bg:string,color:string}
+     */
+    private static function resolveTrackingItemCoverage(float $cantidadPedida, float $cantidadEntregada): array
+    {
+        if ($cantidadPedida > 0 && $cantidadEntregada >= $cantidadPedida) {
+            return ['label' => 'Completo', 'bg' => '#ecfdf5', 'color' => '#166534'];
+        }
+
+        if ($cantidadEntregada > 0) {
+            return ['label' => 'Parcial', 'bg' => '#fffbeb', 'color' => '#92400e'];
+        }
+
+        return ['label' => 'Pendiente', 'bg' => '#f3f4f6', 'color' => '#374151'];
     }
 
     /**

@@ -31,6 +31,10 @@ class OrdenCompraConformidadService
                 ->map(fn (array $row): array => [
                     'orden_compra_item_id' => (int) ($row['orden_compra_item_id'] ?? 0),
                     'decision' => strtoupper(trim((string) ($row['decision'] ?? ''))),
+                    'cantidad_llegada' => round((float) ($row['cantidad_llegada_raw'] ?? $row['cantidad_llegada'] ?? 0), 2),
+                    'cantidad_rechazada' => filled($row['cantidad_rechazada'] ?? null)
+                        ? round((float) $row['cantidad_rechazada'], 2)
+                        : null,
                     'motivo' => trim((string) ($row['motivo'] ?? '')),
                 ])
                 ->filter(fn (array $row): bool => $row['orden_compra_item_id'] > 0)
@@ -56,13 +60,84 @@ class OrdenCompraConformidadService
                     throw new \RuntimeException('Debes indicar motivo para cada item rechazado.');
                 }
 
-                OrdenCompraItem::query()->whereKey($row['orden_compra_item_id'])->update([
-                    'decision_solicitante' => $row['decision'],
-                    'motivo_rechazo_solicitante' => $row['decision'] === 'RECHAZADO' ? $row['motivo'] : null,
+                $item = $ordenCompra->items->firstWhere('id', $row['orden_compra_item_id']);
+
+                if (! $item) {
+                    continue;
+                }
+
+                $cantidadOriginal = round((float) ($item->cantidad ?? $row['cantidad_llegada']), 2);
+
+                if ($cantidadOriginal <= 0) {
+                    throw new \RuntimeException('La cantidad llegada del item no es valida.');
+                }
+
+                if ($row['decision'] === 'ACEPTADO') {
+                    $item->forceFill([
+                        'decision_solicitante' => 'ACEPTADO',
+                        'motivo_rechazo_solicitante' => null,
+                        'conformidad_solicitante_at' => $now,
+                        'estado_recepcion' => 'ENTREGADO_SOLICITANTE',
+                        'entregado_at' => $now,
+                    ])->save();
+
+                    continue;
+                }
+
+                $cantidadRechazada = $row['cantidad_rechazada'] ?? $cantidadOriginal;
+
+                if ($cantidadRechazada <= 0) {
+                    throw new \RuntimeException('Debes indicar una cantidad rechazada mayor a cero.');
+                }
+
+                if ($cantidadRechazada > $cantidadOriginal) {
+                    throw new \RuntimeException('La cantidad rechazada no puede ser mayor que la cantidad llegada.');
+                }
+
+                $cantidadAceptada = round($cantidadOriginal - $cantidadRechazada, 2);
+
+                if ($cantidadAceptada > 0) {
+                    $item->forceFill([
+                        'cantidad' => $cantidadAceptada,
+                        'precio_total' => round($cantidadAceptada * (float) $item->precio_unitario, 2),
+                        'decision_solicitante' => 'ACEPTADO',
+                        'motivo_rechazo_solicitante' => null,
+                        'conformidad_solicitante_at' => $now,
+                        'estado_recepcion' => 'ENTREGADO_SOLICITANTE',
+                        'entregado_at' => $now,
+                    ])->save();
+
+                    OrdenCompraItem::query()->create([
+                        'orden_compra_id' => (int) $item->orden_compra_id,
+                        'sumario_item_id' => $item->sumario_item_id,
+                        'solicitud_compra_item_id' => $item->solicitud_compra_item_id,
+                        'item' => $item->item,
+                        'descripcion' => $item->descripcion,
+                        'unidad_medida' => $item->unidad_medida,
+                        'cantidad' => $cantidadRechazada,
+                        'precio_unitario' => $item->precio_unitario,
+                        'precio_total' => round($cantidadRechazada * (float) $item->precio_unitario, 2),
+                        'estado_recepcion' => 'ZONA_TRANSICION',
+                        'en_transicion_at' => $item->en_transicion_at,
+                        'entregado_at' => null,
+                        'decision_solicitante' => 'RECHAZADO',
+                        'motivo_rechazo_solicitante' => $row['motivo'],
+                        'conformidad_solicitante_at' => $now,
+                        'procesado_almacen_at' => null,
+                        'modo_ingreso_almacen' => null,
+                        'product_id' => null,
+                    ]);
+
+                    continue;
+                }
+
+                $item->forceFill([
+                    'decision_solicitante' => 'RECHAZADO',
+                    'motivo_rechazo_solicitante' => $row['motivo'],
                     'conformidad_solicitante_at' => $now,
-                    'estado_recepcion' => $row['decision'] === 'ACEPTADO' ? 'ENTREGADO_SOLICITANTE' : 'ZONA_TRANSICION',
-                    'entregado_at' => $row['decision'] === 'ACEPTADO' ? $now : null,
-                ]);
+                    'estado_recepcion' => 'ZONA_TRANSICION',
+                    'entregado_at' => null,
+                ])->save();
             }
 
             $ordenCompra->refresh()->load('items');
