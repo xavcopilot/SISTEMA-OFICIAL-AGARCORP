@@ -21,17 +21,17 @@ class AdministracionPagosOdcTable
         return $table
             ->columns([
                 TextColumn::make('correlativo_odc')
-                    ->label('Correlativo ODC')
+                    ->label('N° Control ODC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
-                    ->label('Sumario')
+                    ->label('N° SDC Asociado')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('solicitud_codigo_control')
-                    ->label('Solicitud')
+                    ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable(),
 

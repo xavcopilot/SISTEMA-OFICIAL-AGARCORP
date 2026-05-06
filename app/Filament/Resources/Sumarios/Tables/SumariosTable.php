@@ -47,12 +47,12 @@ class SumariosTable
                 ->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS'))
             ->columns([
                 TextColumn::make('correlativo_sdc')
-                    ->label('Correlativo SDC')
+                    ->label('N° Control SDC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('solicitudCompra.codigo_control')
-                    ->label('Solicitud asociada')
+                    ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
                     ->searchable(),
 
@@ -188,12 +188,12 @@ class SumariosTable
                 ->whereIn('workflow_estado', ['VALIDADO_FINANZAS']))
             ->columns([
                 TextColumn::make('correlativo_sdc')
-                    ->label('Correlativo SDC')
+                    ->label('N° Control SDC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('solicitudCompra.codigo_control')
-                    ->label('Solicitud asociada')
+                    ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
                     ->searchable(),
 
@@ -248,9 +248,10 @@ class SumariosTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['solicitudCompra.solicitadoPor']))
             ->columns([
                 TextColumn::make('correlativo_sdc')
-                    ->label('Correlativo SDC')
+                    ->label('N° Control SDC')
                     ->searchable()
                     ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
@@ -261,16 +262,16 @@ class SumariosTable
                     ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
-                TextColumn::make('solicitudCompra.numero_solicitud_usuario')
-                    ->label('N° solicitud')
-                    ->state(fn ($record): string => (string) ($record->solicitudCompra?->numero_solicitud_usuario ?: $record->solicitud_compra_id))
+                TextColumn::make('solicitud_codigo_control_creacion')
+                    ->label('N° Control Solicitud')
+                    ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
                     ->sortable()
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
-                TextColumn::make('solicitudCompra.codigo_control')
-                    ->label('N° control')
-                    ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
+                TextColumn::make('solicitudCompra.solicitadoPor.name')
+                    ->label('Solicitante')
+                    ->state(fn ($record): string => (string) ($record->solicitudCompra?->solicitadoPor?->name ?: '-'))
                     ->sortable()
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
@@ -324,13 +325,6 @@ class SumariosTable
                 TextColumn::make('tipo_orden')
                     ->label('Tipo orden')
                     ->badge()
-                    ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
-
-                TextColumn::make('mensaje_pago_transito')
-                    ->label('Mensaje dinamico')
-                    ->state(fn ($record): string => self::buildPaidTransitMessage($record))
-                    ->wrap()
-                    ->toggleable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('estado')
@@ -1981,32 +1975,4 @@ class SumariosTable
         return SumarioModalSummaryRenderer::providerColumnNames($sumario);
     }
 
-    private static function buildPaidTransitMessage(mixed $record): string
-    {
-        $sumario = $record->loadMissing(['ordenesCompra.items']);
-
-        $segments = [];
-
-        foreach ($sumario->ordenesCompra as $ordenCompra) {
-            if ((string) ($ordenCompra->workflow_post_compra ?? '') !== 'PAGADO_Y_EN_TRANSITO') {
-                continue;
-            }
-
-            $itemsText = $ordenCompra->items
-                ->map(function ($item): string {
-                    $itemNumero = (string) ($item->item ?: $item->id);
-
-                    return '#' . $itemNumero . ' ' . (string) $item->descripcion;
-                })
-                ->implode(', ');
-
-            if ($itemsText === '') {
-                continue;
-            }
-
-            $segments[] = 'Los siguientes items de la OC ' . (string) $ordenCompra->id . ' fueron pagados y estan en transito: ' . $itemsText;
-        }
-
-        return $segments === [] ? 'Sin items pagados.' : implode(' | ', $segments);
-    }
 }

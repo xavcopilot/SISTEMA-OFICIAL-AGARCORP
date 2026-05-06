@@ -45,12 +45,12 @@ class SolicitudesCompraTable
         return $table
             ->columns([
                 TextColumn::make('numero_solicitud_usuario')
-                    ->label('N° solicitud')
+                    ->label('N° Solicitud')
                     ->state(fn ($record) => $record->numero_solicitud_usuario ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('codigo_control')
-                    ->label('N° control')
+                    ->label('N° Control Solicitud')
                     ->state(fn ($record) => $record->codigo_control ?: $record->id)
                     ->sortable(),
 
@@ -318,7 +318,7 @@ class SolicitudesCompraTable
                     Grid::make(6)
                         ->schema([
                             TextInput::make('codigo_control')
-                                ->label('N° control')
+                                ->label('N° Control Solicitud')
                                 ->disabled()
                                 ->columnSpan(1),
 
@@ -516,15 +516,17 @@ class SolicitudesCompraTable
     public static function configureForApprovals(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with('solicitadoPor'))
             ->columns([
-                TextColumn::make('numero_solicitud_usuario')
-                    ->label('N° solicitud')
-                    ->state(fn ($record) => $record->numero_solicitud_usuario ?: $record->id)
+                TextColumn::make('codigo_control')
+                    ->label('N° Control Solicitud')
+                    ->state(fn ($record) => $record->codigo_control ?: $record->id)
                     ->sortable(),
 
-                TextColumn::make('codigo_control')
-                    ->label('N° control')
-                    ->state(fn ($record) => $record->codigo_control ?: $record->id)
+                TextColumn::make('solicitadoPor.name')
+                    ->label('Solicitante')
+                    ->state(fn ($record): string => (string) ($record->solicitadoPor?->name ?: '-'))
+                    ->searchable()
                     ->sortable(),
 
                 TextColumn::make('created_at')

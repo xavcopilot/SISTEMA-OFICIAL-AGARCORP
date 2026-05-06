@@ -248,6 +248,10 @@ class SumarioForm
                                     ->label('Sumario N°')
                                     ->placeholder('2026-001')
                                     ->required()
+                                    ->unique(table: 'sumarios', column: 'correlativo_sdc', ignoreRecord: true)
+                                    ->validationMessages([
+                                        'unique' => 'Este Numero de Sumario ya existe. Debes cambiarlo manualmente.',
+                                    ])
                                     ->maxLength(50)
                                     ->columnSpan(3),
 

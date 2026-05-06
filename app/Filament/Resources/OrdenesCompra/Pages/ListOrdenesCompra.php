@@ -29,6 +29,7 @@ class ListOrdenesCompra extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->from('sumarios as ordenes_compra')
                     ->leftJoin('solicitud_compras', 'solicitud_compras.id', '=', 'ordenes_compra.solicitud_compra_id')
+                    ->leftJoin('users as solicitantes', 'solicitantes.id', '=', 'solicitud_compras.solicitado_por_user_id')
                     ->where('ordenes_compra.workflow_estado', 'APROBADO_GERENCIA_FINANZAS')
                     ->when($pendingSumarioIds === [], fn (Builder $subQuery): Builder => $subQuery->whereRaw('1 = 0'))
                     ->when($pendingSumarioIds !== [], fn (Builder $subQuery): Builder => $subQuery->whereIn('ordenes_compra.id', $pendingSumarioIds))
@@ -44,6 +45,7 @@ class ListOrdenesCompra extends ListRecords
                         'ordenes_compra.workflow_estado',
                         'ordenes_compra.estado',
                         DB::raw('solicitud_compras.codigo_control as solicitud_codigo_control'),
+                        DB::raw("COALESCE(solicitantes.name, '-') as solicitante_nombre"),
                         DB::raw('1 as is_sumario_pending_odc_row'),
                     ])),
             'odc_en_correcciones' => Tab::make('ODC en correcciones')

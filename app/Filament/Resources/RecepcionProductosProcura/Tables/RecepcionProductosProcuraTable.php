@@ -18,17 +18,17 @@ class RecepcionProductosProcuraTable
         return $table
             ->columns([
                 TextColumn::make('correlativo_odc')
-                    ->label('Correlativo ODC')
+                    ->label('N° Control OC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
-                    ->label('Sumario')
+                    ->label('N° Control SDC')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('solicitud_codigo_control')
-                    ->label('Solicitud')
+                    ->label('N° Control Solicitud')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable(),
 

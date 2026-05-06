@@ -19,19 +19,30 @@ class FacturasCompraTable
         return $table
             ->columns([
                 TextColumn::make('correlativo_odc')
-                    ->label('Correlativo ODC')
+                    ->label('N° Control ODC')
+                    ->toggleable()
                     ->searchable()
                     ->sortable(),
+
+                TextColumn::make('sumario.correlativo_sdc')
+                ->label('N° SDC Asociado')
+                ->toggleable()
+                ->default('-')
+                ->searchable(),
+
                 TextColumn::make('sumario.solicitudCompra.codigo_control')
-                    ->label('Solicitud')
+                    ->label('N° Solicitud Asociada')
+                    ->toggleable()
                     ->default('-')
                     ->searchable(),
                 TextColumn::make('proveedor.nombre')
                     ->label('Proveedor')
+                    ->toggleable()
                     ->default('-')
                     ->searchable(),
                 TextColumn::make('factura_path')
                     ->label('Factura recibida')
+                    ->toggleable()
                     ->state(fn ($record): string => filled($record->factura_path) ? 'Descargar factura' : 'Sin factura')
                     ->url(fn ($record): ?string => filled($record->factura_path)
                         ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
@@ -39,6 +50,7 @@ class FacturasCompraTable
                     ->openUrlInNewTab(),
                 TextColumn::make('factura_enviada_administracion_at')
                     ->label('Estado envio')
+                    ->toggleable()  
                     ->badge()
                     ->state(fn ($record): string => filled($record->factura_enviada_administracion_at)
                         ? 'ENVIADA A ADMINISTRACION'
@@ -48,15 +60,18 @@ class FacturasCompraTable
                         : 'warning'),
                 TextColumn::make('factura_numero')
                     ->label('Nro Factura')
+                    ->toggleable()
                     ->default('-'),
                 TextColumn::make('factura_monto_total')
                     ->label('Total factura')
+                    ->toggleable()
                     ->formatStateUsing(fn ($state): string => filled($state)
                         ? '$ ' . number_format((float) $state, 2, ',', '.')
                         : '-')
                     ->placeholder('-'),
                 TextColumn::make('factura_procesada_administracion_at')
                     ->label('Procesada')
+                    ->toggleable()
                     ->dateTime('d/m/Y H:i')
                     ->placeholder('Pendiente'),
             ])

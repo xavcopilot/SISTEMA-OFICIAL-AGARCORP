@@ -18,14 +18,19 @@ class InspeccionOdcsTable
         return $table
             ->columns([
                 TextColumn::make('correlativo_odc')
-                    ->label('Correlativo ODC')
+                    ->label('N° Control OC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
-                    ->label('Sumario')
+                    ->label('N° SDC Asociado')
                     ->default('-')
                     ->searchable(),
+
+                TextColumn::make('solicitud_codigo_control')
+                ->label('N° Solicitud Asociada')
+                ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
+                ->searchable(),
 
                 TextColumn::make('proveedor.nombre')
                     ->label('Proveedor')

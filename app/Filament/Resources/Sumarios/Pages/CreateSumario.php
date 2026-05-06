@@ -18,6 +18,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -65,6 +66,16 @@ class CreateSumario extends CreateRecord
                     } catch (Throwable $exception) {
                         report($exception);
 
+                        if ($this->isDuplicateCorrelativoException($exception)) {
+                            Notification::make()
+                                ->title('Error')
+                                ->body('Este Numero de Sumario ya existe. Debes cambiarlo manualmente.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         Notification::make()
                             ->title('No se pudo guardar borrador')
                             ->body('Revisa que el correlativo no este repetido y vuelve a intentar.')
@@ -111,6 +122,20 @@ class CreateSumario extends CreateRecord
 
                 try {
                     $this->create();
+                } catch (Throwable $exception) {
+                    report($exception);
+
+                    if ($this->isDuplicateCorrelativoException($exception)) {
+                        Notification::make()
+                            ->title('Error')
+                            ->body('Este Numero de Sumario ya existe. Debes cambiarlo manualmente.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    throw $exception;
                 } finally {
                     $this->isSubmittingForValidation = false;
                 }
@@ -232,6 +257,25 @@ class CreateSumario extends CreateRecord
 
             return $sumario;
         });
+    }
+
+    private function isDuplicateCorrelativoException(Throwable $exception): bool
+    {
+        if ($exception instanceof QueryException) {
+            $errorInfo = $exception->errorInfo;
+            $sqlState = (string) ($errorInfo[0] ?? '');
+
+            if (in_array($sqlState, ['23000', '23505'], true)) {
+                return true;
+            }
+        }
+
+        $message = mb_strtolower((string) $exception->getMessage());
+
+        return str_contains($message, 'correlativo_sdc')
+            || str_contains($message, 'sumarios_correlativo_sdc_unique')
+            || str_contains($message, 'duplicate entry')
+            || str_contains($message, 'duplicate key value violates unique constraint');
     }
 
     private function createOption(SumarioItem $sumarioItem, int $numero, string $proveedorNombre, ?string $marca, float $precioUnitario, float $precioTotal, bool $selected): void

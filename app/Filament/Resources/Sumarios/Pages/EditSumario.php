@@ -18,9 +18,11 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class EditSumario extends EditRecord
 {
@@ -345,7 +347,23 @@ class EditSumario extends EditRecord
             return;
         }
 
-        $updated = $this->handleRecordUpdate($record, $data);
+        try {
+            $updated = $this->handleRecordUpdate($record, $data);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            if ($this->isDuplicateCorrelativoException($exception)) {
+                Notification::make()
+                    ->title('Error')
+                    ->body('Este Numero de Sumario ya existe. Debes cambiarlo manualmente.')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            throw $exception;
+        }
 
         $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
         $this->fillForm();
@@ -407,7 +425,23 @@ class EditSumario extends EditRecord
         $data['decision_gerencia_resultado'] = null;
         $data['decision_gerencia_comentario'] = null;
 
-        $updated = $this->handleRecordUpdate($record, $data);
+        try {
+            $updated = $this->handleRecordUpdate($record, $data);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            if ($this->isDuplicateCorrelativoException($exception)) {
+                Notification::make()
+                    ->title('Error')
+                    ->body('Este Numero de Sumario ya existe. Debes cambiarlo manualmente.')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            throw $exception;
+        }
 
         $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
         $this->fillForm();
@@ -467,7 +501,23 @@ class EditSumario extends EditRecord
         $data['decision_gerencia_resultado'] = null;
         $data['decision_gerencia_comentario'] = null;
 
-        $updated = $this->handleRecordUpdate($record, $data);
+        try {
+            $updated = $this->handleRecordUpdate($record, $data);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            if ($this->isDuplicateCorrelativoException($exception)) {
+                Notification::make()
+                    ->title('Error')
+                    ->body('Este Numero de Sumario ya existe. Debes cambiarlo manualmente.')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            throw $exception;
+        }
 
         $this->record = $updated instanceof Sumario ? $updated : $record->fresh();
         $this->fillForm();
@@ -576,6 +626,25 @@ class EditSumario extends EditRecord
 
             return $sumario->fresh();
         });
+    }
+
+    private function isDuplicateCorrelativoException(Throwable $exception): bool
+    {
+        if ($exception instanceof QueryException) {
+            $errorInfo = $exception->errorInfo;
+            $sqlState = (string) ($errorInfo[0] ?? '');
+
+            if (in_array($sqlState, ['23000', '23505'], true)) {
+                return true;
+            }
+        }
+
+        $message = mb_strtolower((string) $exception->getMessage());
+
+        return str_contains($message, 'correlativo_sdc')
+            || str_contains($message, 'sumarios_correlativo_sdc_unique')
+            || str_contains($message, 'duplicate entry')
+            || str_contains($message, 'duplicate key value violates unique constraint');
     }
 
     private function createOption(SumarioItem $sumarioItem, int $numero, string $proveedorNombre, ?string $marca, float $precioUnitario, float $precioTotal, bool $selected): void

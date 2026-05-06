@@ -44,21 +44,27 @@ class OrdenesCompraTable
         return $table
             ->columns([
                 TextColumn::make('correlativo_sdc')
-                    ->label('Correlativo SDC')
+                    ->label('N° Control SDC')
                     ->searchable()
                     ->sortable()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('solicitud_codigo_control_creacion_odc')
+                    ->label('N° Control Solicitud')
+                    ->state(fn ($record): string => (string) ($record->solicitud_codigo_control ?: $record->solicitud_compra_id ?: '-'))
+                    ->searchable()
+                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
+
+                TextColumn::make('solicitante_nombre')
+                    ->label('Solicitante')
+                    ->state(fn ($record): string => (string) ($record->solicitante_nombre ?: '-'))
+                    ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('fecha')
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
-
-                TextColumn::make('solicitud_codigo_control')
-                    ->label('Solicitud')
-                    ->state(fn ($record): string => (string) ($record->solicitud_codigo_control ?: $record->solicitud_compra_id ?: '-'))
-                    ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('procedencia')
@@ -69,12 +75,6 @@ class OrdenesCompraTable
                 TextColumn::make('tipo_orden')
                     ->label('Tipo orden')
                     ->badge()
-                    ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
-
-                TextColumn::make('mensaje_dinamico_creacion_odc')
-                    ->label('Mensaje dinamico')
-                    ->state(fn ($record): string => self::pendingOdcMessageForTable($record))
-                    ->wrap()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('estado_creacion_odc')
@@ -110,40 +110,34 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('correlativo_odc')
-                    ->label('Correlativo ODC')
+                    ->label('N° Control OC')
                     ->searchable()
                     ->sortable()
-                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('sumario.correlativo_sdc')
-                    ->label('Sumario')
+                    ->label('N° Control SDC')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('solicitud_codigo_control')
-                    ->label('Solicitud')
+                    ->label('N° Control Solicitud')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable()
-                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
-
-                TextColumn::make('solicitud_codigo_control_pagos_odc')
-                    ->label('Solicitud')
-                    ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
-                    ->searchable()
-                    ->visible(fn ($livewire): bool => self::isPagosOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('proveedor.nombre')
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('departamento_solicitante')
                     ->label('Departamento')
                     ->default('-')
                     ->searchable()
-                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
+                    ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('para_ser_usado_en_pagos_odc')
                     ->label('Para ser usado en')
@@ -1018,29 +1012,6 @@ class OrdenesCompraTable
             ->count();
     }
 
-    private static function pendingOdcMessageForTable(mixed $record): string
-    {
-        $sumario = self::resolvePendingSumarioRecord($record);
-
-        if (! $sumario) {
-            return 'Sin items';
-        }
-
-        $service = app(SumarioFinanceApprovalService::class);
-
-        $names = $service->pendingProviderGroups($sumario)
-            ->map(fn (array $group): string => trim((string) ($group['provider_name'] ?? '')))
-            ->filter(fn (string $name): bool => $name !== '')
-            ->unique()
-            ->values();
-
-        if ($names->isEmpty()) {
-            return 'Pendiente por generar ODC';
-        }
-
-        return 'Pendiente con: ' . $names->implode(', ');
-    }
-
     private static function selectedProviderTotalForTable(mixed $record, int $providerNumber): float
     {
         $sumario = self::resolvePendingSumarioRecord($record);
@@ -1230,7 +1201,7 @@ class OrdenesCompraTable
                 ->schema([
                     Grid::make(6)
                         ->schema([
-                            TextInput::make('codigo_control')->label('N° control')->disabled()->columnSpan(1),
+                            TextInput::make('codigo_control')->label('N° Control Solicitud')->disabled()->columnSpan(1),
                             TextInput::make('estado')->label('Estado')->disabled()->columnSpan(1),
                             TextInput::make('fecha_solicitud')->label('Fecha')->disabled()->columnSpan(1),
                             TextInput::make('tipo_solicitud')->label('Tipo')->disabled()->columnSpan(1),
