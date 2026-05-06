@@ -1290,11 +1290,16 @@ class SolicitudesCompraTable
 
         $rows = collect($items)
             ->map(function (array $item): string {
+                $secondaryStateHtml = filled($item['estado_secondary_label'] ?? null)
+                    ? '<div style="margin-top:6px;"><span style="display:inline-block;padding:3px 7px;border-radius:9999px;font-size:10px;font-weight:600;background:' . e((string) ($item['estado_secondary_bg'] ?? '#fff7ed')) . ';color:' . e((string) ($item['estado_secondary_color'] ?? '#9a3412')) . ';">' . e((string) $item['estado_secondary_label']) . '</span></div>'
+                    : '';
+
                 return '<tr>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['item']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;">' . e((string) $item['descripcion']) . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">'
                     . '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:' . e((string) ($item['estado_bg'] ?? '#f3f4f6')) . ';color:' . e((string) ($item['estado_color'] ?? '#374151')) . ';">' . e((string) ($item['estado_label'] ?? 'Sin procesar')) . '</span>'
+                    . $secondaryStateHtml
                     . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">'
                     . '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:' . e((string) ($item['cobertura_bg'] ?? '#f3f4f6')) . ';color:' . e((string) ($item['cobertura_color'] ?? '#374151')) . ';">' . e((string) ($item['cobertura_label'] ?? 'Pendiente')) . '</span>'
@@ -1572,6 +1577,9 @@ class SolicitudesCompraTable
                 'estado_label' => $estado['label'],
                 'estado_bg' => $estado['bg'],
                 'estado_color' => $estado['color'],
+                'estado_secondary_label' => $estado['secondary_label'] ?? null,
+                'estado_secondary_bg' => $estado['secondary_bg'] ?? null,
+                'estado_secondary_color' => $estado['secondary_color'] ?? null,
                 'cobertura_label' => $cobertura['label'],
                 'cobertura_bg' => $cobertura['bg'],
                 'cobertura_color' => $cobertura['color'],
@@ -1618,6 +1626,11 @@ class SolicitudesCompraTable
     private static function resolveTrackingItemState(SolicitudCompraItem $item, $itemOcRows, float $cantidadPedida, float $cantidadEntregada, float $cantidadEnOdc, float $cantidadEnCotizacion): array
     {
         $hasRejected = $itemOcRows->contains(fn ($ocItem): bool => (string) ($ocItem->decision_solicitante ?? '') === 'RECHAZADO');
+        $hasPaidOdc = $itemOcRows->contains(function ($ocItem): bool {
+            $workflow = strtoupper((string) ($ocItem->ordenCompra?->workflow_post_compra ?? ''));
+
+            return $workflow === 'PAGO_REGISTRADO_FINANZAS';
+        });
         $hasPlannedReturn = $itemOcRows->contains(function ($ocItem): bool {
             $workflow = strtoupper((string) ($ocItem->ordenCompra?->workflow_post_compra ?? ''));
 
@@ -1637,6 +1650,17 @@ class SolicitudesCompraTable
         }
 
         if ($cantidadEntregada > 0) {
+            if ($inTransition) {
+                return [
+                    'label' => 'Disponible en Almacen',
+                    'bg' => '#ecfeff',
+                    'color' => '#0f766e',
+                    'secondary_label' => $hasReturnCompleted ? 'Devolucion realizada' : null,
+                    'secondary_bg' => $hasReturnCompleted ? '#fff7ed' : null,
+                    'secondary_color' => $hasReturnCompleted ? '#9a3412' : null,
+                ];
+            }
+
             if ($cantidadEnOdc > 0) {
                 return ['label' => 'En Orden de Compra', 'bg' => '#eef2ff', 'color' => '#4338ca'];
             }
@@ -1645,7 +1669,14 @@ class SolicitudesCompraTable
                 return ['label' => 'En Cotización', 'bg' => '#eff6ff', 'color' => '#1d4ed8'];
             }
 
-            return ['label' => 'Entregado parcial', 'bg' => '#fffbeb', 'color' => '#92400e'];
+            return [
+                'label' => 'Entregado parcial',
+                'bg' => '#fffbeb',
+                'color' => '#92400e',
+                'secondary_label' => $hasRejected ? 'En espera devolucion' : null,
+                'secondary_bg' => $hasRejected ? '#fff7ed' : null,
+                'secondary_color' => $hasRejected ? '#9a3412' : null,
+            ];
         }
 
         if ($hasPlannedReturn) {
@@ -1662,6 +1693,10 @@ class SolicitudesCompraTable
 
         if ($inTransition) {
             return ['label' => 'Disponible en Almacen', 'bg' => '#ecfeff', 'color' => '#0f766e'];
+        }
+
+        if ($hasPaidOdc) {
+            return ['label' => 'ODC Pagada', 'bg' => '#ecfdf5', 'color' => '#166534'];
         }
 
         if ($cantidadEnOdc > 0 || $hasOdc) {

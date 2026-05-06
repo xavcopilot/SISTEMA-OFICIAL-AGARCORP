@@ -364,9 +364,60 @@ class OrdenCompraFormatoController extends Controller
         for ($index = 0; $index < $totalRows; $index++) {
             $row = $rows[$index];
             $item = $items->get($index);
+            $descriptionColumn = $this->findTokenColumnInRow($sheet, $row, ['descripcion', 'item_descripcion'], $highestColumnIndex);
             $tokens = $this->buildItemTokens($item, $index + 1);
             $this->replaceTokensInRow($sheet, $row, $tokens, $highestColumnIndex);
+
+            if ($descriptionColumn !== null && $item) {
+                $this->adjustItemDescriptionRowHeight($sheet, $row, $descriptionColumn, (string) ($item->descripcion ?? ''));
+            }
         }
+    }
+
+    private function findTokenColumnInRow(Worksheet $sheet, int $row, array $tokens, int $highestColumnIndex): ?int
+    {
+        for ($column = 1; $column <= $highestColumnIndex; $column++) {
+            $value = (string) $sheet->getCellByColumnAndRow($column, $row)->getValue();
+
+            if ($value === '') {
+                continue;
+            }
+
+            foreach ($tokens as $token) {
+                if ($this->containsTokenVariant($value, (string) $token)) {
+                    return $column;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function adjustItemDescriptionRowHeight(Worksheet $sheet, int $row, int $column, string $description): void
+    {
+        $coordinate = Coordinate::stringFromColumnIndex($column) . $row;
+        $style = $sheet->getStyle($coordinate)->getAlignment();
+        $style->setWrapText(true);
+        $style->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+
+        $lineBreaks = substr_count($description, "\n") + 1;
+        $descriptionLength = max(1, mb_strlen(trim($description)));
+        $columnWidth = (float) $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($column))->getWidth();
+        $effectiveWidth = $columnWidth > 0 ? $columnWidth : 30.0;
+        $charsPerLine = max(12, (int) floor($effectiveWidth * 1.1));
+        $estimatedWrappedLines = (int) ceil($descriptionLength / $charsPerLine);
+        $lines = max($lineBreaks, $estimatedWrappedLines);
+
+        $rowDimension = $sheet->getRowDimension($row);
+        $baseHeight = (float) $rowDimension->getRowHeight();
+        if ($baseHeight <= 0) {
+            $baseHeight = (float) $sheet->getDefaultRowDimension()->getRowHeight();
+        }
+        if ($baseHeight <= 0) {
+            $baseHeight = 15.0;
+        }
+
+        $rowDimension->setRowHeight(max($baseHeight, $baseHeight * $lines));
     }
 
     private function buildItemTokens(mixed $item, int $fallbackIndex): array
