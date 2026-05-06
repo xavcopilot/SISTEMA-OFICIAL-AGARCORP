@@ -10,16 +10,21 @@ class UsersTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->toggleable()
                     ->label('Nombre')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('email')
+                    ->toggleable()
                     ->label('Correo'),
                 Tables\Columns\TextColumn::make('departamento.nombre')
+                    ->toggleable()
                     ->label('Departamento')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('cargo.nombre')
+                    ->toggleable()
                     ->label('Cargo')
                     ->searchable(),
             ])

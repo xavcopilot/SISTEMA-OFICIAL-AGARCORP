@@ -32,44 +32,53 @@ class RecepcionMaterialesNuevosTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('solicitante_nombre')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->solicitadoPor?->name ?: '-'))
                     ->searchable(),
 
                 TextColumn::make('correlativo_odc')
+                    ->toggleable()
                     ->label('Correlativo ODC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
+                    ->toggleable()
                     ->label('Sumario')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('solicitud_codigo_control')
+                    ->toggleable()
                     ->label('Solicitud')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable(),
 
                 TextColumn::make('proveedor.nombre')
+                    ->toggleable()
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('para_ser_usado_en')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->para_ser_usado_en ?: '-'))
                     ->wrap(),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => self::resolveEstadoLabel((string) ($record->workflow_post_compra ?? '')))
                     ->color(fn ($record): string => self::resolveEstadoColor((string) ($record->workflow_post_compra ?? ''))),
 
                 TextColumn::make('tipo_documento_recepcion')
+                    ->toggleable()
                     ->label('Documento recibido')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => match ((string) $state) {
@@ -84,11 +93,13 @@ class RecepcionMaterialesNuevosTable
                     }),
 
                 TextColumn::make('total_general')
+                    ->toggleable()
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable(),
 
                 TextColumn::make('factura_path')
+                    ->toggleable()
                     ->label('Soporte de entrega')
                     ->state(fn ($record): string => filled($record->factura_path) ? 'Descargar documento' : 'Sin documento')
                     ->url(fn ($record): ?string => filled($record->factura_path)
@@ -922,3 +933,4 @@ class RecepcionMaterialesNuevosTable
             . '</div>';
     }
 }
+

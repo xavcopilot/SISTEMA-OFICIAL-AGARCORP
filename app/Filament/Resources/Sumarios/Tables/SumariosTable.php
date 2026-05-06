@@ -43,30 +43,36 @@ class SumariosTable
     public static function configureForInspection(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS'))
             ->columns([
                 TextColumn::make('correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('solicitudCompra.codigo_control')
+                    ->toggleable()
                     ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
                     ->searchable(),
 
                 TextColumn::make('fecha')
+                    ->toggleable()
                     ->label('Fecha sumario')
                     ->date('d/m/Y')
                     ->sortable(),
 
                 TextColumn::make('enviado_validacion_finanzas_at')
+                    ->toggleable()
                     ->label('Enviado por Procura')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => (string) ($record->workflow_estado ?: $record->estado))
@@ -184,30 +190,36 @@ class SumariosTable
     public static function configureForManagementApproval(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->whereIn('workflow_estado', ['VALIDADO_FINANZAS']))
             ->columns([
                 TextColumn::make('correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('solicitudCompra.codigo_control')
+                    ->toggleable()
                     ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
                     ->searchable(),
 
                 TextColumn::make('fecha')
+                    ->toggleable()
                     ->label('Fecha sumario')
                     ->date('d/m/Y')
                     ->sortable(),
 
                 TextColumn::make('validado_finanzas_at')
+                    ->toggleable()
                     ->label('Validado por Finanzas')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => (string) ($record->workflow_estado ?: $record->estado))
@@ -248,28 +260,31 @@ class SumariosTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['solicitudCompra.solicitadoPor']))
             ->columns([
                 TextColumn::make('correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->searchable()
                     ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
+                TextColumn::make('solicitudCompra.codigo_control')
+                    ->toggleable()
+                    ->label('N° Control Solicitud')
+                    ->state(fn ($record) => $record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id)
+                    ->searchable(),
+
                 TextColumn::make('fecha')
+                    ->toggleable()
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
-                TextColumn::make('solicitud_codigo_control_creacion')
-                    ->label('N° Control Solicitud')
-                    ->state(fn ($record): string => (string) ($record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id))
-                    ->sortable()
-                    ->searchable()
-                    ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
-
                 TextColumn::make('solicitudCompra.solicitadoPor.name')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->solicitadoPor?->name ?: '-'))
                     ->sortable()
@@ -277,28 +292,33 @@ class SumariosTable
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitudCompra.fecha_solicitud')
+                    ->toggleable()
                     ->label('Fecha y hora')
                     ->state(fn ($record): string => self::formatSolicitudDateTime($record))
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitudCompra.para_ser_usado_en')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->searchable()
                     ->wrap()
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitudCompra.tipo_solicitud')
+                    ->toggleable()
                     ->label('Tipo')
                     ->badge()
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitudCompra.prioridad')
+                    ->toggleable()
                     ->label('Prioridad')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => str_replace('_', ' ', (string) $state))
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitud_estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->state(fn ($record): string => str_replace('_', ' ', (string) ($record->solicitudCompra?->estado ?? '-')))
                     ->badge()
@@ -306,28 +326,26 @@ class SumariosTable
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
                 TextColumn::make('solicitud_observacion')
+                    ->toggleable()
                     ->label('Observación')
                     ->state(fn ($record): string => (string) ($record->solicitudCompra?->rechazo_comentario ?: '-'))
                     ->wrap()
                     ->visible(fn ($livewire): bool => self::isCreationTab($livewire)),
 
-                TextColumn::make('solicitudCompra.codigo_control')
-                    ->label('Solicitud')
-                    ->state(fn ($record) => $record->solicitudCompra?->codigo_control ?: $record->solicitud_compra_id)
-                    ->searchable()
-                    ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
-
                 TextColumn::make('procedencia')
+                    ->toggleable()
                     ->label('Procedencia')
                     ->badge()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('tipo_orden')
+                    ->toggleable()
                     ->label('Tipo orden')
                     ->badge()
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record, $livewire): string => self::historyFriendlyState((string) ($record->workflow_estado ?: $record->estado), $livewire))
@@ -346,6 +364,7 @@ class SumariosTable
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('odc_faltantes')
+                    ->toggleable()
                     ->label('ODC faltantes')
                     ->state(fn ($record): string => self::odcPendingCounterLabel($record))
                     ->badge()
@@ -353,6 +372,7 @@ class SumariosTable
                     ->visible(fn ($livewire): bool => self::isHistoryTab($livewire)),
 
                 TextColumn::make('estado_creacion')
+                    ->toggleable()
                     ->label('Estado de creación')
                     ->state(fn ($record): string => self::hasPendingItemsForCreation($record)
                         ? 'Pendiente de crear cotización'
@@ -362,18 +382,21 @@ class SumariosTable
                     ->visible(false),
 
                 TextColumn::make('total_compra_prov1')
+                    ->toggleable()
                     ->label('Total Prov. 1')
                     ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 1))
                     ->money('USD')
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('total_compra_prov2')
+                    ->toggleable()
                     ->label('Total Prov. 2')
                     ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 2))
                     ->money('USD')
                     ->visible(fn ($livewire): bool => ! self::isCreationTab($livewire)),
 
                 TextColumn::make('total_compra_prov3')
+                    ->toggleable()
                     ->label('Total Prov. 3')
                     ->state(fn ($record): float => self::resolveSelectedProviderTotalForColumn($record, 3))
                     ->money('USD')
@@ -1976,3 +1999,4 @@ class SumariosTable
     }
 
 }
+

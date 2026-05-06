@@ -17,6 +17,7 @@ class FacturasCompraTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('correlativo_odc')
                     ->label('N° Control ODC')
@@ -126,3 +127,4 @@ class FacturasCompraTable
         });
     }
 }
+

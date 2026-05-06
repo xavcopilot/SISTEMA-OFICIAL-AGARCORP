@@ -22,46 +22,55 @@ class DailyWithdrawalsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->with(['user', 'product'])
                 ->orderByDesc('requested_at')
                 ->orderByDesc('id'))
             ->columns([
                 TextColumn::make('requested_at')
+                    ->toggleable()
                     ->label('Fecha solicitud')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('user.name')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('product.sku')
+                    ->toggleable()
                     ->label('SKU')
                     ->searchable(),
 
                 TextColumn::make('product.descripcion')
+                    ->toggleable()
                     ->label('Material')
                     ->searchable()
                     ->wrap(),
 
                 TextColumn::make('quantity')
+                    ->toggleable()
                     ->label('Cantidad')
                     ->numeric(decimalPlaces: 2),
 
                 TextColumn::make('destination')
+                    ->toggleable()
                     ->label('Destino')
                     ->searchable()
                     ->wrap(),
 
                 TextColumn::make('requires_return')
+                    ->toggleable()
                     ->label('Retorno')
                     ->badge()
                     ->formatStateUsing(fn (bool $state): string => $state ? 'Si' : 'No')
                     ->color(fn (bool $state): string => $state ? 'warning' : 'gray'),
 
                 TextColumn::make('status')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => match ($state) {

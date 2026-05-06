@@ -18,6 +18,7 @@ class ProductsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->with(['subcategory.category'])
                 ->withSum([
@@ -95,6 +96,7 @@ class ProductsTable
                     ->toggleable(),
 
                 TextColumn::make('status')
+                    ->toggleable()
                     ->label('Status')
                     ->state(function ($record): string {
                         $stockActual = (int) $record->stock_actual;

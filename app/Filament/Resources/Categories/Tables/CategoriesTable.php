@@ -12,13 +12,16 @@ class CategoriesTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('name')
+                    ->toggleable()
                     ->label('Categoria')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('subcategories_count')
+                    ->toggleable()
                     ->label('Subcategorias')
                     ->counts('subcategories')
                     ->sortable(),

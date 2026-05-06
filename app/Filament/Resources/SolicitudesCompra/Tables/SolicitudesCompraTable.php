@@ -43,35 +43,43 @@ class SolicitudesCompraTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('numero_solicitud_usuario')
+                    ->toggleable()
                     ->label('N° Solicitud')
                     ->state(fn ($record) => $record->numero_solicitud_usuario ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('codigo_control')
+                    ->toggleable()
                     ->label('N° Control Solicitud')
                     ->state(fn ($record) => $record->codigo_control ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('created_at')
+                    ->toggleable()
                     ->label('Fecha y hora')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('para_ser_usado_en')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')
+                    ->toggleable()
                     ->label('Tipo')
                     ->badge(),
 
                 TextColumn::make('prioridad')
+                    ->toggleable()
                     ->label('Prioridad')
                     ->badge(),
 
                 TextColumn::make('estado_general')
+                    ->toggleable()
                     ->label('Estado')
                     ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
                     ->badge()
@@ -516,37 +524,45 @@ class SolicitudesCompraTable
     public static function configureForApprovals(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn ($query) => $query->with('solicitadoPor'))
             ->columns([
                 TextColumn::make('codigo_control')
+                    ->toggleable()
                     ->label('N° Control Solicitud')
                     ->state(fn ($record) => $record->codigo_control ?: $record->id)
                     ->sortable(),
 
                 TextColumn::make('solicitadoPor.name')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->state(fn ($record): string => (string) ($record->solicitadoPor?->name ?: '-'))
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('created_at')
+                    ->toggleable()
                     ->label('Fecha y hora')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('para_ser_usado_en')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')
+                    ->toggleable()
                     ->label('Tipo')
                     ->badge(),
 
                 TextColumn::make('prioridad')
+                    ->toggleable()
                     ->label('Prioridad')
                     ->badge(),
 
                 TextColumn::make('estado_general')
+                    ->toggleable()
                     ->label('Estado')
                     ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
                     ->badge()
@@ -554,6 +570,7 @@ class SolicitudesCompraTable
                     ->color(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['color']),
 
                 TextColumn::make('estado_rol')
+                    ->toggleable()
                     ->label('Estado')
                     ->state(fn (SolicitudCompra $record, $livewire): string => self::approvalRoleState($record, $livewire)['label'])
                     ->badge()
@@ -1530,3 +1547,4 @@ class SolicitudesCompraTable
         ];
     }
 }
+

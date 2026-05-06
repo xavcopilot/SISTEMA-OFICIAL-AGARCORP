@@ -19,33 +19,40 @@ class AdministracionPagosOdcTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('correlativo_odc')
+                    ->toggleable()
                     ->label('N° Control ODC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
+                    ->toggleable()
                     ->label('N° SDC Asociado')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('solicitud_codigo_control')
+                    ->toggleable()
                     ->label('N° Solicitud Asociada')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable(),
 
                 TextColumn::make('proveedor.nombre')
+                    ->toggleable()
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('total_general')
+                    ->toggleable()
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable(),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => (string) ($record->workflow_post_compra === 'PAGO_REGISTRADO_FINANZAS'
@@ -134,3 +141,4 @@ class AdministracionPagosOdcTable
         });
     }
 }
+

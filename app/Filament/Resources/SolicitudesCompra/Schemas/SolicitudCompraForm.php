@@ -699,3 +699,4 @@ class SolicitudCompraForm
             ->ascii();
     }
 }
+

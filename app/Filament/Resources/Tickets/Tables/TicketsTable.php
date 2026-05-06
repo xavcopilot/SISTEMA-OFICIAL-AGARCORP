@@ -15,6 +15,7 @@ class TicketsTable
     {
         $esGestor = auth()->user()?->can('Manage:Ticket');
         return $table
+            ->persistColumnsInSession(true)
             ->headerActions($esGestor ? [
                 Action::make('export')
                     ->label('Exportar CSV')
@@ -24,19 +25,23 @@ class TicketsTable
             ] : [])
             ->columns([
                 TextColumn::make('created_at')
+                    ->toggleable()
                     ->label('Fecha')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
 
                 TextColumn::make('departamento')
+                    ->toggleable()
                 ->label('Departamento'),
 
                 TextColumn::make('tipo_solicitud')
+                    ->toggleable()
                     ->label('Tipo')
                     ->formatStateUsing(fn (?string $state): string => Ticket::TIPO_SOLICITUD_LABELS[$state] ?? (string) $state)
                     ->badge(),
 
                 TextColumn::make('nombre_solicitante')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->searchable(),
 

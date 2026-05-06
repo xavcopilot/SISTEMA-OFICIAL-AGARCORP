@@ -42,42 +42,50 @@ class OrdenesCompraTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->searchable()
                     ->sortable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('solicitud_codigo_control_creacion_odc')
+                    ->toggleable()
                     ->label('N° Control Solicitud')
                     ->state(fn ($record): string => (string) ($record->solicitud_codigo_control ?: $record->solicitud_compra_id ?: '-'))
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('solicitante_nombre')
+                    ->toggleable()
                     ->label('Solicitante')
                     ->state(fn ($record): string => (string) ($record->solicitante_nombre ?: '-'))
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('fecha')
+                    ->toggleable()
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('procedencia')
+                    ->toggleable()
                     ->label('Procedencia')
                     ->badge()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('tipo_orden')
+                    ->toggleable()
                     ->label('Tipo orden')
                     ->badge()
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('estado_creacion_odc')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => self::humanReadableSumarioState((string) ($record->workflow_estado ?: $record->estado)))
@@ -85,6 +93,7 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('odc_faltantes_creacion_odc')
+                    ->toggleable()
                     ->label('ODC faltantes')
                     ->state(fn ($record): string => 'Faltan ' . self::pendingOdcGroupsCountForTable($record))
                     ->badge()
@@ -92,60 +101,70 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('total_prov_1_creacion_odc')
+                    ->toggleable()
                     ->label('Total Prov. 1')
                     ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 1))
                     ->money('USD')
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('total_prov_2_creacion_odc')
+                    ->toggleable()
                     ->label('Total Prov. 2')
                     ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 2))
                     ->money('USD')
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('total_prov_3_creacion_odc')
+                    ->toggleable()
                     ->label('Total Prov. 3')
                     ->state(fn ($record): float => self::selectedProviderTotalForTable($record, 3))
                     ->money('USD')
                     ->visible(fn ($livewire): bool => self::isCreationOdcTab($livewire)),
 
                 TextColumn::make('correlativo_odc')
+                    ->toggleable()
                     ->label('N° Control OC')
                     ->searchable()
                     ->sortable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('sumario.correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->default('-')
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('solicitud_codigo_control')
+                    ->toggleable()
                     ->label('N° Control Solicitud')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('proveedor.nombre')
+                    ->toggleable()
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('departamento_solicitante')
+                    ->toggleable()
                     ->label('Departamento')
                     ->default('-')
                     ->searchable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire) || self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('para_ser_usado_en_pagos_odc')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->para_ser_usado_en ?: '-'))
                     ->wrap()
                     ->visible(fn ($livewire): bool => self::isPagosOdcTab($livewire)),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record, $livewire): string => self::isHistorialOdcTab($livewire)
@@ -154,6 +173,7 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('sub_estado_historial')
+                    ->toggleable()
                     ->label('Sub Estado')
                     ->state(fn ($record): string => self::humanReadableSubEstado((string) ($record->workflow_post_compra ?? '')))
                     ->badge()
@@ -161,6 +181,7 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => self::isHistorialOdcTab($livewire)),
 
                 TextColumn::make('workflow_post_compra')
+                    ->toggleable()
                     ->label('Flujo post-compra')
                     ->badge()
                     ->state(fn ($record): string => (string) ($record->workflow_post_compra ?: 'PENDIENTE_PAGO_FINANZAS'))
@@ -181,6 +202,7 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('tipo_documento_recepcion')
+                    ->toggleable()
                     ->label('Recepcion')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => (string) ($state ? str_replace('_', ' ', $state) : 'PENDIENTE'))
@@ -192,6 +214,7 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('factura_pendiente')
+                    ->toggleable()
                     ->label('Alerta')
                     ->badge()
                     ->state(fn ($record): string => (bool) $record->factura_pendiente ? 'FACTURA PENDIENTE' : 'OK')
@@ -199,36 +222,42 @@ class OrdenesCompraTable
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('sub_total')
+                    ->toggleable()
                     ->label('Sub total')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('iva_16')
+                    ->toggleable()
                     ->label('IVA 16%')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('gastos_adicionales')
+                    ->toggleable()
                     ->label('Gastos adicionales')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
                     ->visible(fn ($livewire): bool => false),
 
                 TextColumn::make('total_general')
+                    ->toggleable()
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable()
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('conformidad_solicitante_at')
+                    ->toggleable()
                     ->label('Conformidad')
                     ->dateTime('d/m/Y H:i')
                     ->placeholder('Pendiente')
                     ->visible(fn ($livewire): bool => self::isCorreccionesOrHistorialOdcTab($livewire)),
 
                 TextColumn::make('comprobante_pago_path')
+                    ->toggleable()
                     ->label('Comprobante de pago')
                     ->state(fn ($record): string => filled($record->comprobante_pago_path) ? 'Ver imagen' : 'Sin imagen')
                     ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
@@ -1603,3 +1632,4 @@ class OrdenesCompraTable
         });
     }
 }
+

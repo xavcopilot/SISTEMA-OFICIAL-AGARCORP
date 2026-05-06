@@ -16,6 +16,7 @@ class InventoryMovementsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('nro_control')
                     ->label('N Control')

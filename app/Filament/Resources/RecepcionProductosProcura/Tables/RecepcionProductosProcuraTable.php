@@ -16,33 +16,40 @@ class RecepcionProductosProcuraTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('correlativo_odc')
+                    ->toggleable()
                     ->label('N° Control OC')
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('sumario.correlativo_sdc')
+                    ->toggleable()
                     ->label('N° Control SDC')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('solicitud_codigo_control')
+                    ->toggleable()
                     ->label('N° Control Solicitud')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->codigo_control ?: '-'))
                     ->searchable(),
 
                 TextColumn::make('proveedor.nombre')
+                    ->toggleable()
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable(),
 
                 TextColumn::make('para_ser_usado_en')
+                    ->toggleable()
                     ->label('Para ser usado en')
                     ->state(fn ($record): string => (string) ($record->sumario?->solicitudCompra?->para_ser_usado_en ?: '-'))
                     ->wrap(),
 
                 TextColumn::make('estado')
+                    ->toggleable()
                     ->label('Estado')
                     ->badge()
                     ->state(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
@@ -51,11 +58,13 @@ class RecepcionProductosProcuraTable
                     ->color(fn ($record): string => (bool) ($record->factura_pendiente ?? false) ? 'warning' : 'info'),
 
                 TextColumn::make('total_general')
+                    ->toggleable()
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable(),
 
                 TextColumn::make('comprobante_pago_path')
+                    ->toggleable()
                     ->label('Comprobante de pago')
                     ->state(fn ($record): string => filled($record->comprobante_pago_path) ? 'Ver imagen' : 'Sin imagen')
                     ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
@@ -153,3 +162,4 @@ class RecepcionProductosProcuraTable
             ->defaultSort('created_at', 'desc');
     }
 }
+

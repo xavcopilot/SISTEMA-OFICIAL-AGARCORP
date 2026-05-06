@@ -10,8 +10,10 @@ class CargosTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->columns([
                 TextColumn::make('nombre')
+                    ->toggleable()
                     ->label('Nombre')
                     ->searchable(),
             ])

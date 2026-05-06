@@ -29,6 +29,7 @@ class ConsultarSalidasTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->persistColumnsInSession(true)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->where('tipo', 'salida')
                 ->with(['items.product.subcategory.category'])
@@ -451,3 +452,4 @@ class ConsultarSalidasTable
         return '<td style="border:1px solid #e5e7eb;padding:8px;vertical-align:top;">' . e($value) . '</td>';
     }
 }
+
