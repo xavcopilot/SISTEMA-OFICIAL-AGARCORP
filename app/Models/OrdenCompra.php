@@ -121,16 +121,6 @@ class OrdenCompra extends Model
         return $this->hasMany(OrdenCompraItem::class);
     }
 
-    public function scopeExcludeCompleted(Builder $query): Builder
-    {
-        return $query->whereExists(function ($subQuery) {
-            $subQuery->select(DB::raw(1))
-                ->from('orden_compra_items')
-                ->whereColumn('orden_compra_items.orden_compra_id', 'ordenes_compra.id')
-                ->where('orden_compra_items.estado_recepcion', '!=', 'ENTREGADO_SOLICITANTE');
-        });
-    }
-
     public function comprobantes(): HasMany
     {
         return $this->hasMany(OrdenCompraComprobante::class);
@@ -189,12 +179,5 @@ class OrdenCompra extends Model
     public function rechazoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rechazo_por_user_id');
-    }
-
-    use App\Models\Builders\OrdenCompraBuilder;
-
-    public function newEloquentBuilder($query): OrdenCompraBuilder
-    {
-        return new OrdenCompraBuilder($query);
     }
 }
