@@ -1175,7 +1175,7 @@ class SolicitudesCompraTable
         $conformidadSnapshot = self::resolveGeneralConformidadSnapshot($record, $sumarioIds->all());
 
         if ($conformidadSnapshot['all_completed']) {
-            return self::$generalStateCache[$recordId] = ['label' => 'Solicitud completada', 'color' => 'success'];
+            return self::$generalStateCache[$recordId] = ['label' => 'Completada', 'color' => 'success'];
         }
 
         if ($conformidadSnapshot['accepted_quantity'] > 0) {
