@@ -22,12 +22,17 @@ class OrdenCompraFormatoController extends Controller
 {
     private const EXCEL_TEMPLATE_FILE = 'FORMATO ODC.xlsx';
     private const PDF_PRINT_AREA_START = 'B6';
-    private const PDF_PRINT_AREA_END = 'H63';
+    private const PDF_PRINT_AREA_END = 'H65';
     private const ITEMS_START_ROW = 32;
     private const ITEMS_END_ROW = 43;
+    private const DEFAULT_SIGNATURE_HEIGHT = 100;
     private const SIGNATURE_TOKENS = [
         'firma_elaborado',
         'firma_aprobado',
+    ];
+    private const SIGNATURE_RENDER_OVERRIDES = [
+        2 => ['height' => 90, 'offset_x' => 20, 'offset_y' => 0],
+        14 => ['height' => 90, 'offset_x' => 8, 'offset_y' => 2],
     ];
 
     public function __construct(private LibreOfficePdfConverter $libreOfficePdfConverter)
@@ -221,9 +226,15 @@ class OrdenCompraFormatoController extends Controller
     private function renderSignatureImages(Worksheet $sheet, OrdenCompra $ordenCompra): void
     {
         $sumario = $ordenCompra->sumario;
-        $signaturePaths = [
-            'firma_elaborado' => $this->resolveSignatureImagePath($ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor),
-            'firma_aprobado' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor),
+        $signatureEntries = [
+            'firma_elaborado' => [
+                'path' => $this->resolveSignatureImagePath($ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor),
+                'signer' => $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor,
+            ],
+            'firma_aprobado' => [
+                'path' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor),
+                'signer' => $ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor,
+            ],
         ];
 
         $highestRow = $sheet->getHighestRow();
@@ -253,9 +264,17 @@ class OrdenCompraFormatoController extends Controller
 
                     $cell->setValue($this->replaceTokenVariant($textValue, $token, ''));
 
-                    $signaturePath = $signaturePaths[$token] ?? null;
+                    $signatureEntry = $signatureEntries[$token] ?? null;
+                    $signaturePath = $signatureEntry['path'] ?? null;
+
                     if ($signaturePath !== null) {
-                        $this->insertSignatureImage($sheet, Coordinate::stringFromColumnIndex($column) . $row, $signaturePath, $token);
+                        $this->insertSignatureImage(
+                            $sheet,
+                            Coordinate::stringFromColumnIndex($column) . $row,
+                            $signaturePath,
+                            $token,
+                            $signatureEntry['signer'] ?? null
+                        );
                     }
                 }
             }
@@ -279,18 +298,32 @@ class OrdenCompraFormatoController extends Controller
         return file_exists($absolutePath) ? $absolutePath : null;
     }
 
-    private function insertSignatureImage(Worksheet $sheet, string $coordinates, string $imagePath, string $token): void
+    private function insertSignatureImage(Worksheet $sheet, string $coordinates, string $imagePath, string $token, ?User $signer = null): void
     {
+        $settings = $this->resolveSignatureRenderSettings($signer);
+
         $drawing = new Drawing();
         $drawing->setName($token);
         $drawing->setDescription('Firma ' . $token);
         $drawing->setPath($imagePath);
         $drawing->setCoordinates($coordinates);
-        $drawing->setOffsetX(0);
-        $drawing->setOffsetY(0);
+        $drawing->setOffsetX((int) ($settings['offset_x'] ?? 0));
+        $drawing->setOffsetY((int) ($settings['offset_y'] ?? 0));
         $drawing->setResizeProportional(true);
-        $drawing->setHeight(120);
+        $drawing->setHeight((int) ($settings['height'] ?? self::DEFAULT_SIGNATURE_HEIGHT));
         $drawing->setWorksheet($sheet);
+    }
+
+    private function resolveSignatureRenderSettings(?User $signer = null): array
+    {
+        if (! $signer) {
+            return ['height' => self::DEFAULT_SIGNATURE_HEIGHT, 'offset_x' => 0, 'offset_y' => 0];
+        }
+
+        return array_replace(
+            ['height' => self::DEFAULT_SIGNATURE_HEIGHT, 'offset_x' => 0, 'offset_y' => 0],
+            self::SIGNATURE_RENDER_OVERRIDES[(int) $signer->id] ?? []
+        );
     }
 
     private function requiredGlobalTokenNames(): array

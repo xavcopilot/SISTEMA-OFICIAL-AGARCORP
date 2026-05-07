@@ -21,18 +21,27 @@ class SolicitudCompraFormatoController extends Controller
 {
     private const EXCEL_TEMPLATE_FILE = 'PLANILLA DE FORMATO DE COMPRA.xlsx';
     private const PDF_PRINT_AREA_START = 'C3';
-    private const PDF_MAX_END_COLUMN = 'L';
+    private const PDF_MAX_END_COLUMN = 'M';
     private const PDF_MAX_END_ROW = 48;
     private const USO_LINE_MAX = 80;
     private const MAX_ITEMS = 15;
     private const USAR_CODIGOS_PREDEFINIDOS = false;
     private const CODIGO_CONTROL_PREDEFINIDO = 'CTRL-2026-000123';
     private const CODIGO_PROCURA_PREDEFINIDO = 'PROC-2026-000123';
+    private const DEFAULT_SIGNATURE_HEIGHT = 80;
     private const SIGNATURE_TOKENS = [
         'firma_solicitante',
         'firma_almacen',
         'firma_aprobador',
         'firma_receptor',
+    ];
+    private const SIGNATURE_RENDER_OVERRIDES = [
+        16 => ['height' => 100, 'offset_x' => 0, 'offset_y' => 0],
+        3 => ['height' => 50, 'offset_x' => 5, 'offset_y' => 30],
+        14 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
+        12 => ['height' => 70, 'offset_x' => 0, 'offset_y' => 0],
+        17 => ['height' => 60, 'offset_x' => 0, 'offset_y' => 30],
+        2 => ['height' => 120, 'offset_x' => 6, 'offset_y' => 0],
     ];
 
     public function __construct(private LibreOfficePdfConverter $libreOfficePdfConverter)
@@ -347,11 +356,23 @@ class SolicitudCompraFormatoController extends Controller
 
     private function renderSignatureImages(Worksheet $sheet, SolicitudCompra $solicitudCompra): void
     {
-        $signaturePaths = [
-            'firma_solicitante' => $this->resolveSignatureImagePath($solicitudCompra->firma_solicitante, $solicitudCompra->solicitadoPor),
-            'firma_almacen' => $this->resolveSignatureImagePath($solicitudCompra->firma_almacen, $solicitudCompra->porAlmacen),
-            'firma_aprobador' => $this->resolveSignatureImagePath($solicitudCompra->firma_aprobador, $solicitudCompra->aprobadoPor),
-            'firma_receptor' => $this->resolveSignatureImagePath($solicitudCompra->firma_receptor, $solicitudCompra->recibidoPor),
+        $signatureEntries = [
+            'firma_solicitante' => [
+                'path' => $this->resolveSignatureImagePath($solicitudCompra->firma_solicitante, $solicitudCompra->solicitadoPor),
+                'signer' => $solicitudCompra->solicitadoPor,
+            ],
+            'firma_almacen' => [
+                'path' => $this->resolveSignatureImagePath($solicitudCompra->firma_almacen, $solicitudCompra->porAlmacen),
+                'signer' => $solicitudCompra->porAlmacen,
+            ],
+            'firma_aprobador' => [
+                'path' => $this->resolveSignatureImagePath($solicitudCompra->firma_aprobador, $solicitudCompra->aprobadoPor),
+                'signer' => $solicitudCompra->aprobadoPor,
+            ],
+            'firma_receptor' => [
+                'path' => $this->resolveSignatureImagePath($solicitudCompra->firma_receptor, $solicitudCompra->recibidoPor),
+                'signer' => $solicitudCompra->recibidoPor,
+            ],
         ];
 
         $highestRow = $sheet->getHighestRow();
@@ -381,9 +402,17 @@ class SolicitudCompraFormatoController extends Controller
 
                     $cell->setValue($this->replaceTokenVariant($textValue, $token, ''));
 
-                    $signaturePath = $signaturePaths[$token] ?? null;
+                    $signatureEntry = $signatureEntries[$token] ?? null;
+                    $signaturePath = $signatureEntry['path'] ?? null;
+
                     if ($signaturePath !== null) {
-                        $this->insertSignatureImage($sheet, Coordinate::stringFromColumnIndex($column) . $row, $signaturePath, $token);
+                        $this->insertSignatureImage(
+                            $sheet,
+                            Coordinate::stringFromColumnIndex($column) . $row,
+                            $signaturePath,
+                            $token,
+                            $signatureEntry['signer'] ?? null
+                        );
                     }
                 }
             }
@@ -425,18 +454,32 @@ class SolicitudCompraFormatoController extends Controller
         return file_exists($publicPath) ? $publicPath : null;
     }
 
-    private function insertSignatureImage(Worksheet $sheet, string $coordinates, string $imagePath, string $token): void
+    private function insertSignatureImage(Worksheet $sheet, string $coordinates, string $imagePath, string $token, ?User $signer = null): void
     {
+        $settings = $this->resolveSignatureRenderSettings($signer);
+
         $drawing = new Drawing();
         $drawing->setName($token);
         $drawing->setDescription('Firma ' . $token);
         $drawing->setPath($imagePath);
         $drawing->setCoordinates($coordinates);
-        $drawing->setOffsetX(0);
-        $drawing->setOffsetY(0);
+        $drawing->setOffsetX((int) ($settings['offset_x'] ?? 0));
+        $drawing->setOffsetY((int) ($settings['offset_y'] ?? 0));
         $drawing->setResizeProportional(true);
-        $drawing->setHeight(120);
+        $drawing->setHeight((int) ($settings['height'] ?? self::DEFAULT_SIGNATURE_HEIGHT));
         $drawing->setWorksheet($sheet);
+    }
+
+    private function resolveSignatureRenderSettings(?User $signer = null): array
+    {
+        if (! $signer) {
+            return ['height' => self::DEFAULT_SIGNATURE_HEIGHT, 'offset_x' => 0, 'offset_y' => 0];
+        }
+
+        return array_replace(
+            ['height' => self::DEFAULT_SIGNATURE_HEIGHT, 'offset_x' => 0, 'offset_y' => 0],
+            self::SIGNATURE_RENDER_OVERRIDES[(int) $signer->id] ?? []
+        );
     }
 
     private function replaceTokensInRow(Worksheet $sheet, int $row, array $tokenMap, int $highestColumnIndex): void

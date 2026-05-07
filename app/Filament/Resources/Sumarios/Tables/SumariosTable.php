@@ -1509,6 +1509,7 @@ class SumariosTable
         return match ($state) {
             'VALIDADO_FINANZAS' => 'EN ESPERA DE APROBACION GERENCIA',
             'APROBADO_GERENCIA_FINANZAS' => 'PENDIENTE POR ORDENES DE COMPRA',
+            'REVISADO_FINANZAS' => 'ODC COMPLETAS',
             default => str_replace('_', ' ', $state),
         };
     }
