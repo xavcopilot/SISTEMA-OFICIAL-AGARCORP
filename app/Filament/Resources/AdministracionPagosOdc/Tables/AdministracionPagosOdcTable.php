@@ -4,10 +4,12 @@ namespace App\Filament\Resources\AdministracionPagosOdc\Tables;
 
 use App\Models\OrdenCompraComprobante;
 use App\Models\User;
+use App\Support\BcvRateService;
 use App\Support\Filament\DatabaseNotificationSender;
 use App\Support\OdcModalSummaryRenderer;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -70,12 +72,46 @@ class AdministracionPagosOdcTable
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record))),
 
+                Action::make('editarTasaBcv')
+                    ->label('Ver / editar tasa BCV')
+                    ->icon(Heroicon::OutlinedCurrencyDollar)
+                    ->color('warning')
+                    ->visible(fn ($record): bool => (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_PAGO_FINANZAS'
+                        && blank($record->pago_registrado_at))
+                    ->fillForm(fn ($record): array => [
+                        'tasa_bcv' => self::syncPendingPaymentBcvRate($record),
+                    ])
+                    ->form([
+                        TextInput::make('tasa_bcv')
+                            ->label('Tasa BCV de esta ODC')
+                            ->numeric()
+                            ->step('0.0001')
+                            ->required(),
+                    ])
+                    ->action(function (array $data, $record): void {
+                        $record->forceFill([
+                            'tasa_bcv' => round((float) ($data['tasa_bcv'] ?? 0), 4),
+                        ])->save();
+
+                        Notification::make()
+                            ->title('Tasa BCV actualizada')
+                            ->body('La ODC guardo la nueva tasa BCV y esa sera la que quedara congelada al registrar el pago.')
+                            ->success()
+                            ->send();
+                    }),
+
                 Action::make('registrarPago')
                     ->label('Subir imagen y marcar pagado')
                     ->icon(Heroicon::OutlinedArrowUpTray)
                     ->color('success')
                     ->visible(fn ($record): bool => (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_PAGO_FINANZAS')
                     ->form([
+                        TextInput::make('tasa_bcv')
+                            ->label('Tasa BCV a congelar')
+                            ->numeric()
+                            ->step('0.0001')
+                            ->default(fn ($record): float => self::syncPendingPaymentBcvRate($record))
+                            ->required(),
                         FileUpload::make('comprobante_pago_path')
                             ->label('Imagen de comprobante de pago')
                             ->image()
@@ -96,6 +132,7 @@ class AdministracionPagosOdcTable
                         }
 
                         $record->forceFill([
+                            'tasa_bcv' => round((float) ($data['tasa_bcv'] ?? 0), 4),
                             'comprobante_pago_path' => $comprobantePath,
                             'pago_registrado_at' => now(),
                             'pago_por_user_id' => auth()->id(),
@@ -139,6 +176,23 @@ class AdministracionPagosOdcTable
 
             DatabaseNotificationSender::sendNow($notification, $user, dispatchEvent: true);
         });
+    }
+
+    private static function syncPendingPaymentBcvRate(mixed $record): float
+    {
+        $currentRate = app(BcvRateService::class)->rateForOrderCreation();
+        $resolvedRate = round((float) ($currentRate ?? $record->tasa_bcv ?? 0), 4);
+
+        if ((string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_PAGO_FINANZAS'
+            && blank($record->pago_registrado_at)
+            && $currentRate !== null
+            && (float) $record->tasa_bcv !== $resolvedRate) {
+            $record->forceFill([
+                'tasa_bcv' => $resolvedRate,
+            ])->save();
+        }
+
+        return round((float) ($record->fresh()?->tasa_bcv ?? $resolvedRate), 4);
     }
 }
 

@@ -30,12 +30,13 @@ class SumarioFormatoController extends Controller
     private const DEFAULT_SIGNATURE_HEIGHT = 100;
     private const SIGNATURE_TOKENS = [
         'firma_elaborado',
-        'firma_aprobado',
         'firma_revisado',
     ];
     private const SIGNATURE_RENDER_OVERRIDES = [
-        14 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
+           14 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 2],
+        2 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
         6 => ['height' => 90, 'offset_x' => 30, 'offset_y' => 2],
+     
     ];
 
     public function __construct(private LibreOfficePdfConverter $libreOfficePdfConverter)
@@ -254,9 +255,14 @@ class SumarioFormatoController extends Controller
     private function renderSignatureImages(Worksheet $sheet, Sumario $sumario): void
     {
         $signatureEntries = [
-            'firma_elaborado' => ['path' => $this->resolveSignatureImagePath($sumario->elaboradoPor), 'signer' => $sumario->elaboradoPor],
-            'firma_aprobado' => ['path' => $this->resolveSignatureImagePath($sumario->decisionGerenciaPor), 'signer' => $sumario->decisionGerenciaPor],
-            'firma_revisado' => ['path' => $this->resolveSignatureImagePath($sumario->validadoPor), 'signer' => $sumario->validadoPor],
+            'firma_elaborado' => [
+                'path' => $this->resolveSignatureImagePath($sumario->elaboradoPor, ['Procura']),
+                'signer' => $sumario->elaboradoPor,
+            ],
+            'firma_revisado' => [
+                'path' => $this->resolveSignatureImagePath($sumario->validadoPor, ['Validador Finanzas']),
+                'signer' => $sumario->validadoPor,
+            ],
         ];
 
         $highestRow = $sheet->getHighestRow();
@@ -303,10 +309,25 @@ class SumarioFormatoController extends Controller
         }
     }
 
-    private function resolveSignatureImagePath(?User $signer = null): ?string
+    private function resolveSignatureImagePath(?User $signer = null, array $requiredRoles = []): ?string
     {
         if (! $signer) {
             return null;
+        }
+
+        if ($requiredRoles !== []) {
+            $hasExpectedRole = false;
+
+            foreach ($requiredRoles as $requiredRole) {
+                if ($signer->hasRole($requiredRole)) {
+                    $hasExpectedRole = true;
+                    break;
+                }
+            }
+
+            if (! $hasExpectedRole) {
+                return null;
+            }
         }
 
         $expectedPath = UserSignaturePath::findByUserId((int) $signer->id);

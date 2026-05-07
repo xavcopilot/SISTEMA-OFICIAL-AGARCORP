@@ -12,6 +12,7 @@ use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use App\Support\ControlCodeGenerator;
 use App\Support\SumarioProviderGrouping;
+use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -114,7 +115,7 @@ class CreateSumario extends CreateRecord
                     return;
                 }
 
-                if (! $this->validateSignaturePassword($data)) {
+                if (! $this->validateSignaturePassword($data, 'Procura', true)) {
                     return;
                 }
 
@@ -366,8 +367,40 @@ class CreateSumario extends CreateRecord
         return ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
     }
 
-    private function validateSignaturePassword(array $data): bool
+    private function validateSignaturePassword(array $data, ?string $requiredRole = null, bool $requirePng = false): bool
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Debes iniciar sesion para registrar esta firma.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requiredRole !== null && ! $user->hasRole($requiredRole)) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('La firma solo puede registrarla un usuario con el rol ' . $requiredRole . '.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requirePng && UserSignaturePath::findByUserId((int) $user->id) === null) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Tu usuario no tiene una firma PNG registrada. Carga primero la firma asociada a tu ID.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
         $password = (string) ($data['password'] ?? '');
         $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
 
@@ -381,7 +414,7 @@ class CreateSumario extends CreateRecord
             return false;
         }
 
-        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+        $signatureHash = $user->firma_password ?: $user->password ?: '';
 
         if (Hash::check($password, $signatureHash)) {
             return true;

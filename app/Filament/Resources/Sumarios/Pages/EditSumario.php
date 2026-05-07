@@ -12,6 +12,7 @@ use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use App\Support\SumarioProviderGrouping;
+use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -395,7 +396,7 @@ class EditSumario extends EditRecord
             return;
         }
 
-        if (! $this->validateSignaturePassword($authData)) {
+        if (! $this->validateSignaturePassword($authData, 'Procura', true)) {
             return;
         }
 
@@ -414,6 +415,7 @@ class EditSumario extends EditRecord
 
         $data['estado'] = 'PENDIENTE_REVISION_FINANZAS';
         $data['workflow_estado'] = 'PENDIENTE_VALIDACION_FINANZAS';
+        $data['elaborado_por_user_id'] = auth()->id();
         $data['enviado_validacion_finanzas_at'] = now();
         $data['enviado_por_user_id'] = auth()->id();
         $data['validado_finanzas_at'] = null;
@@ -473,7 +475,7 @@ class EditSumario extends EditRecord
             return;
         }
 
-        if (! $this->validateSignaturePassword($authData)) {
+        if (! $this->validateSignaturePassword($authData, 'Procura', true)) {
             return;
         }
 
@@ -492,6 +494,7 @@ class EditSumario extends EditRecord
 
         $data['estado'] = 'EN_ESPERA_APROBACION_GERENCIA';
         $data['workflow_estado'] = 'VALIDADO_FINANZAS';
+        $data['elaborado_por_user_id'] = auth()->id();
         $data['validado_finanzas_at'] = $record->validado_finanzas_at ?: now();
         $data['validado_por_user_id'] = $record->validado_por_user_id ?: auth()->id();
         $data['validacion_finanzas_resultado'] = 'APROBADO';
@@ -531,8 +534,40 @@ class EditSumario extends EditRecord
         $this->redirect(SumarioResource::getUrl('index'));
     }
 
-    private function validateSignaturePassword(array $data): bool
+    private function validateSignaturePassword(array $data, ?string $requiredRole = null, bool $requirePng = false): bool
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Debes iniciar sesion para registrar esta firma.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requiredRole !== null && ! $user->hasRole($requiredRole)) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('La firma solo puede registrarla un usuario con el rol ' . $requiredRole . '.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requirePng && UserSignaturePath::findByUserId((int) $user->id) === null) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Tu usuario no tiene una firma PNG registrada. Carga primero la firma asociada a tu ID.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
         $password = (string) ($data['password'] ?? '');
         $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
 
@@ -546,7 +581,7 @@ class EditSumario extends EditRecord
             return false;
         }
 
-        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+        $signatureHash = $user->firma_password ?: $user->password ?: '';
 
         if (Hash::check($password, $signatureHash)) {
             return true;

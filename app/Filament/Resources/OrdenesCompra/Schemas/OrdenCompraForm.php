@@ -384,7 +384,8 @@ class OrdenCompraForm
                                 TextInput::make('tasa_bcv')
                                     ->label('TASA BCV')
                                     ->numeric()
-                                    ->step('0.000001')
+                                    ->step('0.0001')
+                                    ->disabled(fn ($record): bool => filled($record?->pago_registrado_at))
                                     ->afterStateHydrated(function ($state, callable $set): void {
                                         if (filled($state)) {
                                             return;
@@ -393,7 +394,7 @@ class OrdenCompraForm
                                         $rate = app(BcvRateService::class)->rateForOrderCreation();
 
                                         if ($rate !== null) {
-                                            $set('tasa_bcv', round($rate, 6));
+                                            $set('tasa_bcv', round($rate, 4));
                                         }
                                     })
                                     ->columnSpan(3),

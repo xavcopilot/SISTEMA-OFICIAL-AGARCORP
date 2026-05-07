@@ -28,6 +28,7 @@
             top: 0;
             z-index: 20;
             display: flex;
+            flex-wrap: wrap;
             gap: 0.75rem;
             align-items: center;
             padding: 0.85rem 1rem;
@@ -54,6 +55,15 @@
 
         .btn-primary { background: var(--accent); color: #fff; }
         .btn-primary:hover { background: var(--accent-dark); }
+        .btn-secondary { background: #e2e8f0; color: #0f172a; }
+        .btn-secondary:hover { background: #cbd5e1; }
+        .btn.active { box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.25); }
+
+        .variant-switcher {
+            display: inline-flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
 
         .canvas { padding: 0.9rem; }
 
@@ -75,18 +85,64 @@
 <body>
     <div class="toolbar">
         <div class="title">Orden de Compra: {{ $ordenCompra->correlativo_odc ?? $ordenCompra->id }}</div>
-        <div class="hint">Usa este boton para Imprimir o Guardar como PDF</div>
+        <div class="hint">Selecciona el formato que quieres ver antes de imprimir o guardar.</div>
+        <div class="variant-switcher">
+            @foreach ($variantOptions as $variantKey => $variant)
+                <button
+                    class="btn {{ $selectedVariant === $variantKey ? 'btn-primary active' : 'btn-secondary' }}"
+                    type="button"
+                    data-variant="{{ $variantKey }}"
+                    data-pdf-url="{{ $variant['pdfUrl'] }}"
+                    data-download-url="{{ $variant['downloadUrl'] }}"
+                    data-excel-url="{{ $variant['excelUrl'] }}"
+                >
+                    {{ $variant['label'] }}
+                </button>
+            @endforeach
+        </div>
+        <a id="downloadPdfBtn" class="btn btn-secondary" href="{{ $variantOptions[$selectedVariant]['downloadUrl'] }}">Descargar PDF</a>
+        <a id="downloadExcelBtn" class="btn btn-secondary" href="{{ $variantOptions[$selectedVariant]['excelUrl'] }}">Descargar Excel</a>
         <button id="printBtn" class="btn btn-primary" type="button">Imprimir / Guardar PDF</button>
     </div>
 
     <div class="canvas">
-        <iframe id="pdfFrame" src="{{ $pdfUrl }}" title="Vista previa PDF ODC"></iframe>
+        <iframe id="pdfFrame" src="{{ $variantOptions[$selectedVariant]['pdfUrl'] }}" title="Vista previa PDF ODC"></iframe>
     </div>
 
     <script>
         (function () {
             const frame = document.getElementById('pdfFrame');
             const printBtn = document.getElementById('printBtn');
+            const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+            const downloadExcelBtn = document.getElementById('downloadExcelBtn');
+            const variantButtons = Array.from(document.querySelectorAll('[data-variant]'));
+
+            function setActiveButton(activeButton) {
+                variantButtons.forEach((button) => {
+                    const active = button === activeButton;
+                    button.classList.toggle('active', active);
+                    button.classList.toggle('btn-primary', active);
+                    button.classList.toggle('btn-secondary', !active);
+                });
+            }
+
+            function updateVariant(button) {
+                if (!button || !frame) {
+                    return;
+                }
+
+                frame.src = button.dataset.pdfUrl;
+
+                if (downloadPdfBtn) {
+                    downloadPdfBtn.href = button.dataset.downloadUrl || '#';
+                }
+
+                if (downloadExcelBtn) {
+                    downloadExcelBtn.href = button.dataset.excelUrl || '#';
+                }
+
+                setActiveButton(button);
+            }
 
             function triggerPrint() {
                 if (!frame || !frame.contentWindow) {
@@ -100,9 +156,16 @@
 
             printBtn.addEventListener('click', triggerPrint);
 
-            frame.addEventListener('load', function () {
-                setTimeout(triggerPrint, 450);
+            variantButtons.forEach((button) => {
+                button.addEventListener('click', function () {
+                    updateVariant(button);
+                });
             });
+
+            if (variantButtons.length > 0) {
+                const selectedButton = variantButtons.find((button) => button.dataset.variant === '{{ $selectedVariant }}') || variantButtons[0];
+                updateVariant(selectedButton);
+            }
         })();
     </script>
 </body>

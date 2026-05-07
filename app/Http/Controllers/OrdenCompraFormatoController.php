@@ -20,9 +20,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class OrdenCompraFormatoController extends Controller
 {
-    private const EXCEL_TEMPLATE_FILE = 'FORMATO ODC.xlsx';
+    private const DEFAULT_VARIANT = 'divisas';
     private const PDF_PRINT_AREA_START = 'B6';
     private const PDF_PRINT_AREA_END = 'H65';
+    private const PDF_PRINT_AREA_END_BOLIVARES = 'I65';
     private const ITEMS_START_ROW = 32;
     private const ITEMS_END_ROW = 43;
     private const DEFAULT_SIGNATURE_HEIGHT = 100;
@@ -33,6 +34,18 @@ class OrdenCompraFormatoController extends Controller
     private const SIGNATURE_RENDER_OVERRIDES = [
         2 => ['height' => 90, 'offset_x' => 20, 'offset_y' => 0],
         14 => ['height' => 90, 'offset_x' => 8, 'offset_y' => 2],
+    ];
+    private const TEMPLATE_VARIANTS = [
+        'divisas' => [
+            'template' => 'FORMATO ODC.xlsx',
+            'label' => 'ODC DIVISAS',
+            'filename_suffix' => 'DIVISAS',
+        ],
+        'bolivares' => [
+            'template' => 'FORMATO ODC CON BOLIVARES.xlsx',
+            'label' => 'ODC CON BOLIVARES',
+            'filename_suffix' => 'BOLIVARES',
+        ],
     ];
 
     public function __construct(private LibreOfficePdfConverter $libreOfficePdfConverter)
@@ -45,11 +58,25 @@ class OrdenCompraFormatoController extends Controller
             abort(401);
         }
 
+        $selectedVariant = $this->resolveVariant();
+
         return view('ordenes-compra.print-preview', [
             'ordenCompra' => $ordenCompra,
-            'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra]),
-            'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'download' => 1]),
-            'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'format' => 'xlsx', 'download' => 1]),
+            'selectedVariant' => $selectedVariant,
+            'variantOptions' => [
+                'divisas' => [
+                    'label' => 'Ver ODC Divisas',
+                    'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas']),
+                    'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'download' => 1]),
+                    'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'format' => 'xlsx', 'download' => 1]),
+                ],
+                'bolivares' => [
+                    'label' => 'Ver ODC con Bolivares',
+                    'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares']),
+                    'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares', 'download' => 1]),
+                    'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares', 'format' => 'xlsx', 'download' => 1]),
+                ],
+            ],
         ]);
     }
 
@@ -58,6 +85,9 @@ class OrdenCompraFormatoController extends Controller
         if (! auth()->check()) {
             abort(401);
         }
+
+        $variant = $this->resolveVariant();
+        $variantConfig = self::TEMPLATE_VARIANTS[$variant];
 
         $ordenCompra->loadMissing([
             'items',
@@ -70,10 +100,10 @@ class OrdenCompraFormatoController extends Controller
             'sumario.decisionGerenciaPor.cargo',
         ]);
 
-        $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
+        $templatePath = storage_path('app/templates/' . $variantConfig['template']);
 
         if (! file_exists($templatePath)) {
-            abort(Response::HTTP_NOT_FOUND, 'No se encontro la plantilla Excel FORMATO ODC.xlsx en storage/app/templates.');
+            abort(Response::HTTP_NOT_FOUND, 'No se encontro la plantilla Excel ' . $variantConfig['template'] . ' en storage/app/templates.');
         }
 
         $tmpDir = storage_path('app/tmp');
@@ -82,11 +112,11 @@ class OrdenCompraFormatoController extends Controller
         }
 
         $outputFormat = strtolower((string) request('format', 'pdf'));
-        $fileBaseName = 'orden-compra-' . $ordenCompra->id . '-' . now()->format('YmdHis');
+        $fileBaseName = 'orden-compra-' . $variant . '-' . $ordenCompra->id . '-' . now()->format('YmdHis');
         $xlsxPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.xlsx';
         $pdfPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.pdf';
-        $excelFileName = 'ODC_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.xlsx';
-        $pdfFileName = 'ODC_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.pdf';
+        $excelFileName = 'ODC_' . $variantConfig['filename_suffix'] . '_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.xlsx';
+        $pdfFileName = 'ODC_' . $variantConfig['filename_suffix'] . '_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.pdf';
 
         try {
             $spreadsheet = IOFactory::load($templatePath);
@@ -94,25 +124,25 @@ class OrdenCompraFormatoController extends Controller
 
             $missingTokens = $this->findMissingTokens(
                 $sheet,
-                array_merge($this->requiredGlobalTokenNames(), $this->requiredItemTokenNames())
+                array_merge($this->requiredGlobalTokenNames($variant), $this->requiredItemTokenNames($variant))
             );
 
             if ($missingTokens !== []) {
                 return response(
-                    'Faltan placeholders requeridos en FORMATO ODC.xlsx: ' . implode(', ', $missingTokens),
+                    'Faltan placeholders requeridos en ' . $variantConfig['template'] . ': ' . implode(', ', $missingTokens),
                     Response::HTTP_UNPROCESSABLE_ENTITY,
                     ['Content-Type' => 'text/plain; charset=UTF-8']
                 );
             }
 
-            $globalTokens = $this->buildGlobalTokens($ordenCompra);
+            $globalTokens = $this->buildGlobalTokens($ordenCompra, $variant);
             $itemRowsWithTokens = $this->findRowsWithAnyTokens($sheet, $this->itemTokenNames());
 
             $this->renderSignatureImages($sheet, $ordenCompra);
             $this->replaceGlobalTokens($sheet, $globalTokens);
-            $this->renderItemsByTokenRows($sheet, $ordenCompra, $itemRowsWithTokens);
+            $this->renderItemsByTokenRows($sheet, $ordenCompra, $itemRowsWithTokens, $variant);
 
-            $this->normalizeSheetForPdf($sheet);
+            $this->normalizeSheetForPdf($sheet, $variant);
 
             $xlsxWriter = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $xlsxWriter->save($xlsxPath);
@@ -161,13 +191,29 @@ class OrdenCompraFormatoController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
-    private function buildGlobalTokens(OrdenCompra $ordenCompra): array
+    private function buildGlobalTokens(OrdenCompra $ordenCompra, string $variant = self::DEFAULT_VARIANT): array
     {
         $proveedor = $ordenCompra->proveedor;
         $sumario = $ordenCompra->sumario;
         $informacionImpresa = InformacionAgarcorp::current();
         $elaboradoPor = $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor;
         $aprobadoPor = $ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor;
+        $bcvRate = max(0, (float) ($ordenCompra->tasa_bcv ?? 0));
+        $useBolivares = $variant === 'bolivares';
+
+        $montoExento = (float) ($ordenCompra->monto_exento ?? 0);
+        $subTotal = (float) ($ordenCompra->sub_total ?? 0);
+        $iva = (float) ($ordenCompra->iva_16 ?? 0);
+        $gastosAdicionales = (float) ($ordenCompra->gastos_adicionales ?? 0);
+        $totalGeneral = (float) ($ordenCompra->total_general ?? 0);
+
+        if ($useBolivares) {
+            $montoExento *= $bcvRate;
+            $subTotal *= $bcvRate;
+            $iva *= $bcvRate;
+            $gastosAdicionales *= $bcvRate;
+            $totalGeneral *= $bcvRate;
+        }
 
         $elaboradoFecha = (string) ($ordenCompra->elaborado_firmado_at
             ? 'Registrada el ' . $ordenCompra->elaborado_firmado_at->format('d/m/Y H:i')
@@ -189,12 +235,18 @@ class OrdenCompraFormatoController extends Controller
             'email_proveedor' => (string) ($ordenCompra->email_proveedor ?? $proveedor?->email ?? ''),
             'contacto_proveedor' => (string) ($ordenCompra->contacto_proveedor ?? $proveedor?->contacto ?? ''),
 
-            'monto_exento' => (float) ($ordenCompra->monto_exento ?? 0),
-            'sub_total' => (float) ($ordenCompra->sub_total ?? 0),
-            'iva_16' => (float) ($ordenCompra->iva_16 ?? 0),
-            'gastos_adicionales' => (float) ($ordenCompra->gastos_adicionales ?? 0),
-            'total_general' => (float) ($ordenCompra->total_general ?? 0),
-            'total_en_letras' => $this->numberToWordsEs((float) ($ordenCompra->total_general ?? 0)) . ' BOLIVARES',
+            'monto_exento' => $montoExento,
+            'sub_total' => $subTotal,
+            'iva_16' => $iva,
+            'gastos_adicionales' => $gastosAdicionales,
+            'total_general' => $totalGeneral,
+            'total_en_letras' => $this->numberToWordsEs($totalGeneral) . ' BOLIVARES',
+            'monto_exento_bs' => round((float) ($ordenCompra->monto_exento ?? 0) * $bcvRate, 2),
+            'sub_total_bs' => round((float) ($ordenCompra->sub_total ?? 0) * $bcvRate, 2),
+            'iva_16_bs' => round((float) ($ordenCompra->iva_16 ?? 0) * $bcvRate, 2),
+            'gastos_adicionales_bs' => round((float) ($ordenCompra->gastos_adicionales ?? 0) * $bcvRate, 2),
+            'total_general_bs' => round((float) ($ordenCompra->total_general ?? 0) * $bcvRate, 2),
+            'total_en_letras_bs' => $this->numberToWordsEs(round((float) ($ordenCompra->total_general ?? 0) * $bcvRate, 2)) . ' BOLIVARES',
 
             'sitio_entrega' => (string) ($ordenCompra->sitio_entrega ?: 'ALMACEN AGARCORP'),
             'condicion_pago' => (string) ($ordenCompra->condicion_pago ?? ''),
@@ -326,9 +378,9 @@ class OrdenCompraFormatoController extends Controller
         );
     }
 
-    private function requiredGlobalTokenNames(): array
+    private function requiredGlobalTokenNames(string $variant = self::DEFAULT_VARIANT): array
     {
-        return [
+        $required = [
             'correlativo_odc',
             'fecha_odc',
             'proveedor_nombre',
@@ -339,12 +391,6 @@ class OrdenCompraFormatoController extends Controller
             'ciudad_proveedor',
             'email_proveedor',
             'contacto_proveedor',
-            'monto_exento',
-            'sub_total',
-            'iva_16',
-            'gastos_adicionales',
-            'total_general',
-            'total_en_letras',
             'sitio_entrega',
             'condicion_pago',
             'comentarios',
@@ -356,6 +402,28 @@ class OrdenCompraFormatoController extends Controller
             'aprobado_por_nombre',
             'aprobado_por_cargo',
         ];
+
+        if ($variant === 'bolivares') {
+            $required = array_merge($required, [
+                ['monto_exento', 'monto_exento_bs'],
+                ['sub_total', 'sub_total_bs'],
+                ['iva_16', 'iva_16_bs'],
+                ['gastos_adicionales', 'gastos_adicionales_bs'],
+                ['total_general', 'total_general_bs'],
+                ['total_en_letras', 'total_en_letras_bs'],
+            ]);
+        } else {
+            $required = array_merge($required, [
+                'monto_exento',
+                'sub_total',
+                'iva_16',
+                'gastos_adicionales',
+                'total_general',
+                'total_en_letras',
+            ]);
+        }
+
+        return $required;
     }
 
     private function itemTokenNames(): array
@@ -371,24 +439,38 @@ class OrdenCompraFormatoController extends Controller
             'item_cantidad',
             'precio_unitario',
             'item_precio_unitario',
+            'precio_unitario_bs',
+            'item_precio_unitario_bs',
             'precio_total',
             'item_precio_total',
+            'precio_total_divisas',
+            'item_precio_total_divisas',
+            'precio_total_bs',
+            'item_precio_total_bs',
         ];
     }
 
-    private function requiredItemTokenNames(): array
+    private function requiredItemTokenNames(string $variant = self::DEFAULT_VARIANT): array
     {
-        return [
+        $required = [
             'item',
             'descripcion',
             'unidad_medida',
             'cantidad',
-            'precio_unitario',
-            'precio_total',
         ];
+
+        if ($variant === 'bolivares') {
+            $required[] = ['precio_unitario', 'precio_unitario_bs'];
+            $required[] = ['precio_total', 'precio_total_bs'];
+        } else {
+            $required[] = 'precio_unitario';
+            $required[] = 'precio_total';
+        }
+
+        return $required;
     }
 
-    private function renderItemsByTokenRows(Worksheet $sheet, OrdenCompra $ordenCompra, array $rows): void
+    private function renderItemsByTokenRows(Worksheet $sheet, OrdenCompra $ordenCompra, array $rows, string $variant = self::DEFAULT_VARIANT): void
     {
         $items = $ordenCompra->items->values();
         $highestColumnIndex = Coordinate::columnIndexFromString($sheet->getHighestColumn());
@@ -398,7 +480,7 @@ class OrdenCompraFormatoController extends Controller
             $row = $rows[$index];
             $item = $items->get($index);
             $descriptionColumn = $this->findTokenColumnInRow($sheet, $row, ['descripcion', 'item_descripcion'], $highestColumnIndex);
-            $tokens = $this->buildItemTokens($item, $index + 1);
+            $tokens = $this->buildItemTokens($item, $index + 1, $ordenCompra, $variant);
             $this->replaceTokensInRow($sheet, $row, $tokens, $highestColumnIndex);
 
             if ($descriptionColumn !== null && $item) {
@@ -453,7 +535,7 @@ class OrdenCompraFormatoController extends Controller
         $rowDimension->setRowHeight(max($baseHeight, $baseHeight * $lines));
     }
 
-    private function buildItemTokens(mixed $item, int $fallbackIndex): array
+    private function buildItemTokens(mixed $item, int $fallbackIndex, OrdenCompra $ordenCompra, string $variant = self::DEFAULT_VARIANT): array
     {
         if (! $item) {
             return [
@@ -467,10 +549,24 @@ class OrdenCompraFormatoController extends Controller
                 'item_cantidad' => '',
                 'precio_unitario' => '',
                 'item_precio_unitario' => '',
+                'precio_unitario_bs' => '',
+                'item_precio_unitario_bs' => '',
                 'precio_total' => '',
                 'item_precio_total' => '',
+                'precio_total_divisas' => '',
+                'item_precio_total_divisas' => '',
+                'precio_total_bs' => '',
+                'item_precio_total_bs' => '',
             ];
         }
+
+        $quantity = (float) ($item->cantidad ?? 0);
+        $unitPriceDivisas = (float) ($item->precio_unitario ?? 0);
+        $totalDivisas = (float) ($item->precio_total ?? 0);
+        $bcvRate = max(0, (float) ($ordenCompra->tasa_bcv ?? 0));
+        $unitPriceBolivares = round($unitPriceDivisas * $bcvRate, 2);
+        $totalBolivares = round($quantity * $unitPriceBolivares, 2);
+        $displayTotal = $variant === 'bolivares' ? $totalBolivares : $totalDivisas;
 
         return [
             'item' => (string) ($item->item ?? $fallbackIndex),
@@ -479,13 +575,26 @@ class OrdenCompraFormatoController extends Controller
             'item_descripcion' => (string) ($item->descripcion ?? ''),
             'unidad_medida' => (string) ($item->unidad_medida ?? 'UND'),
             'item_unidad_medida' => (string) ($item->unidad_medida ?? 'UND'),
-            'cantidad' => (float) ($item->cantidad ?? 0),
-            'item_cantidad' => (float) ($item->cantidad ?? 0),
-            'precio_unitario' => (float) ($item->precio_unitario ?? 0),
-            'item_precio_unitario' => (float) ($item->precio_unitario ?? 0),
-            'precio_total' => (float) ($item->precio_total ?? 0),
-            'item_precio_total' => (float) ($item->precio_total ?? 0),
+            'cantidad' => $quantity,
+            'item_cantidad' => $quantity,
+            'precio_unitario' => $unitPriceDivisas,
+            'item_precio_unitario' => $unitPriceDivisas,
+            'precio_unitario_bs' => $unitPriceBolivares,
+            'item_precio_unitario_bs' => $unitPriceBolivares,
+            'precio_total' => $displayTotal,
+            'item_precio_total' => $displayTotal,
+            'precio_total_divisas' => $totalDivisas,
+            'item_precio_total_divisas' => $totalDivisas,
+            'precio_total_bs' => $totalBolivares,
+            'item_precio_total_bs' => $totalBolivares,
         ];
+    }
+
+    private function resolveVariant(): string
+    {
+        $variant = strtolower(trim((string) request('variant', self::DEFAULT_VARIANT)));
+
+        return array_key_exists($variant, self::TEMPLATE_VARIANTS) ? $variant : self::DEFAULT_VARIANT;
     }
 
     private function replaceGlobalTokens(Worksheet $sheet, array $tokens): void
@@ -557,7 +666,17 @@ class OrdenCompraFormatoController extends Controller
     {
         $pending = [];
         foreach ($tokens as $token) {
-            $pending[(string) $token] = true;
+            if (is_array($token)) {
+                $normalizedGroup = array_values(array_map('strval', $token));
+
+                if ($normalizedGroup !== []) {
+                    $pending[implode('|', $normalizedGroup)] = $normalizedGroup;
+                }
+
+                continue;
+            }
+
+            $pending[(string) $token] = [(string) $token];
         }
 
         $highestRow = $sheet->getHighestRow();
@@ -571,9 +690,12 @@ class OrdenCompraFormatoController extends Controller
                     continue;
                 }
 
-                foreach (array_keys($pending) as $token) {
-                    if ($this->containsTokenVariant($value, $token)) {
-                        unset($pending[$token]);
+                foreach ($pending as $pendingKey => $tokenGroup) {
+                    foreach ($tokenGroup as $token) {
+                        if ($this->containsTokenVariant($value, $token)) {
+                            unset($pending[$pendingKey]);
+                            break;
+                        }
                     }
                 }
 
@@ -583,7 +705,10 @@ class OrdenCompraFormatoController extends Controller
             }
         }
 
-        return array_keys($pending);
+        return array_map(
+            static fn (array $tokenGroup): string => implode(' o ', $tokenGroup),
+            array_values($pending)
+        );
     }
 
     private function replaceTokenVariant(string $value, string $token, string $replacement): string
@@ -608,10 +733,14 @@ class OrdenCompraFormatoController extends Controller
         return (bool) preg_match($pattern, $value);
     }
 
-    private function normalizeSheetForPdf(Worksheet $sheet): void
+    private function normalizeSheetForPdf(Worksheet $sheet, string $variant = self::DEFAULT_VARIANT): void
     {
         $pageSetup = $sheet->getPageSetup();
-        $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . self::PDF_PRINT_AREA_END);
+        $printAreaEnd = $variant === 'bolivares'
+            ? self::PDF_PRINT_AREA_END_BOLIVARES
+            : self::PDF_PRINT_AREA_END;
+
+        $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . $printAreaEnd);
 
         $pageMargins = $sheet->getPageMargins();
         $pageMargins->setTop(0.5);

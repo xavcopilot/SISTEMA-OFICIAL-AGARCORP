@@ -5,8 +5,10 @@ namespace App\Filament\Resources\AprobacionOdcs\Tables;
 use App\Filament\Resources\AprobacionOdcs\AprobacionOdcResource;
 use App\Models\Sumario;
 use App\Models\SolicitudCompra;
+use App\Support\BcvRateService;
 use App\Support\OdcModalSummaryRenderer;
 use App\Support\SumarioModalSummaryRenderer;
+use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Forms\Components\Placeholder;
@@ -224,10 +226,35 @@ class AprobacionOdcsTable
                                     return;
                                 }
 
+                                if (! auth()->user()?->hasRole('Gerencia de Finanzas')) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('Solo un usuario con rol Gerencia de Finanzas puede registrar esta firma.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                if (UserSignaturePath::findByUserId((int) auth()->id()) === null) {
+                                    Notification::make()
+                                        ->title('No se pudo firmar')
+                                        ->body('Tu usuario no tiene una firma PNG registrada. Carga primero la firma asociada a tu ID.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $currentRate = app(BcvRateService::class)->rateForOrderCreation();
+
                                 $record->forceFill([
+                                    'tasa_bcv' => $currentRate !== null
+                                        ? round((float) $currentRate, 4)
+                                        : $record->tasa_bcv,
                                     'estado' => 'APROBADA',
                                     'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
-                                    'aprobado_por_user_id' => $record->aprobado_por_user_id ?: auth()->id(),
+                                    'aprobado_por_user_id' => auth()->id(),
                                     'aprobado_firmado_at' => now(),
                                 ])->save();
 

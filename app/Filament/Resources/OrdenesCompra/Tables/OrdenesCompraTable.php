@@ -9,6 +9,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\User;
 use App\Support\ActivityNotification;
+use App\Support\BcvRateService;
 use App\Support\OrdenCompraAdministracionService;
 use App\Support\OrdenCompraConformidadService;
 use App\Support\OdcModalSummaryRenderer;
@@ -383,7 +384,12 @@ class OrdenesCompraTable
                         && self::canApproveByGerenciaFinanzas($record))
                     ->requiresConfirmation()
                     ->action(function ($record): void {
+                        $currentRate = app(BcvRateService::class)->rateForOrderCreation();
+
                         $record->forceFill([
+                            'tasa_bcv' => $currentRate !== null
+                                ? round((float) $currentRate, 4)
+                                : $record->tasa_bcv,
                             'estado' => 'APROBADA',
                             'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
                             'aprobado_por_user_id' => auth()->id(),
@@ -406,6 +412,12 @@ class OrdenesCompraTable
                     ->visible(fn ($record, $livewire): bool => ! self::isOdcCorreccionesTab($livewire)
                         && self::canRegisterFinancePayment($record))
                     ->form([
+                        TextInput::make('tasa_bcv')
+                            ->label('Tasa BCV a congelar')
+                            ->numeric()
+                            ->step('0.0000')
+                            ->default(fn ($record): float => round((float) ($record->tasa_bcv ?? 0), 4))
+                            ->required(),
                         TextInput::make('monto_pagado')
                             ->label('Monto pagado')
                             ->numeric()
@@ -441,6 +453,7 @@ class OrdenesCompraTable
                         }
 
                         $record->forceFill([
+                            'tasa_bcv' => round((float) ($data['tasa_bcv'] ?? 0), 4),
                             'monto_pagado' => round((float) ($data['monto_pagado'] ?? 0), 2),
                             'referencia_pago' => (string) ($data['referencia_pago'] ?? ''),
                             'comprobante_pago_path' => $comprobantes[0] ?? null,

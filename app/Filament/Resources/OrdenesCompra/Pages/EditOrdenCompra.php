@@ -4,6 +4,8 @@ namespace App\Filament\Resources\OrdenesCompra\Pages;
 
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Sumario;
+use App\Support\BcvRateService;
+use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -131,8 +133,40 @@ class EditOrdenCompra extends EditRecord
         return parent::getFormActions();
     }
 
-    private function validateSignaturePassword(array $data): bool
+    private function validateSignaturePassword(array $data, ?string $requiredRole = null, bool $requirePng = false): bool
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Debes iniciar sesion para registrar esta firma.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requiredRole !== null && ! $user->hasRole($requiredRole)) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('La firma solo puede registrarla un usuario con el rol ' . $requiredRole . '.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        if ($requirePng && UserSignaturePath::findByUserId((int) $user->id) === null) {
+            Notification::make()
+                ->title('No se pudo firmar')
+                ->body('Tu usuario no tiene una firma PNG registrada. Carga primero la firma asociada a tu ID.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
         $password = (string) ($data['password'] ?? '');
         $passwordConfirmation = (string) ($data['password_confirmation'] ?? '');
 
@@ -146,7 +180,7 @@ class EditOrdenCompra extends EditRecord
             return false;
         }
 
-        $signatureHash = auth()->user()?->firma_password ?: auth()->user()?->password ?: '';
+        $signatureHash = $user->firma_password ?: $user->password ?: '';
 
         if (Hash::check($password, $signatureHash)) {
             return true;
@@ -163,7 +197,7 @@ class EditOrdenCompra extends EditRecord
 
     private function submitToValidacionFinanzas(array $data): void
     {
-        if (! $this->validateSignaturePassword($data)) {
+        if (! $this->validateSignaturePassword($data, 'Procura', true)) {
             return;
         }
 
@@ -173,7 +207,7 @@ class EditOrdenCompra extends EditRecord
             && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas';
 
         $this->record->forceFill([
-            'elaborado_por_user_id' => $this->record->elaborado_por_user_id ?: auth()->id(),
+            'elaborado_por_user_id' => auth()->id(),
             'elaborado_firmado_at' => now(),
             'estado' => 'PENDIENTE_VALIDACION_FINANZAS',
             'workflow_post_compra' => 'PENDIENTE_VALIDACION_FINANZAS',
@@ -219,16 +253,21 @@ class EditOrdenCompra extends EditRecord
             return;
         }
 
-        if (! $this->validateSignaturePassword($data)) {
+        if (! $this->validateSignaturePassword($data, 'Gerencia de Finanzas', true)) {
             return;
         }
 
         $this->save(false, false);
 
+        $currentRate = app(BcvRateService::class)->rateForOrderCreation();
+
         $this->record->forceFill([
+            'tasa_bcv' => $currentRate !== null
+                ? round((float) $currentRate, 4)
+                : $this->record->tasa_bcv,
             'estado' => 'APROBADA',
             'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
-            'aprobado_por_user_id' => $this->record->aprobado_por_user_id ?: auth()->id(),
+            'aprobado_por_user_id' => auth()->id(),
             'aprobado_firmado_at' => now(),
         ])->save();
 
