@@ -1445,11 +1445,11 @@ class SolicitudesCompraTable
                     }
 
                     $badges = [
-                        '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#f3f4f6;color:#374151;font-size:11px;">Estado: ' . e((string) ($ordenCompra->estado ?? 'N/A')) . '</span>',
+                        '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#f3f4f6;color:#374151;font-size:11px;">Estado de la ODC: ' . e((string) ($ordenCompra->estado ?? 'N/A')) . '</span>',
                     ];
 
                     if (filled($ordenCompra->workflow_post_compra)) {
-                        $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#eef2ff;color:#4338ca;font-size:11px;">Workflow: ' . e((string) $ordenCompra->workflow_post_compra) . '</span>';
+                        $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#eef2ff;color:#4338ca;font-size:11px;">Etapa del proceso: ' . e((string) $ordenCompra->workflow_post_compra) . '</span>';
                     }
 
                     if (! $comprobanteUrl) {
