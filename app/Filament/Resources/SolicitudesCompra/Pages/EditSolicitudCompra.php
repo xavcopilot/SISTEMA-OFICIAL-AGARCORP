@@ -89,7 +89,7 @@ class EditSolicitudCompra extends EditRecord
                     $this->submitDraft($data);
                 }),
             Action::make('deleteRejectedRequest')
-                ->label('Eliminar solicitud')
+                ->label('Eliminar a Historial')
                 ->color('danger')
                 ->requiresConfirmation()
                 ->visible(fn (): bool => $this->record instanceof SolicitudCompra && SolicitudCompraFlow::canDeleteRejectedRequest(auth()->user(), $this->record))

@@ -122,21 +122,7 @@ class OrdenCompraResource extends Resource
         return (int) $sumarios
             ->filter(function (Sumario $sumario) use ($service): bool {
                 $groups = $service->pendingProviderGroups($sumario)
-                    ->filter(function (array $group) use ($sumario): bool {
-                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                        if (filled($group['provider_id'])) {
-                            $query->where('proveedor_id', (int) $group['provider_id']);
-                        }
-
-                        $query->where(function ($workflowQuery): void {
-                            $workflowQuery
-                                ->whereNull('workflow_post_compra')
-                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                        });
-
-                        return ! $query->exists();
-                    })
+                    ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
                     ->values();
 
                 return $groups->isNotEmpty();
@@ -151,8 +137,18 @@ class OrdenCompraResource extends Resource
         }
 
         return (int) static::getEloquentQuery()
-            ->where('estado', 'RECHAZADA')
-            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas'])
+            ->where(function (Builder $query): Builder {
+                return $query
+                    ->whereIn('workflow_post_compra', [
+                        'PENDIENTE_VALIDACION_FINANZAS',
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                    ])
+                    ->orWhere(function (Builder $rechazadasQuery): Builder {
+                        return $rechazadasQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas']);
+                    });
+            })
             ->count();
     }
 
@@ -205,6 +201,7 @@ class OrdenCompraResource extends Resource
         return $user->can('GenerateOdcs:Sumario')
             && in_array((string) ($record->workflow_post_compra ?? ''), [
                 'BORRADOR_ODC',
+                'PENDIENTE_VALIDACION_FINANZAS',
                 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
             ], true);
     }

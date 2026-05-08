@@ -32,9 +32,7 @@ class AprobacionesCompraResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return auth()->user()?->hasRole('Gerencia de Finanzas')
-            ? 'Aprobacion de Solicitudes'
-            : 'Aprobaciones de Compra';
+        return 'Aprobaciones de Compra';
     }
 
     public static function getNavigationGroup(): string | \UnitEnum | null

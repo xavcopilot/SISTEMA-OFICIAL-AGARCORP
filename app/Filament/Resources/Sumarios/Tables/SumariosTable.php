@@ -1624,15 +1624,7 @@ class SumariosTable
         $service = app(SumarioFinanceApprovalService::class);
 
         return $service->pendingProviderGroups($sumario)
-            ->filter(function (array $group) use ($sumario): bool {
-                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                if (filled($group['provider_id'])) {
-                    $query->where('proveedor_id', (int) $group['provider_id']);
-                }
-
-                return ! $query->exists();
-            })
+            ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
             ->count();
     }
 

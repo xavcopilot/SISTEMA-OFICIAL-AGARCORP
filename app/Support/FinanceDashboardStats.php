@@ -119,9 +119,9 @@ class FinanceDashboardStats
         $query = DB::table('ordenes_compra')
             ->whereNotNull('factura_enviada_administracion_at')
             ->whereNotNull('factura_cargada_administracion_at')
-            ->selectRaw("DATE_FORMAT(factura_cargada_administracion_at, '%Y-%m') as month_key")
-            ->selectRaw("DATE_FORMAT(factura_cargada_administracion_at, '%m/%Y') as label")
-            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, factura_enviada_administracion_at, factura_cargada_administracion_at)) / 24 as total')
+            ->selectRaw("TO_CHAR(factura_cargada_administracion_at, 'YYYY-MM') as month_key")
+            ->selectRaw("TO_CHAR(factura_cargada_administracion_at, 'MM/YYYY') as label")
+            ->selectRaw('AVG(EXTRACT(EPOCH FROM (factura_cargada_administracion_at - factura_enviada_administracion_at)) / 3600) / 24 as total')
             ->groupBy('month_key', 'label')
             ->orderBy('month_key');
 

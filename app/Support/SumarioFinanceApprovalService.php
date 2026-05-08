@@ -265,21 +265,7 @@ class SumarioFinanceApprovalService
                 $sumario->loadMissing(['items.opciones', 'items.solicitudCompraItem.solicitudCompra', 'ordenesCompra']);
 
                 $pendingGroupsCount = $this->pendingProviderGroups($sumario)
-                    ->filter(function (array $group) use ($sumario): bool {
-                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                        if (filled($group['provider_id'])) {
-                            $query->where('proveedor_id', (int) $group['provider_id']);
-                        }
-
-                        $query->where(function ($workflowQuery): void {
-                            $workflowQuery
-                                ->whereNull('workflow_post_compra')
-                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                        });
-
-                        return ! $query->exists();
-                    })
+                    ->filter(fn (array $group): bool => ! $this->hasExistingGeneratedOrderForGroup($sumario, $group))
                     ->count();
 
                 $sumario->forceFill([
@@ -348,6 +334,35 @@ class SumarioFinanceApprovalService
         }
 
         return $groups->values();
+    }
+
+    public function hasExistingGeneratedOrderForGroup(Sumario $sumario, array $group): bool
+    {
+        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) ($group['departamento_solicitante'] ?? ''));
+
+        if (filled($group['provider_id'])) {
+            $query->where('proveedor_id', (int) $group['provider_id']);
+        } else {
+            $providerName = mb_strtolower(trim((string) ($group['provider_name'] ?? '')));
+
+            if ($providerName === '') {
+                return false;
+            }
+
+            $query->whereHas('items.sumarioItem.opciones', function ($optionQuery) use ($providerName): void {
+                $optionQuery
+                    ->where('seleccionada', true)
+                    ->whereRaw('LOWER(proveedor_nombre) = ?', [$providerName]);
+            });
+        }
+
+        $query->where(function ($workflowQuery): void {
+            $workflowQuery
+                ->whereNull('workflow_post_compra')
+                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
+        });
+
+        return $query->exists();
     }
 
     private function nextCorrelativoOdc(): string

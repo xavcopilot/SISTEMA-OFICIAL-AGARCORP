@@ -54,7 +54,8 @@ class ListOrdenesCompra extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where(function (Builder $correccionesQuery): Builder {
                         return $correccionesQuery
-                            ->where('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
+                            ->where('workflow_post_compra', 'PENDIENTE_VALIDACION_FINANZAS')
+                            ->orWhere('workflow_post_compra', 'PENDIENTE_APROBACION_GERENCIA_FINANZAS')
                             ->orWhere(function (Builder $rechazadasQuery): Builder {
                                 return $rechazadasQuery
                                     ->where('estado', 'RECHAZADA')
@@ -283,21 +284,7 @@ class ListOrdenesCompra extends ListRecords
 
         foreach ($sumarios as $sumario) {
             $groups = $service->pendingProviderGroups($sumario)
-                ->filter(function (array $group) use ($sumario): bool {
-                    $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                    if (filled($group['provider_id'])) {
-                        $query->where('proveedor_id', (int) $group['provider_id']);
-                    }
-
-                    $query->where(function ($workflowQuery): void {
-                        $workflowQuery
-                            ->whereNull('workflow_post_compra')
-                            ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                    });
-
-                    return ! $query->exists();
-                })
+                ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
                 ->values();
 
             if ($groups->isEmpty()) {
@@ -394,8 +381,18 @@ class ListOrdenesCompra extends ListRecords
     private function odcEnCorreccionesCount(): int
     {
         return OrdenCompra::query()
-            ->where('estado', 'RECHAZADA')
-            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas'])
+            ->where(function (Builder $query): Builder {
+                return $query
+                    ->whereIn('workflow_post_compra', [
+                        'PENDIENTE_VALIDACION_FINANZAS',
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                    ])
+                    ->orWhere(function (Builder $rechazadasQuery): Builder {
+                        return $rechazadasQuery
+                            ->where('estado', 'RECHAZADA')
+                            ->whereIn('rechazo_etapa', ['gerencia_finanzas', 'validacion_finanzas']);
+                    });
+            })
             ->count();
     }
 
@@ -426,21 +423,7 @@ class ListOrdenesCompra extends ListRecords
         return $sumarios
             ->filter(function (Sumario $sumario) use ($service): bool {
                 $groups = $service->pendingProviderGroups($sumario)
-                    ->filter(function (array $group) use ($sumario): bool {
-                        $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                        if (filled($group['provider_id'])) {
-                            $query->where('proveedor_id', (int) $group['provider_id']);
-                        }
-
-                        $query->where(function ($workflowQuery): void {
-                            $workflowQuery
-                                ->whereNull('workflow_post_compra')
-                                ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                        });
-
-                        return ! $query->exists();
-                    })
+                    ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
                     ->values();
 
                 return $groups->isNotEmpty();

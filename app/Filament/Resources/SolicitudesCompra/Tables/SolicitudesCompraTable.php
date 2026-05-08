@@ -17,7 +17,6 @@ use App\Support\OrdenCompraConformidadService;
 use App\Support\SolicitudCompraFlow;
 use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -66,6 +65,10 @@ class SolicitudesCompraTable
                 TextColumn::make('para_ser_usado_en')
                     ->toggleable()
                     ->label('Para ser usado en')
+                    ->wrap()
+                    ->extraAttributes([
+                        'style' => 'max-width: 50rem; white-space: normal; word-break: break-word; line-height: 1.4;',
+                    ])
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')
@@ -83,6 +86,15 @@ class SolicitudesCompraTable
                     ->label('Estado')
                     ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
                     ->badge()
+                    ->visible(fn ($livewire): bool => ! self::isApprovalHistoryTab($livewire) && ! self::isRequesterHistoryTab($livewire))
+                    ->color(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['color']),
+
+                TextColumn::make('estado_historial_solicitante')
+                    ->toggleable()    
+                    ->label('Estado')
+                    ->state(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['label'])
+                    ->badge()
+                    ->visible(fn ($livewire): bool => self::isRequesterHistoryTab($livewire))
                     ->color(fn (SolicitudCompra $record): string => self::resolveGeneralState($record)['color']),
             ])
             ->recordActions([
@@ -236,10 +248,6 @@ class SolicitudesCompraTable
                 EditAction::make()
                     ->authorize(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record))
                     ->visible(fn ($record): bool => SolicitudCompraFlow::canEditRequest(auth()->user(), $record)),
-
-                DeleteAction::make()
-                    ->authorize(fn ($record): bool => SolicitudCompraFlow::canDeleteRequest(auth()->user(), $record))
-                    ->visible(fn ($record): bool => SolicitudCompraFlow::canDeleteRequest(auth()->user(), $record)),
             ])
             ->recordUrl(null)
             ->defaultSort('created_at', 'desc');
@@ -440,6 +448,16 @@ class SolicitudesCompraTable
                         ->rows(3)
                         ->disabled(),
                 ]),
+
+            Section::make('Historial de rechazos')
+                ->description('Muestra los rechazos previos registrados para esta solicitud.')
+                ->visible(fn (SolicitudCompra $record): bool => self::hasRejectionHistory($record))
+                ->schema([
+                    Placeholder::make('historial_rechazos_html')
+                        ->hiddenLabel()
+                        ->content(fn (SolicitudCompra $record): HtmlString => new HtmlString(self::renderRejectionHistoryView($record)))
+                        ->dehydrated(false),
+                ]),
         ];
     }
 
@@ -529,6 +547,56 @@ class SolicitudesCompraTable
             . '</div>';
     }
 
+    private static function renderRejectionHistoryView(SolicitudCompra $record): string
+    {
+        $sharedCode = (string) ($record->codigo_control ?: $record->id);
+
+        $rows = SolicitudCompra::query()
+            ->with('rechazoPor')
+            ->where('codigo_control', $sharedCode)
+            ->whereNotNull('rechazo_comentario')
+            ->orderBy('id')
+            ->get()
+            ->map(function (SolicitudCompra $version, int $index): string {
+                $stage = SolicitudCompraFlow::rejectionStageLabel($version->rechazo_etapa) ?: 'SIN ETAPA';
+                $rejectedBy = e((string) ($version->rechazoPor?->name ?: 'Sin usuario'));
+                $rejectedAt = e((string) ($version->rechazo_en?->format('d/m/Y H:i') ?: '-'));
+                $comment = nl2br(e((string) ($version->rechazo_comentario ?: 'Sin comentario registrado.')));
+                $attempt = $index + 1;
+
+                return '<div style="border:1px solid #d1d5db;border-radius:8px;padding:12px;margin-bottom:12px;background:#fff;">'
+                    . '<div style="font-weight:600;color:#111827;margin-bottom:8px;">Rechazo ' . $attempt . '</div>'
+                    . '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;font-size:12px;margin-bottom:8px;">'
+                    . '<div><strong>Etapa:</strong><br>' . e($stage) . '</div>'
+                    . '<div><strong>Rechazada por:</strong><br>' . $rejectedBy . '</div>'
+                    . '<div><strong>Fecha:</strong><br>' . $rejectedAt . '</div>'
+                    . '</div>'
+                    . '<div style="font-size:12px;line-height:1.5;"><strong>Comentario:</strong><br>' . $comment . '</div>'
+                    . '</div>';
+            })
+            ->implode('');
+
+        if ($rows === '') {
+            return '';
+        }
+
+        return '<div>' . $rows . '</div>';
+    }
+
+    private static function hasRejectionHistory(SolicitudCompra $record): bool
+    {
+        if ((string) $record->estado !== SolicitudCompra::ESTADO_RECHAZADA) {
+            return false;
+        }
+
+        $sharedCode = (string) ($record->codigo_control ?: $record->id);
+
+        return SolicitudCompra::query()
+            ->where('codigo_control', $sharedCode)
+            ->whereNotNull('rechazo_comentario')
+            ->exists();
+    }
+
 
     public static function configureForApprovals(Table $table): Table
     {
@@ -558,6 +626,10 @@ class SolicitudesCompraTable
                 TextColumn::make('para_ser_usado_en')
                     ->toggleable()
                     ->label('Para ser usado en')
+                    ->wrap()
+                    ->extraAttributes([
+                        'style' => 'max-width: 44rem; white-space: normal; word-break: break-word; line-height: 1.4;',
+                    ])
                     ->searchable(),
 
                 TextColumn::make('tipo_solicitud')
@@ -669,6 +741,7 @@ class SolicitudesCompraTable
                 ->label('Firmar almacén')
                 ->icon(Heroicon::OutlinedCheckBadge)
                 ->color('warning')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record->fresh()))
                 ->schema(self::signatureSchema())
                 ->action(function (array $data) use ($record): void {
@@ -679,6 +752,7 @@ class SolicitudesCompraTable
                 ->label('Rechazar almacén')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignAlmacen(auth()->user(), $record->fresh()))
                 ->schema(self::rejectionSchema())
                 ->action(function (array $data) use ($record): void {
@@ -689,6 +763,7 @@ class SolicitudesCompraTable
                 ->label('Firmar aprobación')
                 ->icon(Heroicon::OutlinedCheckBadge)
                 ->color('success')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignApprover(auth()->user(), $record->fresh()))
                 ->schema(self::approverSignatureSchema())
                 ->action(function (array $data) use ($record): void {
@@ -699,6 +774,7 @@ class SolicitudesCompraTable
                 ->label('Rechazar aprobación')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignApprover(auth()->user(), $record->fresh()))
                 ->schema(self::rejectionSchema())
                 ->action(function (array $data) use ($record): void {
@@ -709,6 +785,7 @@ class SolicitudesCompraTable
                 ->label('Firmar recepción procura')
                 ->icon(Heroicon::OutlinedCheckBadge)
                 ->color('info')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
                 ->schema(self::procuraSignatureSchema())
                 ->action(function (array $data) use ($record) {
@@ -723,6 +800,7 @@ class SolicitudesCompraTable
                 ->label('Rechazar procura')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')
+                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
                 ->schema(self::rejectionSchema())
                 ->action(function (array $data) use ($record): void {
@@ -1021,6 +1099,11 @@ class SolicitudesCompraTable
         $activeTab = self::resolveActiveApprovalTab($livewire);
 
         return str_starts_with($activeTab, 'historial_');
+    }
+
+    private static function isRequesterHistoryTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveApprovalTab($livewire) === 'historial_solicitudes';
     }
 
     private static function currentApprovalRoleKey(mixed $livewire = null): ?string

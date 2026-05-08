@@ -443,6 +443,28 @@ class SolicitudCompraFlow
 
         return $query
             ->where('solicitado_por_user_id', $user->id)
+            ->whereIn('id', function ($subQuery) use ($user): void {
+                $subQuery
+                    ->from('solicitud_compras as history_versions')
+                    ->selectRaw('MAX(history_versions.id)')
+                    ->where('history_versions.solicitado_por_user_id', $user->id)
+                    ->where(function ($historyStateQuery): void {
+                        $historyStateQuery
+                            ->where('history_versions.estado', SolicitudCompra::ESTADO_COMPLETADA)
+                            ->orWhere(function ($rejectedQuery): void {
+                                $rejectedQuery
+                                    ->where('history_versions.estado', 'RECHAZADA')
+                                    ->whereExists(function ($newerVersionQuery): void {
+                                        $newerVersionQuery
+                                            ->selectRaw('1')
+                                            ->from('solicitud_compras as newer_versions')
+                                            ->whereColumn('newer_versions.codigo_control', 'history_versions.codigo_control')
+                                            ->whereColumn('newer_versions.id', '>', 'history_versions.id');
+                                    });
+                            });
+                    })
+                    ->groupBy('history_versions.codigo_control');
+            })
             ->where(function (Builder $historyQuery): void {
                 $historyQuery
                     ->where('estado', SolicitudCompra::ESTADO_COMPLETADA)
@@ -490,6 +512,11 @@ class SolicitudCompraFlow
             return $query->whereRaw('1 = 0');
         }
 
+        // Mostrar solo la última versión por código_control (id más alto para cada código_control)
+        $sub = (clone $query)
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('codigo_control');
+
         return match ($roleKey) {
             'almacen' => $query
                 ->where('por_almacen_user_id', $user->id)
@@ -502,6 +529,7 @@ class SolicitudCompraFlow
                                 ->where('rechazo_etapa', 'almacen');
                         });
                 })
+                ->whereIn('id', $sub)
                 ->orderByDesc('updated_at'),
             'aprobador' => $query
                 ->where('aprobado_por_user_id', $user->id)
@@ -514,6 +542,7 @@ class SolicitudCompraFlow
                                 ->where('rechazo_etapa', 'aprobador');
                         });
                 })
+                ->whereIn('id', $sub)
                 ->orderByDesc('updated_at'),
             'procura' => $query
                 ->where('recibido_por_user_id', $user->id)
@@ -526,6 +555,7 @@ class SolicitudCompraFlow
                                 ->where('rechazo_etapa', 'procura');
                         });
                 })
+                ->whereIn('id', $sub)
                 ->orderByDesc('updated_at'),
             default => $query->whereRaw('1 = 0'),
         };

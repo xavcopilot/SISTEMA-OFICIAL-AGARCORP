@@ -280,11 +280,17 @@ class OrdenCompraFormatoController extends Controller
         $sumario = $ordenCompra->sumario;
         $signatureEntries = [
             'firma_elaborado' => [
-                'path' => $this->resolveSignatureImagePath($ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor),
+                'path' => $this->resolveSignatureImagePath(
+                    $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor,
+                    filled($ordenCompra->elaborado_firmado_at) && filled($ordenCompra->elaborado_por_user_id)
+                ),
                 'signer' => $ordenCompra->elaboradoPor ?: $sumario?->elaboradoPor,
             ],
             'firma_aprobado' => [
-                'path' => $this->resolveSignatureImagePath($ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor),
+                'path' => $this->resolveSignatureImagePath(
+                    $ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor,
+                    filled($ordenCompra->aprobado_firmado_at) && filled($ordenCompra->aprobado_por_user_id)
+                ),
                 'signer' => $ordenCompra->aprobadoPor ?: $sumario?->decisionGerenciaPor,
             ],
         ];
@@ -333,8 +339,12 @@ class OrdenCompraFormatoController extends Controller
         }
     }
 
-    private function resolveSignatureImagePath(?User $signer = null): ?string
+    private function resolveSignatureImagePath(?User $signer = null, bool $isSigned = true): ?string
     {
+        if (! $isSigned) {
+            return null;
+        }
+
         if (! $signer) {
             return null;
         }

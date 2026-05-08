@@ -10,6 +10,7 @@ use App\Support\LibreOfficePdfConverter;
 use App\Support\SumarioProviderGrouping;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -151,6 +152,13 @@ class SumarioFormatoController extends Controller
                 @unlink($xlsxPath);
             }
 
+            Log::error('Error al generar PDF del sumario.', [
+                'sumario_id' => $sumario->id,
+                'correlativo_sdc' => $sumario->correlativo_sdc,
+                'message' => $exception->getMessage(),
+                'exception' => $exception,
+            ]);
+
             abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario desde la plantilla Excel.');
         }
 
@@ -256,11 +264,19 @@ class SumarioFormatoController extends Controller
     {
         $signatureEntries = [
             'firma_elaborado' => [
-                'path' => $this->resolveSignatureImagePath($sumario->elaboradoPor, ['Procura']),
+                'path' => $this->resolveSignatureImagePath(
+                    $sumario->elaboradoPor,
+                    ['Procura'],
+                    filled($sumario->enviado_validacion_finanzas_at) && filled($sumario->elaborado_por_user_id)
+                ),
                 'signer' => $sumario->elaboradoPor,
             ],
             'firma_revisado' => [
-                'path' => $this->resolveSignatureImagePath($sumario->validadoPor, ['Validador Finanzas']),
+                'path' => $this->resolveSignatureImagePath(
+                    $sumario->validadoPor,
+                    ['Validador Finanzas'],
+                    filled($sumario->validado_finanzas_at) && filled($sumario->validado_por_user_id)
+                ),
                 'signer' => $sumario->validadoPor,
             ],
         ];
@@ -309,8 +325,12 @@ class SumarioFormatoController extends Controller
         }
     }
 
-    private function resolveSignatureImagePath(?User $signer = null, array $requiredRoles = []): ?string
+    private function resolveSignatureImagePath(?User $signer = null, array $requiredRoles = [], bool $isSigned = true): ?string
     {
+        if (! $isSigned) {
+            return null;
+        }
+
         if (! $signer) {
             return null;
         }

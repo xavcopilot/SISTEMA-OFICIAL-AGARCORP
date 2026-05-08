@@ -134,6 +134,10 @@ class SumarioModalSummaryRenderer
 
     private static function renderGeneralCommentSummary(mixed $sumario): string
     {
+        if ((string) ($sumario->decision_gerencia_resultado ?? '') === 'RECHAZADO') {
+            return '';
+        }
+
         $generalComment = trim((string) ($sumario->decision_gerencia_comentario ?? ''));
 
         if ($generalComment === '') {

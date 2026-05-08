@@ -423,7 +423,11 @@ class SolicitudCompraFormatoController extends Controller
     {
         $normalizedPath = trim((string) $storedPath);
 
-        if ($normalizedPath === '' || $normalizedPath === '__ENVIADA__') {
+        if ($normalizedPath === '') {
+            return null;
+        }
+
+        if ($normalizedPath === '__ENVIADA__') {
             if (! $signer) {
                 return null;
             }

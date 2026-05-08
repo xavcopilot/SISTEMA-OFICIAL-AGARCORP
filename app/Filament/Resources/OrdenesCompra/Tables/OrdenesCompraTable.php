@@ -326,8 +326,14 @@ class OrdenesCompraTable
                     ->url(fn ($record): string => OrdenCompraResource::getUrl('edit', ['record' => $record]))
                     ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
                         && self::isOdcCorreccionesTab($livewire)
-                        && (string) ($record->estado ?? '') === 'RECHAZADA'
-                        && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)),
+                        && (
+                            (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_VALIDACION_FINANZAS'
+                            || (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_APROBACION_GERENCIA_FINANZAS'
+                            || (
+                                (string) ($record->estado ?? '') === 'RECHAZADA'
+                                && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)
+                            )
+                        )),
 
                 Action::make('verSumarioOdc')
                     ->label('Ver sumario')
@@ -1036,21 +1042,7 @@ class OrdenesCompraTable
         $service = app(SumarioFinanceApprovalService::class);
 
         return $service->pendingProviderGroups($sumario)
-            ->filter(function (array $group) use ($sumario): bool {
-                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                if (filled($group['provider_id'])) {
-                    $query->where('proveedor_id', (int) $group['provider_id']);
-                }
-
-                $query->where(function ($workflowQuery): void {
-                    $workflowQuery
-                        ->whereNull('workflow_post_compra')
-                        ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                });
-
-                return ! $query->exists();
-            })
+            ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
             ->count();
     }
 
@@ -1096,21 +1088,7 @@ class OrdenesCompraTable
         $service = app(SumarioFinanceApprovalService::class);
 
         $groups = $service->pendingProviderGroups($sumario)
-            ->filter(function (array $group) use ($sumario): bool {
-                $query = $sumario->ordenesCompra()->where('departamento_solicitante', (string) $group['departamento_solicitante']);
-
-                if (filled($group['provider_id'])) {
-                    $query->where('proveedor_id', (int) $group['provider_id']);
-                }
-
-                $query->where(function ($workflowQuery): void {
-                    $workflowQuery
-                        ->whereNull('workflow_post_compra')
-                        ->orWhere('workflow_post_compra', '!=', 'BORRADOR_ODC');
-                });
-
-                return ! $query->exists();
-            })
+            ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
             ->values();
 
         if ($groups->isEmpty()) {

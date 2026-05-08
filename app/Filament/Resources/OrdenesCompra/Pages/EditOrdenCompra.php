@@ -5,6 +5,7 @@ namespace App\Filament\Resources\OrdenesCompra\Pages;
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Sumario;
 use App\Support\BcvRateService;
+use App\Support\SumarioFinanceApprovalService;
 use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -308,13 +309,17 @@ class EditOrdenCompra extends EditRecord
             return;
         }
 
-        $hasDraftOrders = $sumario->ordenesCompra()
-            ->where('workflow_post_compra', 'BORRADOR_ODC')
-            ->exists();
+        $sumario->loadMissing(['ordenesCompra', 'items.opciones', 'items.solicitudCompraItem.solicitudCompra']);
+
+        $service = app(SumarioFinanceApprovalService::class);
+
+        $hasPendingGroups = $service->pendingProviderGroups($sumario)
+            ->filter(fn (array $group): bool => ! $service->hasExistingGeneratedOrderForGroup($sumario, $group))
+            ->isNotEmpty();
 
         $sumario->forceFill([
-            'estado' => $hasDraftOrders ? 'PENDIENTE_CREACION_ODC' : 'REVISADO_FINANZAS',
-            'workflow_estado' => $hasDraftOrders ? 'APROBADO_GERENCIA_FINANZAS' : 'ODC_GENERADA',
+            'estado' => $hasPendingGroups ? 'PENDIENTE_CREACION_ODC' : 'REVISADO_FINANZAS',
+            'workflow_estado' => $hasPendingGroups ? 'APROBADO_GERENCIA_FINANZAS' : 'ODC_GENERADA',
         ])->save();
     }
 
