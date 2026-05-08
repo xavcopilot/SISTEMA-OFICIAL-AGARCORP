@@ -8,7 +8,9 @@ use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use NumberFormatter;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -161,8 +163,25 @@ class OrdenCompraFormatoController extends Controller
                 ['documento' => 'orden_compra']
             );
 
-            if (! $wasConvertedByLibreOffice || ! file_exists($pdfPath)) {
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF con LibreOffice para la ODC.');
+            if (! $wasConvertedByLibreOffice) {
+                Log::warning('Fallo conversion LibreOffice para ODC, se usara fallback Dompdf.', [
+                    'orden_compra_id' => $ordenCompra->id,
+                    'variant' => $variant,
+                ]);
+
+                $pdfWriter = new PdfDompdfWriter($spreadsheet);
+                $pdfWriter->save($pdfPath);
+            }
+
+            if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
+                Log::error('PDF de ODC generado pero vacio o demasiado pequeno.', [
+                    'orden_compra_id' => $ordenCompra->id,
+                    'variant' => $variant,
+                    'was_converted_by_libreoffice' => $wasConvertedByLibreOffice,
+                    'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+                ]);
+
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF de la ODC. Verifique que LibreOffice este instalado en el servidor.');
             }
 
             if (file_exists($xlsxPath)) {

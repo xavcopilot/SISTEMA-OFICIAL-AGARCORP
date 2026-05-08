@@ -135,8 +135,24 @@ class SumarioFormatoController extends Controller
             );
 
             if (! $wasConvertedByLibreOffice) {
+                Log::warning('Fallo conversion LibreOffice para Sumario, se usara fallback Dompdf.', [
+                    'sumario_id' => $sumario->id,
+                    'correlativo_sdc' => $sumario->correlativo_sdc ?? null,
+                ]);
+
                 $pdfWriter = new PdfDompdfWriter($spreadsheet);
                 $pdfWriter->save($pdfPath);
+            }
+
+            if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
+                Log::error('PDF del sumario generado pero vacio o demasiado pequeno.', [
+                    'sumario_id' => $sumario->id,
+                    'correlativo_sdc' => $sumario->correlativo_sdc ?? null,
+                    'was_converted_by_libreoffice' => $wasConvertedByLibreOffice,
+                    'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+                ]);
+
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario. Verifique que LibreOffice este instalado en el servidor.');
             }
 
             if (file_exists($xlsxPath)) {
