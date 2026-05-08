@@ -653,7 +653,19 @@ class ListOrdenesCompra extends ListRecords
                 $resolveOdcButton = (int) ($row['pending'] ?? 0) === 0
                     && (int) ($row['rejected'] ?? 0) === 0
                     && $workflowRaw !== 'CERRADA_CONFORME'
-                    ? '<button type="button" onclick="if (! confirm(\'Esta ODC ya quedo totalmente resuelta. Deseas marcarla como resuelta y ocultarla de este listado?\')) { return false; }" wire:click="marcarOdcResuelta(\'' . e((string) $row['id']) . '\')" style="display:inline-block;border:1px solid #166534;background:#16a34a;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">ODC Resuelta</button>'
+                    ? '<div x-data="{ show: false }">
+                        <button type="button" @click="show = true" style="display:inline-block;border:1px solid #166534;background:#16a34a;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">ODC Resuelta</button>
+                        <div x-show="show" x-cloak style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;background:rgba(0,0,0,0.5);">
+                            <div @click.away="show = false" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:8px;padding:24px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                                <h3 style="margin:0 0 8px;font-size:16px;font-weight:600;">Confirmar ODC resuelta</h3>
+                                <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">Esta ODC ya quedo totalmente resuelta. Deseas marcarla como resuelta y ocultarla de este listado?</p>
+                                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                                    <button type="button" @click="show = false" style="border:1px solid #d1d5db;background:white;color:#374151;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:14px;">Cancelar</button>
+                                    <button type="button" @click="show = false; $wire.marcarOdcResuelta(\'' . e((string) $row['id']) . '\')" style="border:1px solid #166534;background:#16a34a;color:white;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:14px;">Confirmar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>'
                     : '';
                 $actionButtons = '<div style="display:flex;flex-wrap:wrap;gap:6px;">' . $openOdcButton . $planActionButton . $reopenConformidadButton . $resolveOdcButton . '</div>';
 
