@@ -213,7 +213,7 @@ class DatabaseSeeder extends Seeder
             'Procura' => [
                 'name' => 'Hectlys Piña',
                 'email' => 'hectlys.pina@agarven.com',
-                'cargo' => 'Analista',
+                'cargo' => 'Lider de Procura',
             ],
             'Almacen' => [
                 'name' => 'Daniela Carrasco',

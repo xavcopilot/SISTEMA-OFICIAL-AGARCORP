@@ -19,6 +19,7 @@ class CargoSeeder extends Seeder
             'Gerente de Finanzas',
             'Gerente de Operaciones',
             'Almacenista',
+            'Lider de Procura',
         ];
 
         foreach ($cargos as $nombre) {
