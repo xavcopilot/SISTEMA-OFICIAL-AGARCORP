@@ -330,8 +330,10 @@ class EditOrdenCompra extends EditRecord
         $montoExento = round((float) ($data['monto_exento'] ?? 0), 2);
         $gastosAdicionales = round((float) ($data['gastos_adicionales'] ?? 0), 2);
 
+        $data['monto_exento'] = $montoExento;
         $data['sub_total'] = $subTotal;
         $data['iva_16'] = $iva;
+        $data['gastos_adicionales'] = $gastosAdicionales;
         $data['total_general'] = round($subTotal + $iva + $montoExento + $gastosAdicionales, 2);
 
         return $data;

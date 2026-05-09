@@ -28,7 +28,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Wilman Fai',
                 'email' => 'wilman.fai@agarven.com',
-                'password' => 'AltaGerencia.WF_2026',
+                'password' => 'Altagerencia',
                 'departamento' => 'GERENCIA',
                 'cargo' => 'Gerente General',
                 'role' => 'Alta Gerencia',
@@ -36,7 +36,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Jonny Pateiro',
                 'email' => 'jonny.pateiro@agarven.com',
-                'password' => 'AltaGerencia.JP_2026',
+                'password' => 'Altagerencia',
                 'departamento' => 'GERENCIA',
                 'cargo' => 'Vicepresidente',
                 'role' => 'Alta Gerencia',
@@ -44,7 +44,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Richard Marin',
                 'email' => 'richard.marin@agarven.com',
-                'password' => 'GOperaciones.RM_2026',
+                'password' => 'Gerenciaoperaciones',
                 'departamento' => 'OPERACIONES',
                 'cargo' => 'Gerente de Operaciones',
                 'role' => 'Gerencia de Operaciones',
@@ -52,7 +52,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Cristina Fontanilla',
                 'email' => 'cristina.fontanilla@agarven.com',
-                'password' => 'GFinanzas.CF_2026',
+                'password' => 'Gerenciafinanzas',
                 'departamento' => 'FINANZAS',
                 'cargo' => 'Gerente de Finanzas',
                 'role' => 'Gerencia de Finanzas',
