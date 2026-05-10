@@ -8,6 +8,7 @@ use App\Support\LibreOfficePdfConverter;
 use App\Support\SolicitudCompraFlow;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -138,8 +139,22 @@ class SolicitudCompraFormatoController extends Controller
                 ['documento' => 'solicitud_compra']
             );
             if (! $wasConvertedByLibreOffice) {
+                Log::warning('Fallo conversion LibreOffice para Solicitud, se usara fallback Dompdf.', [
+                    'solicitud_id' => $solicitudCompra->id,
+                ]);
+
                 $pdfWriter = new PdfDompdfWriter($spreadsheet);
                 $pdfWriter->save($pdfPath);
+            }
+
+            if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
+                Log::error('PDF de solicitud generado pero vacio o demasiado pequeno.', [
+                    'solicitud_id' => $solicitudCompra->id,
+                    'was_converted_by_libreoffice' => $wasConvertedByLibreOffice,
+                    'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+                ]);
+
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF de la solicitud. Verifique que LibreOffice este instalado en el servidor.');
             }
 
             if (file_exists($xlsxPath)) {

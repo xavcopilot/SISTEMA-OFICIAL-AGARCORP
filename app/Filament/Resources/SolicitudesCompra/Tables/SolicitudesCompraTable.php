@@ -1734,6 +1734,39 @@ class SolicitudesCompraTable
 
         if ($cantidadEntregada > 0) {
             if ($inTransition) {
+                if ($hasRejected) {
+                    if ($hasPlannedReturn) {
+                        return [
+                            'label' => 'Entregado parcial',
+                            'bg' => '#fffbeb',
+                            'color' => '#92400e',
+                            'secondary_label' => 'Devolucion planificada',
+                            'secondary_bg' => '#fff7ed',
+                            'secondary_color' => '#9a3412',
+                        ];
+                    }
+
+                    if ($hasReturnCompleted) {
+                        return [
+                            'label' => 'Disponible en Almacen',
+                            'bg' => '#ecfeff',
+                            'color' => '#0f766e',
+                            'secondary_label' => 'Devolucion realizada',
+                            'secondary_bg' => '#fff7ed',
+                            'secondary_color' => '#9a3412',
+                        ];
+                    }
+
+                    return [
+                        'label' => 'Entregado parcial',
+                        'bg' => '#fffbeb',
+                        'color' => '#92400e',
+                        'secondary_label' => 'En espera devolucion',
+                        'secondary_bg' => '#fff7ed',
+                        'secondary_color' => '#9a3412',
+                    ];
+                }
+
                 return [
                     'label' => 'Disponible en Almacen',
                     'bg' => '#ecfeff',

@@ -102,8 +102,19 @@ class InventoryEntradaFormatoController extends Controller
                 ['documento' => 'formato_entrada']
             );
             if (! $wasConvertedByLibreOffice) {
+                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Entrada, se usara fallback Dompdf.');
+
                 $pdfWriter = new PdfDompdfWriter($spreadsheet);
                 $pdfWriter->save($pdfPath);
+            }
+
+            if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
+                \Illuminate\Support\Facades\Log::error('PDF de entrada generado pero vacio o demasiado pequeno.', [
+                    'was_converted_by_libreoffice' => $wasConvertedByLibreOffice,
+                    'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+                ]);
+
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del formato de entrada. Verifique que LibreOffice este instalado en el servidor.');
             }
 
             if (file_exists($xlsxPath)) {

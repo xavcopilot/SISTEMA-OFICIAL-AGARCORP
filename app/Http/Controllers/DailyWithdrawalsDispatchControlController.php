@@ -147,8 +147,11 @@ class DailyWithdrawalsDispatchControlController extends Controller
                 ['documento' => 'control_despacho']
             );
 
-            if (! $wasConvertedByLibreOffice || ! file_exists($pdfPath)) {
-                throw new \RuntimeException('No se pudo convertir el archivo con LibreOffice.');
+            if (! $wasConvertedByLibreOffice) {
+                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Control de Despacho, se usara fallback Dompdf.');
+
+                $pdfWriter = new \PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf($spreadsheet);
+                $pdfWriter->save($pdfPath);
             }
 
             if (file_exists($xlsxPath)) {
