@@ -1,0 +1,1 @@
+{{ $livewireKey }}.actions.select-all
