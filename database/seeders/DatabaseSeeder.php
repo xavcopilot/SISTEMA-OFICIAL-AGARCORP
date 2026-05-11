@@ -220,6 +220,7 @@ class DatabaseSeeder extends Seeder
                 'email' => 'daniela.carrasco@agarven.com',
                 'cargo' => 'Almacenista',
             ],
+
             'Finanzas Pagos' => [
                 'name' => 'Finanzas Pagos',
                 'email' => 'finanzas@agarven.com',
@@ -235,6 +236,21 @@ class DatabaseSeeder extends Seeder
                 'email' => 'administracion@agarven.com',
                 'cargo' => 'Analista',
             ],
+            'Mantenimiento' => [
+                'name' => 'Mantenimiento',
+                'email' => 'mantenimiento@agarven.com',
+                'cargo' => null,
+            ],
+            'S.I.H.O' => [
+                'name' => 'S.I.H.O',
+                'email' => 'siho@agarven.com',
+                'cargo' => null,
+            ],
+            'Talento Humano' => [
+                'name' => 'Talento Humano',
+                'email' => 'talentohumano@agarven.com',
+                'cargo' => null,
+            ],
         ];
 
         foreach ($roles as $rol => $password) {
@@ -243,7 +259,7 @@ class DatabaseSeeder extends Seeder
 
             $override = $roleUserOverrides[$rol] ?? null;
 
-            $emailName = str_replace('.', '', strtolower($rol));
+            $emailName = preg_replace('/[^a-z0-9]/', '', strtolower($rol)) ?? strtolower($rol);
             $email = $override['email'] ?? ($emailName . "@agarven.com");
             $name = $override['name'] ?? $rol;
             
@@ -582,7 +598,7 @@ class DatabaseSeeder extends Seeder
 
         // ===== USUARIO TECNICO SECUNDARIO A.I.T =====
         $aitSecondaryUser = User::updateOrCreate(
-            ['email' => 'Gabriel.carrasco@agarven.com'],
+            ['email' => 'gabriel.carrasco@agarven.com'],
             [
                 'name'             => 'Gabriel Carrasco',
                 'password'         => Hash::make('1212'),
