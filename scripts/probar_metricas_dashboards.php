@@ -9,6 +9,8 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\OrdenCompra;
+use App\Models\Cargo;
+use App\Models\Departamento;
 use App\Models\SolicitudCompra;
 use App\Models\Sumario;
 use App\Models\User;
@@ -20,6 +22,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 $opts = getopt('', [
     'procura::',
@@ -46,7 +49,7 @@ $inventoryProducts = max(0, (int) ($opts['inventario-productos'] ?? 40));
 $inventoryEntradas = max(0, (int) ($opts['inventario-entradas'] ?? 20));
 $inventorySalidas = max(0, (int) ($opts['inventario-salidas'] ?? 12));
 $inventoryMaxItems = max(1, (int) ($opts['inventario-max-items'] ?? 3));
-$cleanup = (bool) ($opts['cleanup'] ?? false);
+$cleanup = array_key_exists('cleanup', $opts);
 $prefix = trim((string) ($opts['prefijo'] ?? 'KPIS-DASH'));
 $runTag = $prefix . '-' . now()->format('YmdHis') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
 
@@ -62,6 +65,7 @@ $created = [
 ];
 
 $before = captureDashboardSnapshot();
+$inventoryRunTag = null;
 
 fwrite(STDOUT, '=== PRUEBA DE METRICAS Y KPIS DE DASHBOARDS ===' . PHP_EOL);
 fwrite(STDOUT, 'Run tag: ' . $runTag . PHP_EOL);
@@ -76,6 +80,7 @@ fwrite(STDOUT, sprintf(
 fwrite(STDOUT, PHP_EOL);
 
 try {
+    ensureDashboardTestingUsersAndRoles();
     $adminUser = resolveAdminUser();
 
     for ($index = 1; $index <= $procuraFlows; $index++) {
@@ -109,11 +114,13 @@ try {
             '--entradas' => $inventoryEntradas,
             '--salidas' => $inventorySalidas,
             '--max-items' => $inventoryMaxItems,
-            '--cleanup' => $cleanup,
         ]);
 
+        $inventoryOutput = $kernel->output();
+        $inventoryRunTag = parseInventoryRunTag($inventoryOutput);
+
         fwrite(STDOUT, PHP_EOL . '=== SALIDA INVENTARIO:STRESS-TEST ===' . PHP_EOL);
-        fwrite(STDOUT, $kernel->output() . PHP_EOL);
+        fwrite(STDOUT, $inventoryOutput . PHP_EOL);
 
         if ($inventoryExitCode !== 0) {
             throw new RuntimeException('inventario:stress-test finalizo con codigo ' . $inventoryExitCode . '.');
@@ -154,7 +161,8 @@ try {
 
     if ($cleanup) {
         cleanupProcuraFinanceData($created);
-        fwrite(STDOUT, PHP_EOL . 'Cleanup de datos de Procura/Finanzas completado.' . PHP_EOL);
+        cleanupInventoryData($inventoryRunTag);
+        fwrite(STDOUT, PHP_EOL . 'Cleanup de datos de Procura/Finanzas/Inventario completado.' . PHP_EOL);
     }
 
     exit(0);
@@ -163,6 +171,7 @@ try {
 
     if ($cleanup) {
         cleanupProcuraFinanceData($created);
+        cleanupInventoryData($inventoryRunTag);
         fwrite(STDERR, 'Se ejecuto cleanup de los datos creados antes del error.' . PHP_EOL);
     }
 
@@ -374,6 +383,86 @@ function resolveAdminUser(): User
     return $admin ?? User::query()->orderBy('id')->firstOrFail();
 }
 
+function ensureDashboardTestingUsersAndRoles(): void
+{
+    $departamento = Departamento::query()->firstOrCreate([
+        'nombre' => 'DASHBOARD TEST',
+    ]);
+
+    $cargo = Cargo::query()->firstOrCreate([
+        'nombre' => 'USUARIO KPI TEST',
+    ]);
+
+    $roles = [
+        'Almacen',
+        'Gerencia de Operaciones',
+        'Procura',
+        'Finanzas Pagos',
+        'Gerencia de Finanzas',
+    ];
+
+    foreach ($roles as $roleName) {
+        Role::query()->firstOrCreate([
+            'name' => $roleName,
+            'guard_name' => 'web',
+        ]);
+    }
+
+    $users = [
+        [
+            'name' => 'Solicitante KPI Test',
+            'email' => 'xavierdpdev@gmail.com',
+            'roles' => [],
+        ],
+        [
+            'name' => 'Almacen KPI Test',
+            'email' => 'almacen.kpi@test.local',
+            'roles' => ['Almacen'],
+        ],
+        [
+            'name' => 'Gerencia Operaciones KPI Test',
+            'email' => 'gerencia.operaciones.kpi@test.local',
+            'roles' => ['Gerencia de Operaciones'],
+        ],
+        [
+            'name' => 'Procura KPI Test',
+            'email' => 'procura.kpi@test.local',
+            'roles' => ['Procura'],
+        ],
+        [
+            'name' => 'Finanzas KPI Test',
+            'email' => 'finanzas.kpi@test.local',
+            'roles' => ['Finanzas Pagos'],
+        ],
+        [
+            'name' => 'Gerencia Finanzas KPI Test',
+            'email' => 'gerencia.finanzas.kpi@test.local',
+            'roles' => ['Gerencia de Finanzas'],
+        ],
+    ];
+
+    foreach ($users as $data) {
+        $user = User::query()->firstOrCreate(
+            ['email' => $data['email']],
+            [
+                'name' => $data['name'],
+                'password' => 'secret123',
+                'firma_password' => 'secret123',
+                'withdrawal_password' => 'secret123',
+                'departamento_id' => $departamento->id,
+                'cargo_id' => $cargo->id,
+                'email_verified_at' => now(),
+            ]
+        );
+
+        foreach ($data['roles'] as $roleName) {
+            if (! $user->hasRole($roleName)) {
+                $user->assignRole($roleName);
+            }
+        }
+    }
+}
+
 function cleanupProcuraFinanceData(array $created): void
 {
     $orderIds = array_values(array_unique(array_map('intval', $created['ordenes'])));
@@ -405,6 +494,43 @@ function cleanupProcuraFinanceData(array $created): void
         if ($solicitudIds !== []) {
             DB::table('solicitud_compra_items')->whereIn('solicitud_compra_id', $solicitudIds)->delete();
             DB::table('solicitud_compras')->whereIn('id', $solicitudIds)->delete();
+        }
+    });
+}
+
+function parseInventoryRunTag(string $output): ?string
+{
+    if (! preg_match('/Run tag:\s+([A-Z0-9\-]+)/', $output, $matches)) {
+        return null;
+    }
+
+    return trim((string) $matches[1]);
+}
+
+function cleanupInventoryData(?string $runTag): void
+{
+    if (blank($runTag)) {
+        return;
+    }
+
+    DB::transaction(function () use ($runTag): void {
+        $movementIds = DB::table('inventory_movements')
+            ->where('nro_control', 'like', '%' . $runTag . '%')
+            ->pluck('id')
+            ->all();
+
+        $productIds = DB::table('products')
+            ->where('serial', 'like', 'ST-' . $runTag . '%')
+            ->pluck('id')
+            ->all();
+
+        if ($movementIds !== []) {
+            DB::table('movement_items')->whereIn('movement_id', $movementIds)->delete();
+            DB::table('inventory_movements')->whereIn('id', $movementIds)->delete();
+        }
+
+        if ($productIds !== []) {
+            DB::table('products')->whereIn('id', $productIds)->delete();
         }
     });
 }
