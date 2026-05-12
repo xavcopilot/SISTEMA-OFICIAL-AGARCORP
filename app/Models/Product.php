@@ -16,6 +16,10 @@ class Product extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (Product $product): void {
+            $product->precio_total = $product->calculatePrecioTotal();
+        });
+
         static::creating(function (Product $product): void {
             self::assertNoTrackedSerialDuplicate($product->serial, null);
 
@@ -59,6 +63,7 @@ class Product extends Model
         'stock_minimo',
         'stock_actual',
         'precio_unitario',
+        'precio_total',
         'fecha_adquisicion',
         'fecha_ultima_entrada',
         'fecha_ultima_salida',
@@ -69,11 +74,17 @@ class Product extends Model
         'stock_minimo' => 'integer',
         'stock_actual' => 'integer',
         'precio_unitario' => 'decimal:2',
+        'precio_total' => 'decimal:2',
         'fecha_adquisicion' => 'date',
         'fecha_ultima_entrada' => 'date',
         'fecha_ultima_salida' => 'date',
         'is_archived' => 'boolean',
     ];
+
+    public function calculatePrecioTotal(): float
+    {
+        return round((float) ($this->stock_actual ?? 0) * (float) ($this->precio_unitario ?? 0), 2);
+    }
 
     public function subcategory(): BelongsTo
     {

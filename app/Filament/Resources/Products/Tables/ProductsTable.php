@@ -19,6 +19,8 @@ class ProductsTable
     {
         return $table
             ->persistColumnsInSession(true)
+            ->paginated([10, 25, 50, 100, 250, 500, 1000, 2000])
+            ->defaultPaginationPageOption(100)
             ->modifyQueryUsing(fn (Builder $query): Builder => $query
                 ->with(['subcategory.category'])
                 ->withSum([
@@ -147,9 +149,8 @@ class ProductsTable
 
                 TextColumn::make('precio_total')
                     ->label('P.Total')
-                    ->state(fn ($record): float => (float) $record->stock_actual * (float) $record->precio_unitario)
                     ->money('USD')
-                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderByRaw('(stock_actual * precio_unitario) ' . $direction))
+                    ->sortable()
                     ->toggleable(),
 
                 TextColumn::make('fecha_adquisicion')

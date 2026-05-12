@@ -66,7 +66,7 @@ class EntradasExport implements FromCollection, WithHeadings, WithEvents
             'N° Control',
             'Fecha',
             'MES',
-            'N°  DE SOLICITUD',
+            'N° DE SOLICITUD',
             'ORDEN DE COMPRA',
             'F/N/I',
             'N°',

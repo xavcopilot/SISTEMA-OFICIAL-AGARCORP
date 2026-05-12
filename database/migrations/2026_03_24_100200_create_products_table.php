@@ -26,6 +26,7 @@ return new class extends Migration
             $table->unsignedInteger('stock_minimo');
             $table->unsignedInteger('stock_actual')->default(0);
             $table->decimal('precio_unitario', 14, 2);
+            $table->decimal('precio_total', 14, 2)->default(0);
             $table->date('fecha_adquisicion');
             $table->date('fecha_ultima_entrada')->nullable();
             $table->date('fecha_ultima_salida')->nullable();
