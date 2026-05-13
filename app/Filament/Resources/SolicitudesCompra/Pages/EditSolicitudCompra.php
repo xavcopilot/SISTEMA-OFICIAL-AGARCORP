@@ -498,14 +498,16 @@ class EditSolicitudCompra extends EditRecord
             return;
         }
 
-        $record->delete();
+        $record->forceFill([
+            'rechazo_etapa' => 'historial',
+        ])->save();
 
         Notification::make()
-            ->title('Solicitud eliminada')
-            ->body('La solicitud rechazada se elimino y quedo sin efecto.')
+            ->title('Solicitud enviada a historial')
+            ->body('La solicitud rechazada se marco como historica y ya no permitira correcciones.')
             ->success()
             ->send();
 
-        $this->redirect(SolicitudCompraResource::getUrl('index', ['activeTab' => 'mis_solicitudes']));
+        $this->redirect(SolicitudCompraResource::getUrl('index', ['activeTab' => 'historial_solicitudes']));
     }
 }
