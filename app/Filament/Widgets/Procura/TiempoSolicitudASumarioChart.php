@@ -13,7 +13,7 @@ class TiempoSolicitudASumarioChart extends ChartWidget
 
     protected static bool $isDiscovered = false;
 
-    protected ?string $heading = 'Tiempo promedio solicitud a sumario';
+    protected ?string $heading = 'Tiempo promedio solicitud a sumario (dias)';
 
     protected int | string | array $columnSpan = 1;
 
@@ -69,6 +69,10 @@ class TiempoSolicitudASumarioChart extends ChartWidget
             'scales' => [
                 'y' => [
                     'beginAtZero' => true,
+                    'title' => [
+                        'display' => true,
+                        'text' => 'Dias',
+                    ],
                 ],
             ],
         ];

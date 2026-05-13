@@ -13,7 +13,7 @@ class TiempoSumarioAOdcPorAnalistaChart extends ChartWidget
 
     protected static bool $isDiscovered = false;
 
-    protected ?string $heading = 'Tiempo promedio sumario a ODC por analista';
+    protected ?string $heading = 'Tiempo promedio sumario a ODC por analista (dias)';
 
     protected int | string | array $columnSpan = 1;
 
@@ -65,6 +65,10 @@ class TiempoSumarioAOdcPorAnalistaChart extends ChartWidget
             'scales' => [
                 'y' => [
                     'beginAtZero' => true,
+                    'title' => [
+                        'display' => true,
+                        'text' => 'Dias',
+                    ],
                 ],
             ],
         ];

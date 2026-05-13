@@ -6,7 +6,6 @@ use App\Filament\Widgets\Finanzas\FacturasCargadasVsPendientesChart;
 use App\Filament\Widgets\Finanzas\OrdenesPagadasVsPendientesChart;
 use App\Filament\Widgets\Finanzas\PagosPorProveedorChart;
 use App\Filament\Widgets\Finanzas\ResumenFinanzasStats;
-use App\Filament\Widgets\Finanzas\TiempoPromedioDocumentacionChart;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Dashboard;
@@ -71,7 +70,6 @@ class FinanzasDashboard extends Dashboard
             ResumenFinanzasStats::class,
             OrdenesPagadasVsPendientesChart::class,
             FacturasCargadasVsPendientesChart::class,
-            TiempoPromedioDocumentacionChart::class,
             PagosPorProveedorChart::class,
         ];
     }

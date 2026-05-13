@@ -15,7 +15,7 @@ class OrdenesPorSumarioChart extends ChartWidget
 
     protected ?string $heading = 'Ordenes de compra por sumario';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = 1;
 
     protected function getType(): string
     {
