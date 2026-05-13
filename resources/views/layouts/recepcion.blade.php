@@ -270,7 +270,6 @@
             <div class="kiosk-topbar">
                 <div class="kiosk-brand">
                     <img src="{{ asset('images/logo-agarcorp.png') }}" alt="AGARCORP">
-                    <h1 class="kiosk-brand-title">Sistema de Gestión AGARCORP</h1>
                 </div>
 
                 <div class="kiosk-clock">

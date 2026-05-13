@@ -388,14 +388,17 @@
 }
 
 .ag-topbar-panel-title {
-    font-size: 2rem;
+    font-size: clamp(1.75rem, 1.6vw + 1.1rem, 2.65rem);
     font-weight: 800;
-    line-height: 1;
-    color: #0e3398;
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    color: #0b49c4;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 18px rgba(22, 59, 120, 0.08);
 }
 
 .dark .ag-topbar-panel-title {
-    color: #ffffff;
+    color: #d7e7ff;
+    text-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
 }
 
 .ag-top-module-wrap {
