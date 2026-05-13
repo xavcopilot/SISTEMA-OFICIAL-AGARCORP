@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Schemas;
 
 use App\Models\Departamento;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
@@ -17,12 +18,11 @@ class ProductForm
                     ->required()
                     ->maxLength(255),
 
-                TextInput::make('dpto_responsable')
+                Select::make('dpto_responsable')
                     ->label('Departamento Responsable')
-                    ->datalist(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre')->all())
-                    ->helperText('Puedes escribir libremente o elegir un departamento sugerido.')
+                    ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
                     ->required()
-                    ->maxLength(255),
+                    ->native(false),
 
                 TextInput::make('stock_minimo')
                     ->label('Stock Minimo')

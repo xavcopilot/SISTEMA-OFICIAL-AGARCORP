@@ -195,12 +195,17 @@ class ListInventoryMovements extends ListRecords
                 ->schema([
                     Grid::make(6)
                         ->schema([
-                            Select::make('almacenista_visual')
+                            Select::make('almacenista_user_id')
                                 ->label('Almacenista')
-                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
-                                ->default(fn (): ?string => (auth()->user()?->hasRole('Almacen')) ? auth()->user()?->name : null)
+                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->default(fn (): ?int => (auth()->user()?->hasRole('Almacen')) ? auth()->id() : null)
                                 ->searchable()
                                 ->required(),
+
+                            Select::make('entregado_por_user_id')
+                                ->label('Entregado por')
+                                ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->searchable(),
 
                             DatePicker::make('fecha_visual')
                                 ->label('Fecha')
@@ -217,11 +222,11 @@ class ListInventoryMovements extends ListRecords
                                 ->maxLength(255),
 
                             TextInput::make('factura_nota')
-                                ->label('F/N')
+                                ->label('F/N (Tipo Doc.)')
                                 ->maxLength(255),
 
                             TextInput::make('nro_doc_legal')
-                                ->label('N')
+                                ->label('N° Factura/Nota')
                                 ->maxLength(255),
 
                             TextInput::make('proveedor')
@@ -352,11 +357,11 @@ class ListInventoryMovements extends ListRecords
                                 ->label('Ubicacion')
                                 ->required(),
 
-                            TextInput::make('dpto_responsable')
+                            Select::make('dpto_responsable')
                                 ->label('Dpto Responsable')
-                                ->datalist(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre')->all())
-                                ->helperText('Puedes escribir libremente o elegir un departamento sugerido.')
-                                ->required(),
+                                ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
+                                ->required()
+                                ->native(false),
 
                             TextInput::make('rango_min')
                                 ->label('Rango')
@@ -391,12 +396,17 @@ class ListInventoryMovements extends ListRecords
                 ->schema([
                     Grid::make(6)
                         ->schema([
-                            Select::make('almacenista_visual')
+                            Select::make('almacenista_user_id')
                                 ->label('Almacenista')
-                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
-                                ->default(fn (): ?string => (auth()->user()?->hasRole('Almacen')) ? auth()->user()?->name : null)
+                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->default(fn (): ?int => (auth()->user()?->hasRole('Almacen')) ? auth()->id() : null)
                                 ->searchable()
                                 ->required(),
+
+                            Select::make('entregado_por_user_id')
+                                ->label('Entregado por')
+                                ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->searchable(),
 
                             DatePicker::make('fecha_visual')
                                 ->label('Fecha')
@@ -413,11 +423,11 @@ class ListInventoryMovements extends ListRecords
                                 ->maxLength(255),
 
                             TextInput::make('factura_nota')
-                                ->label('F/N')
+                                ->label('F/N (Tipo Doc.)')
                                 ->maxLength(255),
 
                             TextInput::make('nro_doc_legal')
-                                ->label('N')
+                                ->label('N° Factura/Nota')
                                 ->maxLength(255),
 
                             TextInput::make('proveedor')
@@ -809,17 +819,22 @@ class ListInventoryMovements extends ListRecords
 
         $processedProductIds = [];
         $movementId = null;
+        $almacenistaSelection = $this->resolveAlmacenistaSelection($data);
+        $entregadoPorUser = $this->resolveUserSelection($data, 'entregado_por_user_id');
 
-        DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
+        DB::transaction(function () use ($data, $almacenistaSelection, $entregadoPorUser, &$processedProductIds, &$movementId): void {
             $movement = InventoryMovement::create([
                 'tipo' => 'ingreso',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('ingreso'),
+                'almacenista_user_id' => $almacenistaSelection['id'],
+                'entregado_por_user_id' => $entregadoPorUser?->id,
                 'orden_compra' => $data['orden_compra'] ?? null,
                 'nro_solicitud' => $data['nro_solicitud'] ?? null,
                 'factura_nota' => $data['factura_nota'] ?? null,
                 'nro_doc_legal' => $data['nro_doc_legal'] ?? null,
                 'proveedor' => $data['proveedor'] ?? null,
-                'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
+                'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
+                'almacenista' => $almacenistaSelection['name'],
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 
@@ -886,17 +901,22 @@ class ListInventoryMovements extends ListRecords
 
         $processedProductIds = [];
         $movementId = null;
+        $almacenistaSelection = $this->resolveAlmacenistaSelection($data);
+        $entregadoPorUser = $this->resolveUserSelection($data, 'entregado_por_user_id');
 
-        DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
+        DB::transaction(function () use ($data, $almacenistaSelection, $entregadoPorUser, &$processedProductIds, &$movementId): void {
             $movement = InventoryMovement::create([
                 'tipo' => 'entrada',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('entrada'),
+                'almacenista_user_id' => $almacenistaSelection['id'],
+                'entregado_por_user_id' => $entregadoPorUser?->id,
                 'orden_compra' => $data['orden_compra'] ?? null,
                 'nro_solicitud' => $data['nro_solicitud'] ?? null,
                 'factura_nota' => $data['factura_nota'] ?? null,
                 'nro_doc_legal' => $data['nro_doc_legal'] ?? null,
                 'proveedor' => $data['proveedor'] ?? null,
-                'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
+                'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
+                'almacenista' => $almacenistaSelection['name'],
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 
@@ -962,6 +982,24 @@ class ListInventoryMovements extends ListRecords
         }
 
         $this->notifyCriticalProductsByIds($processedProductIds, 'entrada');
+    }
+
+    private function resolveAlmacenistaSelection(array $data): array
+    {
+        $selectedUserId = (int) ($data['almacenista_user_id'] ?? 0);
+        $selectedUser = $selectedUserId > 0 ? User::query()->find($selectedUserId) : null;
+
+        return [
+            'id' => $selectedUser?->id,
+            'name' => (string) ($selectedUser?->name ?? auth()->user()?->name ?? ''),
+        ];
+    }
+
+    private function resolveUserSelection(array $data, string $field): ?User
+    {
+        $selectedUserId = (int) ($data[$field] ?? 0);
+
+        return $selectedUserId > 0 ? User::query()->find($selectedUserId) : null;
     }
 
     private function storeSalida(array $data): void

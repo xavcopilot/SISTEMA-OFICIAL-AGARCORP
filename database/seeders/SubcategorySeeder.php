@@ -77,7 +77,6 @@ class SubcategorySeeder extends Seeder
                 'EQUIPO DE PROTECCIÓN',
                 'EQUIPOS Y ACCESORIOS',
                 'MATERIAL DE APORTE',
-                'EQUIPO DE PROTECCION',
             ],
             'LABORATORIO' => [
                 'DETERMINACIÓN DE GRADOS API',
@@ -150,7 +149,9 @@ class SubcategorySeeder extends Seeder
                 'ACCESORIO',
                 'SEGREGACION DE COMBUSTIBLE',
             ],
-            'ALS' => [],
+            'ALS' => [
+                'ALS',
+            ],
         ];
 
         $created = 0;

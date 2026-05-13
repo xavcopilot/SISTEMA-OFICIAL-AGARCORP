@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryMovement;
+use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
+use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -18,6 +22,25 @@ class InventoryEntradaFormatoController extends Controller
     private const PDF_PRINT_AREA_START = 'A1';
     private const PDF_MIN_END_COLUMN = 'I';
     private const PDF_MIN_END_ROW = 35;
+    private const DEFAULT_SIGNATURE_HEIGHT = 80;
+    private const DEFAULT_SIGNATURE_OFFSET_X = 0;
+    private const DEFAULT_SIGNATURE_OFFSET_Y = 0;
+    private const SIGNATURE_TOKENS = [
+        'firma_almacen',
+        'firma_entregado',
+    ];
+    private const SIGNATURE_RENDER_SETTINGS = [
+        'firma_almacen' => [
+            'height' => 40,
+            'offset_x' => 0,
+            'offset_y' => 0,
+        ],
+        'firma_entregado' => [
+            'height' => 80,
+            'offset_x' => 0,
+            'offset_y' => 0,
+        ],
+    ];
     private const ITEM_TOKENS = [
         'item',
         'item_n',
@@ -57,7 +80,7 @@ class InventoryEntradaFormatoController extends Controller
             abort(Response::HTTP_NOT_FOUND, 'Este formato solo aplica para movimientos de entrada o ingreso.');
         }
 
-        $inventoryMovement->loadMissing(['items.product.subcategory.category', 'createdBy']);
+        $inventoryMovement->loadMissing(['items.product.subcategory.category', 'createdBy', 'almacenistaUser', 'entregadoPorUser']);
 
         $templatePath = storage_path('app/templates/' . self::EXCEL_TEMPLATE_FILE);
 
@@ -79,6 +102,7 @@ class InventoryEntradaFormatoController extends Controller
             $spreadsheet = IOFactory::load($templatePath);
             $sheet = $spreadsheet->getActiveSheet();
 
+            $this->renderSignatureImages($sheet, $inventoryMovement);
             $this->replaceGlobalTokens($sheet, $this->buildGlobalTokens($inventoryMovement));
             $this->renderItemRows($sheet, $inventoryMovement);
             $this->normalizeSheetForPdf($sheet);
@@ -159,7 +183,11 @@ class InventoryEntradaFormatoController extends Controller
             'nro_control'   => (string) ($movement->nro_control ?? ''),
             'tipo'          => (string) ($movement->tipo ?? ''),
             'fecha'         => optional($movement->fecha)->format('d/m/Y') ?? '',
+            'entregado_por' => (string) ($movement->entregadoPorUser?->name ?? $movement->entregado_por ?? ''),
             'almacenista'   => (string) ($movement->almacenista ?? ''),
+            'recibido_por'  => (string) ($movement->almacenista ?? ''),
+            'firma_almacen' => '',
+            'firma_entregado' => '',
             'creado_por'    => (string) ($movement->createdBy?->name ?? ''),
             'orden_compra'  => (string) ($movement->orden_compra ?? ''),
             'nro_solicitud' => (string) ($movement->nro_solicitud ?? ''),
@@ -209,6 +237,114 @@ class InventoryEntradaFormatoController extends Controller
                 }
             }
         }
+    }
+
+    private function renderSignatureImages(Worksheet $sheet, InventoryMovement $movement): void
+    {
+        $signaturePaths = [
+            'firma_almacen' => $this->resolveSignatureImagePath($this->resolveAlmacenistaSigner($movement)),
+            'firma_entregado' => $this->resolveSignatureImagePath($movement->entregadoPorUser),
+        ];
+        $highestRow = $sheet->getHighestRow();
+        $highestColumnIndex = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+
+        for ($row = 1; $row <= $highestRow; $row++) {
+            for ($column = 1; $column <= $highestColumnIndex; $column++) {
+                $cell = $sheet->getCellByColumnAndRow($column, $row);
+                $value = $cell->getValue();
+
+                if ($value instanceof RichText) {
+                    $textValue = $value->getPlainText();
+                } elseif (is_string($value)) {
+                    $textValue = $value;
+                } else {
+                    continue;
+                }
+
+                if ($textValue === '') {
+                    continue;
+                }
+
+                foreach (self::SIGNATURE_TOKENS as $token) {
+                    if (! $this->containsTokenVariant($textValue, $token)) {
+                        continue;
+                    }
+
+                    $cell->setValue($this->replaceTokenVariants($textValue, [$token => '']));
+
+                    $signaturePath = $signaturePaths[$token] ?? null;
+
+                    if ($signaturePath !== null) {
+                        $this->insertSignatureImage(
+                            $sheet,
+                            Coordinate::stringFromColumnIndex($column) . $row,
+                            $signaturePath,
+                            $token
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private function resolveAlmacenistaSigner(InventoryMovement $movement): ?User
+    {
+        if ($movement->almacenistaUser) {
+            return $movement->almacenistaUser;
+        }
+
+        $name = trim((string) ($movement->almacenista ?? ''));
+
+        if ($name === '') {
+            return null;
+        }
+
+        return User::role('Almacen')->where('name', $name)->first();
+    }
+
+    private function resolveSignatureImagePath(?User $signer): ?string
+    {
+        if (! $signer) {
+            return null;
+        }
+
+        $path = UserSignaturePath::findByUserId((int) $signer->id);
+
+        if (! $path || ! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        $absolutePath = Storage::disk('public')->path($path);
+
+        return file_exists($absolutePath) ? $absolutePath : null;
+    }
+
+    private function insertSignatureImage(Worksheet $sheet, string $coordinates, string $imagePath, string $token): void
+    {
+        $settings = $this->resolveSignatureRenderSettings($token);
+
+        $drawing = new Drawing();
+        $drawing->setName($token);
+        $drawing->setDescription('Firma ' . $token);
+        $drawing->setPath($imagePath);
+        $drawing->setCoordinates($coordinates);
+        $drawing->setOffsetX((int) ($settings['offset_x'] ?? self::DEFAULT_SIGNATURE_OFFSET_X));
+        $drawing->setOffsetY((int) ($settings['offset_y'] ?? self::DEFAULT_SIGNATURE_OFFSET_Y));
+        $drawing->setResizeProportional(true);
+        $drawing->setHeight((int) ($settings['height'] ?? self::DEFAULT_SIGNATURE_HEIGHT));
+        $drawing->setWorksheet($sheet);
+    }
+
+    private function resolveSignatureRenderSettings(string $token): array
+    {
+        return array_replace(
+            [
+                'height' => self::DEFAULT_SIGNATURE_HEIGHT,
+                'offset_x' => self::DEFAULT_SIGNATURE_OFFSET_X,
+                'offset_y' => self::DEFAULT_SIGNATURE_OFFSET_Y,
+            ],
+            self::SIGNATURE_RENDER_SETTINGS[$token] ?? []
+        );
     }
 
     private function buildItemTokens(mixed $item, int $offset): array

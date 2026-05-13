@@ -379,7 +379,7 @@ class RecepcionMaterialesNuevosTable
     private static function buildMovementHeaderFormData(mixed $record, string $type): array
     {
         return [
-            'almacenista_visual' => auth()->user()?->name,
+            'almacenista_user_id' => auth()->id(),
             'fecha_visual' => now()->toDateString(),
             'orden_compra' => (string) ($record->correlativo_odc ?? ''),
             'nro_solicitud' => (string) ($record->sumario?->solicitudCompra?->codigo_control ?? ''),
@@ -399,11 +399,16 @@ class RecepcionMaterialesNuevosTable
                 ->schema([
                     Grid::make(6)
                         ->schema([
-                            Select::make('almacenista_visual')
+                            Select::make('almacenista_user_id')
                                 ->label('Almacenista')
-                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
+                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
                                 ->searchable()
                                 ->required(),
+
+                            Select::make('entregado_por_user_id')
+                                ->label('Entregado por')
+                                ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->searchable(),
 
                             DatePicker::make('fecha_visual')
                                 ->label('Fecha')
@@ -603,11 +608,16 @@ class RecepcionMaterialesNuevosTable
                 ->schema([
                     Grid::make(6)
                         ->schema([
-                            Select::make('almacenista_visual')
+                            Select::make('almacenista_user_id')
                                 ->label('Almacenista')
-                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
+                                ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
                                 ->searchable()
                                 ->required(),
+
+                            Select::make('entregado_por_user_id')
+                                ->label('Entregado por')
+                                ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                                ->searchable(),
 
                             DatePicker::make('fecha_visual')
                                 ->label('Fecha')
@@ -756,11 +766,11 @@ class RecepcionMaterialesNuevosTable
                                 ->label('Ubicacion')
                                 ->required(),
 
-                            TextInput::make('dpto_responsable')
+                            Select::make('dpto_responsable')
                                 ->label('Dpto Responsable')
-                                ->datalist(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre')->all())
-                                ->helperText('Puedes escribir libremente o elegir un departamento sugerido.')
-                                ->required(),
+                                ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
+                                ->required()
+                                ->native(false),
 
                             TextInput::make('rango_min')
                                 ->label('Rango')

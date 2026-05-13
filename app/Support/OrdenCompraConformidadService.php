@@ -500,6 +500,7 @@ class OrdenCompraConformidadService
             'factura_nota' => strtolower((string) ($ordenCompra->tipo_documento_recepcion ?? '')), 
             'nro_doc_legal' => (string) $ordenCompra->correlativo_odc,
             'proveedor' => (string) ($ordenCompra->proveedor?->nombre ?? ''),
+            'almacenista_user_id' => $user->id,
             'almacenista' => (string) ($user->name ?? 'Almacen'),
             'comentarios' => 'Entrada oficial por items aceptados para ODC ' . (string) $ordenCompra->correlativo_odc,
         ]);
@@ -509,6 +510,13 @@ class OrdenCompraConformidadService
     {
         $solicitud = $ordenCompra->sumario?->solicitudCompra;
 
+        $almacenistaUser = isset($data['almacenista_user_id'])
+            ? User::query()->find((int) $data['almacenista_user_id'])
+            : $user;
+        $entregadoPorUser = isset($data['entregado_por_user_id'])
+            ? User::query()->find((int) $data['entregado_por_user_id'])
+            : null;
+
         return InventoryMovement::query()->create([
             'tipo' => $tipo,
             'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber($tipo),
@@ -517,7 +525,10 @@ class OrdenCompraConformidadService
             'factura_nota' => $data['factura_nota'] ?? strtolower((string) ($ordenCompra->tipo_documento_recepcion ?? '')),
             'nro_doc_legal' => $data['nro_doc_legal'] ?? (string) $ordenCompra->correlativo_odc,
             'proveedor' => $data['proveedor'] ?? (string) ($ordenCompra->proveedor?->nombre ?? ''),
-            'almacenista' => $data['almacenista_visual'] ?? (string) ($user->name ?? 'Almacen'),
+            'almacenista_user_id' => $almacenistaUser?->id,
+            'entregado_por_user_id' => $entregadoPorUser?->id,
+            'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
+            'almacenista' => (string) ($almacenistaUser?->name ?? $user->name ?? 'Almacen'),
             'comentarios' => $data['comentarios'] ?? ('Entrada oficial por items aceptados para ODC ' . (string) $ordenCompra->correlativo_odc),
         ]);
     }

@@ -168,8 +168,18 @@ class ConsultarEntradasTable
                         ? self::getEditIngresoSchema()
                         : self::getEditEntradaSchema())
                     ->action(function (array $data, InventoryMovement $record): void {
+                        $almacenistaUser = ($data['almacenista_user_id'] ?? null)
+                            ? User::query()->find((int) $data['almacenista_user_id'])
+                            : null;
+                        $entregadoPorUser = ($data['entregado_por_user_id'] ?? null)
+                            ? User::query()->find((int) $data['entregado_por_user_id'])
+                            : null;
+
                         $movementPayload = [
-                            'almacenista' => $data['almacenista'] ?? null,
+                            'almacenista_user_id' => $almacenistaUser?->id,
+                            'almacenista' => $almacenistaUser?->name ?? $record->almacenista,
+                            'entregado_por_user_id' => $entregadoPorUser?->id,
+                            'entregado_por' => $entregadoPorUser?->name ?? $record->entregado_por,
                             'orden_compra' => $data['orden_compra'] ?? null,
                             'nro_solicitud' => $data['nro_solicitud'] ?? null,
                             'factura_nota' => $data['factura_nota'] ?? null,
@@ -205,11 +215,16 @@ class ConsultarEntradasTable
         return [
             Grid::make(2)
                 ->schema([
-                    Select::make('almacenista')
+                    Select::make('almacenista_user_id')
                         ->label('Almacenista')
-                        ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
+                        ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
                         ->searchable()
                         ->required(),
+
+                    Select::make('entregado_por_user_id')
+                        ->label('Entregado por')
+                        ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->searchable(),
 
                     TextInput::make('proveedor')
                         ->label('Proveedor')
@@ -225,11 +240,11 @@ class ConsultarEntradasTable
                         ->maxLength(255),
 
                     TextInput::make('factura_nota')
-                        ->label('F/N/I')
+                        ->label('F/N (Tipo Doc.)')
                         ->maxLength(255),
 
                     TextInput::make('nro_doc_legal')
-                        ->label('N Doc. Legal')
+                        ->label('N° Factura/Nota')
                         ->maxLength(255),
                 ]),
 
@@ -330,11 +345,16 @@ class ConsultarEntradasTable
         return [
             Grid::make(2)
                 ->schema([
-                    Select::make('almacenista')
+                    Select::make('almacenista_user_id')
                         ->label('Almacenista')
-                        ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'name')->toArray())
+                        ->options(fn (): array => User::role('Almacen')->orderBy('name')->pluck('name', 'id')->toArray())
                         ->searchable()
                         ->required(),
+
+                    Select::make('entregado_por_user_id')
+                        ->label('Entregado por')
+                        ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->searchable(),
 
                     TextInput::make('proveedor')
                         ->label('Proveedor')
@@ -350,11 +370,11 @@ class ConsultarEntradasTable
                         ->maxLength(255),
 
                     TextInput::make('factura_nota')
-                        ->label('F/N/I')
+                        ->label('F/N (Tipo Doc.)')
                         ->maxLength(255),
 
                     TextInput::make('nro_doc_legal')
-                        ->label('N Doc. Legal')
+                        ->label('N° Factura/Nota')
                         ->maxLength(255),
                 ]),
 
@@ -430,11 +450,11 @@ class ConsultarEntradasTable
                                 ->label('Ubicacion')
                                 ->required(fn (callable $get): bool => ! (bool) $get('eliminar_linea')),
 
-                            TextInput::make('dpto_responsable')
+                            Select::make('dpto_responsable')
                                 ->label('Dpto Responsable')
-                                ->datalist(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre')->all())
-                                ->helperText('Puedes escribir libremente o elegir un departamento sugerido.')
-                                ->required(fn (callable $get): bool => ! (bool) $get('eliminar_linea')),
+                                ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
+                                ->required(fn (callable $get): bool => ! (bool) $get('eliminar_linea'))
+                                ->native(false),
 
                             TextInput::make('stock_minimo')
                                 ->label('Rango minimo')
@@ -481,7 +501,8 @@ class ConsultarEntradasTable
         $record->loadMissing('items.product');
 
         return [
-            'almacenista' => $record->almacenista,
+            'almacenista_user_id' => self::resolveAlmacenistaUserId($record),
+            'entregado_por_user_id' => (int) ($record->entregado_por_user_id ?? 0) ?: null,
             'orden_compra' => $record->orden_compra,
             'nro_solicitud' => $record->nro_solicitud,
             'factura_nota' => $record->factura_nota,
@@ -506,7 +527,8 @@ class ConsultarEntradasTable
         $record->loadMissing('items.product.subcategory');
 
         return [
-            'almacenista' => $record->almacenista,
+            'almacenista_user_id' => self::resolveAlmacenistaUserId($record),
+            'entregado_por_user_id' => (int) ($record->entregado_por_user_id ?? 0) ?: null,
             'orden_compra' => $record->orden_compra,
             'nro_solicitud' => $record->nro_solicitud,
             'factura_nota' => $record->factura_nota,
@@ -563,13 +585,21 @@ class ConsultarEntradasTable
                                 ->label('Orden de Compra')
                                 ->disabled(),
                             TextInput::make('factura_nota')
-                                ->label('F/N/I')
+                                ->label('F/N (Tipo Doc.)')
                                 ->disabled(),
                             TextInput::make('nro_doc_legal')
-                                ->label('N°')
+                                ->label('N° Factura/Nota')
                                 ->disabled(),
                             TextInput::make('proveedor')
                                 ->label('Proveedor')
+                                ->disabled()
+                                ->columnSpan(2),
+                            TextInput::make('recibido_por')
+                                ->label('Recibido por')
+                                ->disabled()
+                                ->columnSpan(2),
+                            TextInput::make('entregado_por')
+                                ->label('Entregado por')
                                 ->disabled()
                                 ->columnSpan(2),
                             TextInput::make('almacenista')
@@ -606,6 +636,8 @@ class ConsultarEntradasTable
             'factura_nota' => $record->factura_nota,
             'nro_doc_legal' => $record->nro_doc_legal,
             'proveedor' => $record->proveedor,
+            'recibido_por' => $record->almacenista,
+            'entregado_por' => $record->entregadoPorUser?->name ?? $record->entregado_por,
             'almacenista' => $record->almacenista,
             'comentarios' => $record->comentarios,
             'items' => $record->items->map(function ($item): array {
@@ -681,6 +713,21 @@ class ConsultarEntradasTable
     private static function renderTableCell(string $value): string
     {
         return '<td style="border:1px solid #e5e7eb;padding:8px;vertical-align:top;">' . e($value) . '</td>';
+    }
+
+    private static function resolveAlmacenistaUserId(InventoryMovement $record): ?int
+    {
+        if ((int) ($record->almacenista_user_id ?? 0) > 0) {
+            return (int) $record->almacenista_user_id;
+        }
+
+        $name = trim((string) ($record->almacenista ?? ''));
+
+        if ($name === '') {
+            return null;
+        }
+
+        return User::role('Almacen')->where('name', $name)->value('id');
     }
 }
 

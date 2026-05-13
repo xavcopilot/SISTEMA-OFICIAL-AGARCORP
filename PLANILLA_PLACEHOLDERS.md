@@ -275,7 +275,11 @@ Este bloque aplica al archivo:
 - `nro_control`
 - `tipo`
 - `fecha` (formato `d/m/Y`)
+- `entregado_por`
 - `almacenista` (responsable de almacen seleccionado)
+- `firma_almacen` (si el almacenista tiene PNG de firma cargado, se incrusta la misma firma usada en formato de compra)
+- `recibido_por` (alias visual de `almacenista`)
+- `firma_entregado` (si el usuario entregado por tiene PNG de firma cargado, se incrusta su firma)
 - `creado_por` (usuario que registro el movimiento)
 - `orden_compra`
 - `nro_solicitud`
@@ -318,7 +322,11 @@ Este bloque es solo para copiar y pegar directamente en la plantilla.
 - {{nro_control}}
 - {{tipo}}
 - {{fecha}}
+- {{entregado_por}}
 - {{almacenista}}
+- {{firma_almacen}}
+- {{recibido_por}}
+- {{firma_entregado}}
 - {{creado_por}}
 - {{orden_compra}}
 - {{nro_solicitud}}

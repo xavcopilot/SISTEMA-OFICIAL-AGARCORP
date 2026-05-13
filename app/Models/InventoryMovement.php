@@ -41,6 +41,8 @@ class InventoryMovement extends Model
     protected $fillable = [
         'tipo',
         'nro_control',
+        'almacenista_user_id',
+        'entregado_por_user_id',
         'created_by_user_id',
         'updated_by_user_id',
         'orden_compra',
@@ -48,6 +50,7 @@ class InventoryMovement extends Model
         'factura_nota',
         'nro_doc_legal',
         'proveedor',
+        'entregado_por',
         'almacenista',
         'responsable_destino',
         'dpto_destino',
@@ -57,6 +60,8 @@ class InventoryMovement extends Model
     ];
 
     protected $casts = [
+        'almacenista_user_id' => 'integer',
+        'entregado_por_user_id' => 'integer',
         'created_by_user_id' => 'integer',
         'updated_by_user_id' => 'integer',
         'fecha' => 'date',
@@ -67,6 +72,16 @@ class InventoryMovement extends Model
     public function items(): HasMany
     {
         return $this->hasMany(MovementItem::class, 'movement_id');
+    }
+
+    public function almacenistaUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'almacenista_user_id');
+    }
+
+    public function entregadoPorUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'entregado_por_user_id');
     }
 
     public function createdBy(): BelongsTo
