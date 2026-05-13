@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\InventoryMovement;
 use App\Support\LibreOfficePdfConverter;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
-use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -106,10 +106,11 @@ class InventorySalidaFormatoController extends Controller
                 ['documento' => 'formato_salida']
             );
             if (! $wasConvertedByLibreOffice) {
-                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Salida, se usara fallback Dompdf.');
+                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Salida. No se usara fallback PDF.', [
+                    'inventory_movement_id' => $inventoryMovement->id,
+                ]);
 
-                $pdfWriter = new PdfDompdfWriter($spreadsheet);
-                $pdfWriter->save($pdfPath);
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del formato de salida porque LibreOffice no pudo convertir el archivo.');
             }
 
             if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
@@ -127,6 +128,8 @@ class InventorySalidaFormatoController extends Controller
 
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
+        } catch (HttpExceptionInterface $exception) {
+            throw $exception;
         } catch (\Throwable $exception) {
             if (file_exists($xlsxPath)) {
                 @unlink($xlsxPath);

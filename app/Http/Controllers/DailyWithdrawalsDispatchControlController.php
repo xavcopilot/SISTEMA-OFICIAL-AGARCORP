@@ -6,6 +6,7 @@ use App\Models\DailyWithdrawal;
 use App\Support\LibreOfficePdfConverter;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
@@ -148,10 +149,23 @@ class DailyWithdrawalsDispatchControlController extends Controller
             );
 
             if (! $wasConvertedByLibreOffice) {
-                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Control de Despacho, se usara fallback Dompdf.');
+                \Illuminate\Support\Facades\Log::warning('Fallo conversion LibreOffice para Control de Despacho. No se usara fallback PDF.', [
+                    'from' => $fromDate?->toDateString(),
+                    'to' => $toDate?->toDateString(),
+                ]);
 
-                $pdfWriter = new \PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf($spreadsheet);
-                $pdfWriter->save($pdfPath);
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del Control de Despacho porque LibreOffice no pudo convertir el archivo.');
+            }
+
+            if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
+                \Illuminate\Support\Facades\Log::error('PDF de Control de Despacho generado pero vacio o demasiado pequeno.', [
+                    'was_converted_by_libreoffice' => $wasConvertedByLibreOffice,
+                    'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+                    'from' => $fromDate?->toDateString(),
+                    'to' => $toDate?->toDateString(),
+                ]);
+
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del Control de Despacho.');
             }
 
             if (file_exists($xlsxPath)) {
@@ -160,6 +174,8 @@ class DailyWithdrawalsDispatchControlController extends Controller
 
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
+        } catch (HttpExceptionInterface $exception) {
+            throw $exception;
         } catch (\Throwable $exception) {
             if (file_exists($xlsxPath)) {
                 @unlink($xlsxPath);
