@@ -385,15 +385,17 @@ class DatabaseSeeder extends Seeder
             $ticketPermissions,
             $solicitudCreatePermissions,
             // Usuarios
-            $permsFor('User', ['ViewAny', 'View', 'Create', 'Update']),
-            // Roles
-            $permsFor('Role', ['ViewAny', 'View']),
+            Permission::query()->where('name', 'like', '%:User')->pluck('name')->all(),
+            // Roles y permisos
+            Permission::query()->where('name', 'like', '%:Role')->pluck('name')->all(),
             // Departamentos
-            $permsFor('Departamento', ['ViewAny', 'View', 'Create', 'Update']),
+            Permission::query()->where('name', 'like', '%:Departamento')->pluck('name')->all(),
             // Cargos
-            $permsFor('Cargo', ['ViewAny', 'View', 'Create', 'Update']),
+            Permission::query()->where('name', 'like', '%:Cargo')->pluck('name')->all(),
             // Impresoras
-            $permsFor('Impresora', ['ViewAny', 'View', 'Create', 'Update', 'Delete']),
+            Permission::query()->where('name', 'like', '%:Impresora')->pluck('name')->all(),
+            // Informacion AGARCORP
+            Permission::query()->where('name', 'like', '%:InformacionAgarcorp')->pluck('name')->all(),
             // Categorias
             $categoryReadWritePermissions,
             // Inventario (solo lectura)
@@ -564,7 +566,16 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $demoUser->syncRoles([$demoRole->name, 'Alta Gerencia', 'Almacen']);
+        $demoUser->syncRoles(
+            Role::query()
+                ->where('name', '!=', 'Almacen Recepcion')
+                ->pluck('name')
+                ->all()
+        );
+
+        if (! empty($allPermissionNames)) {
+            $demoUser->syncPermissions($allPermissionNames);
+        }
         // ===== FIN BLOQUE DEMO (ELIMINABLE) =====
 
         // ===== REFORZAR SKU CODE RULE SOLO PARA A.I.T, ALTA GERENCIA Y ALMACEN =====
