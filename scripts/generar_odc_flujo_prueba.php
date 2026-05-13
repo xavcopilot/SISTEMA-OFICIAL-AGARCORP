@@ -39,10 +39,15 @@ $existingOdcId = max(0, (int) ($opts['odc_id'] ?? 0));
 
 $validStages = [
     'odc_generada',
+    'pendiente_validacion',
+    'pendiente_aprobacion',
+    'pendiente_pago',
     'pago_registrado',
     'pago_confirmado',
+    'documento_recepcion',
     'recepcion_nota',
     'recepcion_factura',
+    'conformidad_items_completa',
     'factura_enviada_admin',
     'factura_procesada',
     'cerrada_conforme',
@@ -358,7 +363,38 @@ function moveOrderToStage(OrdenCompra $order, string $stage, array $context): Or
 {
     $order = OrdenCompra::query()->findOrFail($order->id);
 
-    if (in_array($stage, ['pago_registrado', 'pago_confirmado', 'recepcion_nota', 'recepcion_factura', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
+    if (in_array($stage, ['pendiente_validacion'], true)) {
+        $order->forceFill([
+            'estado' => 'PENDIENTE_VALIDACION_FINANZAS',
+            'workflow_post_compra' => 'PENDIENTE_VALIDACION_FINANZAS',
+            'rechazo_etapa' => null,
+            'rechazo_comentario' => null,
+            'rechazo_por_user_id' => null,
+            'rechazo_en' => null,
+        ])->save();
+    }
+
+    if (in_array($stage, ['pendiente_aprobacion', 'pendiente_pago', 'pago_registrado', 'pago_confirmado', 'documento_recepcion', 'recepcion_nota', 'recepcion_factura', 'conformidad_items_completa', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
+        $order->forceFill([
+            'estado' => 'PENDIENTE_APROBACION',
+            'workflow_post_compra' => 'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+            'rechazo_etapa' => null,
+            'rechazo_comentario' => null,
+            'rechazo_por_user_id' => null,
+            'rechazo_en' => null,
+        ])->save();
+    }
+
+    if (in_array($stage, ['pendiente_pago', 'pago_registrado', 'pago_confirmado', 'documento_recepcion', 'recepcion_nota', 'recepcion_factura', 'conformidad_items_completa', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
+        $order->forceFill([
+            'estado' => 'APROBADA',
+            'workflow_post_compra' => 'PENDIENTE_PAGO_FINANZAS',
+            'aprobado_por_user_id' => $context['gerencia_finanzas']->id,
+            'aprobado_firmado_at' => now()->subHours(4),
+        ])->save();
+    }
+
+    if (in_array($stage, ['pago_registrado', 'pago_confirmado', 'documento_recepcion', 'recepcion_nota', 'recepcion_factura', 'conformidad_items_completa', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
         $order->forceFill([
             'monto_pagado' => round((float) ($order->total_general ?: 0), 2),
             'referencia_pago' => 'TRX-' . now()->format('YmdHis'),
@@ -371,21 +407,43 @@ function moveOrderToStage(OrdenCompra $order, string $stage, array $context): Or
         ])->save();
     }
 
-    if (in_array($stage, ['pago_confirmado', 'recepcion_nota', 'recepcion_factura', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
+    if (in_array($stage, ['pago_confirmado', 'documento_recepcion', 'recepcion_nota', 'recepcion_factura', 'conformidad_items_completa', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
         $order->forceFill([
             'confirmado_procura_at' => now()->subHours(2),
             'confirmado_por_user_id' => $context['procura']->id,
             'estado' => 'EN_ESPERA_DE_PRODUCTO',
-            'workflow_post_compra' => 'ESPERANDO_PRODUCTO',
+            'workflow_post_compra' => 'PAGADO_Y_EN_TRANSITO',
         ])->save();
     }
 
-    if (in_array($stage, ['recepcion_nota', 'recepcion_factura', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
+    if ($stage === 'documento_recepcion') {
+        app(OrdenCompraRecepcionService::class)
+            ->cargarDocumentoProcura($order, $context['procura'], 'FACTURA', ensureInvoicePath($order));
+    }
+
+    if (in_array($stage, ['recepcion_nota', 'recepcion_factura', 'conformidad_items_completa', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
         $tipo = $stage === 'recepcion_nota' ? 'NOTA' : 'FACTURA';
         $facturaPath = $tipo === 'FACTURA' ? ensureInvoicePath($order) : null;
 
         $order = app(OrdenCompraRecepcionService::class)
             ->procesarRecepcion($order, $context['procura'], $tipo, $facturaPath);
+    }
+
+    if (in_array($stage, ['conformidad_items_completa', 'cerrada_conforme'], true)) {
+        $rows = $order->items()
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($item): array => [
+                'orden_compra_item_id' => (int) $item->id,
+                'decision' => 'ACEPTADO',
+                'cantidad_llegada' => (float) ($item->cantidad ?? 1),
+                'cantidad_llegada_raw' => (float) ($item->cantidad ?? 1),
+                'motivo' => '',
+            ])
+            ->all();
+
+        $order = app(OrdenCompraConformidadService::class)
+            ->registrarConformidadPorItems($order, $context['solicitante'], $rows);
     }
 
     if (in_array($stage, ['factura_enviada_admin', 'factura_procesada'], true)) {
@@ -456,10 +514,15 @@ function printResult(OrdenCompra $order, string $stage, bool $createdNew): void
 
     $suggestion = match ($stage) {
         'odc_generada' => 'Inicia con Finanzas -> Registrar Pago.',
+        'pendiente_validacion' => 'Entrar con Validador Finanzas y revisar la ODC en Inspeccion de ODC.',
+        'pendiente_aprobacion' => 'Entrar con Gerencia de Finanzas y aprobar o rechazar la ODC.',
+        'pendiente_pago' => 'Entrar con Finanzas Pagos y registrar el pago de la ODC.',
         'pago_registrado' => 'Entrar con Procura y usar Confirmar pago recibido.',
         'pago_confirmado' => 'Entrar con Procura y usar Procesar Recepcion (NOTA o FACTURA).',
+        'documento_recepcion' => 'Entrar con Almacen y revisar la pestaña Por recibir en almacen.',
         'recepcion_nota' => 'Entrar con Solicitante y decidir Aceptar Conformidad o Rechazar producto.',
         'recepcion_factura' => 'Entrar con Finanzas y usar Enviar factura a Administracion.',
+        'conformidad_items_completa' => 'Entrar con Almacen y revisar la pestaña Pendiente de entrada final.',
         'factura_enviada_admin' => 'Entrar con Administracion y abrir Cargar factura manual (Proximamente) o Marcar Factura Procesada.',
         'factura_procesada' => 'Entrar con Solicitante para cierre conforme o rechazo.',
         'cerrada_conforme' => 'Flujo cerrado conforme. Revisa inventario y movimientos generados.',

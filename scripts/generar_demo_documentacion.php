@@ -72,6 +72,10 @@ try {
         ]);
     });
 
+    runStep('Solicitudes pendientes para Gerencia de Finanzas', function () use ($context, $runTag, $items): void {
+        createGerenciaFinanzasApprovalSolicitudes($context, $runTag, 2, $items);
+    });
+
     runStep('Trazabilidad del solicitante y conformidades', function () use ($runTag): void {
         runExternalScript('generar_solicitud_trazabilidad_prueba.php', [
             'prefijo' => $runTag . '-TRAZA',
@@ -102,12 +106,21 @@ try {
         createSumarioDraft($context, $runTag);
     });
 
+    runStep('Sumario pendiente de aprobacion para Gerencia de Finanzas', function () use ($context, $runTag): void {
+        createGerenciaFinanzasApprovalSumario($context, $runTag);
+    });
+
     runStep('ODC y flujo post-compra', function () use ($runTag): void {
         $stages = [
             'odc_generada' => 'ODC-PEND-APROB',
-            'pago_registrado' => 'ODC-PAGO-PEND',
+            'pendiente_validacion' => 'ODC-VALID-ODC',
+            'pendiente_aprobacion' => 'ODC-APROB-GF',
+            'pendiente_pago' => 'ODC-PAGO-PEND',
+            'pago_registrado' => 'ODC-PAGO-REG',
             'pago_confirmado' => 'ODC-PAGO-CONF',
+            'documento_recepcion' => 'ODC-ALM-POR-RECIBIR',
             'recepcion_factura' => 'ODC-FACT-REC',
+            'conformidad_items_completa' => 'ODC-ALM-PEND-ENTRADA',
             'factura_enviada_admin' => 'ODC-FACT-ENV',
             'factura_procesada' => 'ODC-FACT-CARG',
             'cerrada_conforme' => 'ODC-HIST-CIERRE',
@@ -195,6 +208,7 @@ function runExternalScript(string $scriptName, array $options = []): void
  *   procura: User,
  *   aprobador: User,
  *   gerencia_finanzas: User,
+ *   validador_finanzas: User,
  *   ait: User,
  *   administracion: User,
  *   finanzas_pagos: User
@@ -224,11 +238,12 @@ function resolveDemoContext(): array
     $procura = userByRole('Procura');
     $aprobador = userByRole('Gerencia de Operaciones') ?? userByRole('Alta Gerencia');
     $gerenciaFinanzas = userByRole('Gerencia de Finanzas');
+    $validadorFinanzas = userByRole('Validador Finanzas');
     $ait = userByRole('A.I.T');
     $administracion = userByRole('Administracion');
     $finanzasPagos = userByRole('Finanzas Pagos');
 
-    if (! $solicitante || ! $almacen || ! $procura || ! $aprobador || ! $gerenciaFinanzas || ! $ait || ! $administracion || ! $finanzasPagos) {
+    if (! $solicitante || ! $almacen || ! $procura || ! $aprobador || ! $gerenciaFinanzas || ! $validadorFinanzas || ! $ait || ! $administracion || ! $finanzasPagos) {
         throw new RuntimeException('No se pudieron resolver todos los usuarios base por rol. Ejecuta primero los seeders.');
     }
 
@@ -243,6 +258,7 @@ function resolveDemoContext(): array
         'procura' => $procura,
         'aprobador' => $aprobador,
         'gerencia_finanzas' => $gerenciaFinanzas,
+        'validador_finanzas' => $validadorFinanzas,
         'ait' => $ait,
         'administracion' => $administracion,
         'finanzas_pagos' => $finanzasPagos,
@@ -307,6 +323,71 @@ function createSolicitudDraft(array $context, string $runTag): void
     }
 
     fwrite(STDOUT, 'Solicitud borrador creada: ' . (string) $solicitud->codigo_control . PHP_EOL);
+}
+
+/**
+ * @param array{solicitante: User, almacen: User, procura: User, gerencia_finanzas: User} $context
+ */
+function createGerenciaFinanzasApprovalSolicitudes(array $context, string $runTag, int $cantidad, int $itemsPorSolicitud): void
+{
+    $created = collect();
+
+    for ($i = 1; $i <= max(1, $cantidad); $i++) {
+        $numeroUsuario = ((int) SolicitudCompra::query()
+            ->where('solicitado_por_user_id', $context['solicitante']->id)
+            ->max('numero_solicitud_usuario')) + 1;
+
+        $solicitud = SolicitudCompra::query()->create([
+            'codigo_control' => ControlCodeGenerator::generate('SOL', SolicitudCompra::class, 'codigo_control'),
+            'numero_solicitud_usuario' => $numeroUsuario,
+            'codigo_control_procura' => ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
+            'fecha_solicitud' => now()->subDays(2)->toDateString(),
+            'tipo_solicitud' => 'Consumo',
+            'prioridad' => 'Media',
+            'departamento_solicitante' => (string) ($context['solicitante']->departamento?->nombre ?? 'PRUEBA'),
+            'para_ser_usado_en' => 'Solicitud documental pendiente de aprobacion para Gerencia de Finanzas (' . $runTag . ' #' . $i . ').',
+            'solicitado_por_user_id' => $context['solicitante']->id,
+            'por_almacen_user_id' => $context['almacen']->id,
+            'aprobado_por_user_id' => $context['gerencia_finanzas']->id,
+            'recibido_por_user_id' => $context['procura']->id,
+            'cargo_solicitante' => (string) ($context['solicitante']->cargo?->nombre ?? 'SOLICITANTE'),
+            'cargo_almacen' => (string) ($context['almacen']->cargo?->nombre ?? 'ALMACEN'),
+            'cargo_aprobador' => (string) ($context['gerencia_finanzas']->cargo?->nombre ?? 'GERENCIA DE FINANZAS'),
+            'cargo_receptor' => (string) ($context['procura']->cargo?->nombre ?? 'PROCURA'),
+            'firma_solicitante' => '__ENVIADA_TEST__',
+            'firma_almacen' => '__ALMACEN_TEST__',
+            'firma_aprobador' => null,
+            'firma_receptor' => null,
+            'fecha_solicitante' => now()->subDays(2)->toDateString(),
+            'fecha_almacen' => now()->subDay()->toDateString(),
+            'fecha_aprobador' => null,
+            'fecha_receptor' => null,
+            'hora_receptor' => null,
+            'estado' => SolicitudCompra::ESTADO_EN_ESPERA_APROBADOR,
+        ]);
+
+        for ($item = 1; $item <= max(1, $itemsPorSolicitud); $item++) {
+            $cantidadSolicitada = random_int(2, 7);
+
+            SolicitudCompraItem::query()->create([
+                'solicitud_compra_id' => $solicitud->id,
+                'item' => $item,
+                'descripcion' => 'ITEM APROBACION GF ' . $i . '-' . $item,
+                'unidad_medida' => 'UND',
+                'cantidad_solicitada' => $cantidadSolicitada,
+                'cantidad_existencia' => 0,
+                'cantidad_a_comprar' => $cantidadSolicitada,
+                'estado_item' => 'SIN_PROCESAR',
+            ]);
+        }
+
+        $created->push($solicitud);
+    }
+
+    fwrite(STDOUT, 'Solicitudes para Gerencia de Finanzas creadas:' . PHP_EOL);
+    $created->each(function (SolicitudCompra $solicitud): void {
+        fwrite(STDOUT, '- ' . (string) $solicitud->codigo_control . ' | estado=' . (string) $solicitud->estado . ' | aprobado_por_user_id=' . (string) $solicitud->aprobado_por_user_id . PHP_EOL);
+    });
 }
 
 /**
@@ -426,6 +507,132 @@ function createSumarioDraft(array $context, string $runTag): void
     ])->save();
 
     fwrite(STDOUT, 'Sumario borrador creado: ' . (string) $sumario->correlativo_sdc . PHP_EOL);
+}
+
+/**
+ * @param array{solicitante: User, almacen: User, procura: User, aprobador: User, validador_finanzas: User} $context
+ */
+function createGerenciaFinanzasApprovalSumario(array $context, string $runTag): void
+{
+    $numeroUsuario = ((int) SolicitudCompra::query()
+        ->where('solicitado_por_user_id', $context['solicitante']->id)
+        ->max('numero_solicitud_usuario')) + 1;
+
+    $solicitud = SolicitudCompra::query()->create([
+        'codigo_control' => ControlCodeGenerator::generate('SOL', SolicitudCompra::class, 'codigo_control'),
+        'numero_solicitud_usuario' => $numeroUsuario,
+        'codigo_control_procura' => ControlCodeGenerator::generate('PROC', SolicitudCompra::class, 'codigo_control_procura'),
+        'fecha_solicitud' => now()->subDays(3)->toDateString(),
+        'tipo_solicitud' => 'Consumo',
+        'prioridad' => 'Alta',
+        'departamento_solicitante' => (string) ($context['solicitante']->departamento?->nombre ?? 'OPERACIONES'),
+        'para_ser_usado_en' => 'Caso documental para bandeja de aprobacion de sumarios en Gerencia de Finanzas (' . $runTag . ').',
+        'solicitado_por_user_id' => $context['solicitante']->id,
+        'por_almacen_user_id' => $context['almacen']->id,
+        'aprobado_por_user_id' => $context['aprobador']->id,
+        'recibido_por_user_id' => $context['procura']->id,
+        'cargo_solicitante' => (string) ($context['solicitante']->cargo?->nombre ?? 'Supervisor'),
+        'cargo_almacen' => (string) ($context['almacen']->cargo?->nombre ?? 'Almacenista'),
+        'cargo_aprobador' => (string) ($context['aprobador']->cargo?->nombre ?? 'Gerente'),
+        'cargo_receptor' => (string) ($context['procura']->cargo?->nombre ?? 'Analista de Procura'),
+        'firma_solicitante' => '__FIRMA_DOC__',
+        'firma_almacen' => '__FIRMA_DOC__',
+        'firma_aprobador' => '__FIRMA_DOC__',
+        'firma_receptor' => '__FIRMA_DOC__',
+        'fecha_solicitante' => now()->subDays(3)->toDateString(),
+        'fecha_almacen' => now()->subDays(2)->toDateString(),
+        'fecha_aprobador' => now()->subDay()->toDateString(),
+        'fecha_receptor' => now()->subDay()->toDateString(),
+        'hora_receptor' => now()->subDay()->format('H:i:s'),
+        'estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA,
+    ]);
+
+    $solicitudItems = collect([
+        ['descripcion' => 'Bobina de cable THHN 12 AWG color azul', 'cantidad' => 6],
+        ['descripcion' => 'Contactor trifasico 32A 220V para tablero principal', 'cantidad' => 3],
+        ['descripcion' => 'Base portafusible industrial tipo NH talla 00', 'cantidad' => 8],
+    ])->map(function (array $row, int $index) use ($solicitud): SolicitudCompraItem {
+        return SolicitudCompraItem::query()->create([
+            'solicitud_compra_id' => $solicitud->id,
+            'item' => $index + 1,
+            'descripcion' => $row['descripcion'],
+            'unidad_medida' => 'UND',
+            'cantidad_solicitada' => $row['cantidad'],
+            'cantidad_existencia' => 0,
+            'cantidad_a_comprar' => $row['cantidad'],
+            'cantidad_pedida' => $row['cantidad'],
+            'cantidad_en_sumario' => $row['cantidad'],
+            'estado_item' => 'EN_SUMARIO',
+        ]);
+    });
+
+    $providers = ensureDocumentProviders();
+
+    $sumario = Sumario::query()->create([
+        'solicitud_compra_id' => $solicitud->id,
+        'correlativo_sdc' => ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc'),
+        'fecha' => now()->subDay()->toDateString(),
+        'procedencia' => 'LOCAL',
+        'tipo_orden' => 'COMPRA',
+        'departamento_solicitante' => (string) ($solicitud->departamento_solicitante ?? 'OPERACIONES'),
+        'total_compra_prov1' => 0,
+        'total_compra_prov2' => 0,
+        'total_compra_prov3' => 0,
+        'condiciones_pago' => 'Credito 15 dias',
+        'tiempo_entrega' => '72 horas',
+        'prioridad' => 'MEJOR_PRECIO',
+        'observaciones' => 'Caso documental para aprobacion pendiente de Gerencia de Finanzas.',
+        'elaborado_por_user_id' => $context['procura']->id,
+        'revisado_por_user_id' => $context['validador_finanzas']->id,
+        'estado' => 'REVISADO_FINANZAS',
+        'workflow_estado' => 'VALIDADO_FINANZAS',
+        'enviado_validacion_finanzas_at' => now()->subHours(8),
+        'enviado_por_user_id' => $context['procura']->id,
+        'validado_finanzas_at' => now()->subHours(4),
+        'validado_por_user_id' => $context['validador_finanzas']->id,
+        'validacion_finanzas_resultado' => 'APROBADO',
+    ]);
+
+    $totals = [1 => 0.0, 2 => 0.0, 3 => 0.0];
+
+    foreach ($solicitudItems as $index => $item) {
+        $sumarioItem = SumarioItem::query()->create([
+            'sumario_id' => $sumario->id,
+            'solicitud_compra_item_id' => $item->id,
+            'item' => $item->item,
+            'descripcion' => (string) $item->descripcion,
+            'unidad_medida' => (string) ($item->unidad_medida ?? 'UND'),
+            'cantidad' => (float) ($item->cantidad_pedida ?? $item->cantidad_a_comprar ?? $item->cantidad_solicitada ?? 0),
+            'validacion_gerencia_resultado' => 'PENDIENTE',
+            'sub_estado' => 'EN_COMPARACION',
+        ]);
+
+        foreach ($providers as $providerIndex => $provider) {
+            $precioUnitario = [1 => 42.50, 2 => 44.30, 3 => 46.15][$providerIndex + 1] + ($index * 3.75);
+            $precioTotal = round(((float) $sumarioItem->cantidad) * $precioUnitario, 2);
+
+            SumarioItemOpcion::query()->create([
+                'sumario_item_id' => $sumarioItem->id,
+                'opcion_numero' => $providerIndex + 1,
+                'proveedor_id' => $provider->id,
+                'proveedor_nombre' => (string) $provider->nombre,
+                'marca' => ['LS Electric', 'Siemens', 'ABB'][$providerIndex],
+                'precio_unitario' => $precioUnitario,
+                'precio_total' => $precioTotal,
+                'seleccionada' => $providerIndex === 0,
+            ]);
+
+            $totals[$providerIndex + 1] += $precioTotal;
+        }
+    }
+
+    $sumario->forceFill([
+        'total_compra_prov1' => round($totals[1], 2),
+        'total_compra_prov2' => round($totals[2], 2),
+        'total_compra_prov3' => round($totals[3], 2),
+    ])->save();
+
+    fwrite(STDOUT, 'Sumario para aprobacion de Gerencia Finanzas creado: ' . (string) $sumario->correlativo_sdc . PHP_EOL);
 }
 
 /**
