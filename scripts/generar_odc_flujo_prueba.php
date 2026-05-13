@@ -381,7 +381,7 @@ function moveOrderToStage(OrdenCompra $order, string $stage, array $context): Or
     }
 
     if (in_array($stage, ['recepcion_nota', 'recepcion_factura', 'factura_enviada_admin', 'factura_procesada', 'cerrada_conforme', 'rechazo_solicitante'], true)) {
-        $tipo = in_array($stage, ['recepcion_factura', 'factura_enviada_admin', 'factura_procesada'], true) ? 'FACTURA' : 'NOTA';
+        $tipo = $stage === 'recepcion_nota' ? 'NOTA' : 'FACTURA';
         $facturaPath = $tipo === 'FACTURA' ? ensureInvoicePath($order) : null;
 
         $order = app(OrdenCompraRecepcionService::class)

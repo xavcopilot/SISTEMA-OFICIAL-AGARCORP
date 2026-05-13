@@ -480,6 +480,7 @@ class OrdenCompraConformidadService
 
         $entryRows = $ordenCompra->items()
             ->where('decision_solicitante', 'ACEPTADO')
+            ->get(['id'])
             ->map(fn (OrdenCompraItem $item): array => [
                 'orden_compra_item_id' => $item->id,
                 'modo' => 'REGISTRO_NUEVO',
