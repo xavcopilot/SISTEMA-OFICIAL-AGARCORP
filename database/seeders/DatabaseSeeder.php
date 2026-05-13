@@ -257,6 +257,10 @@ class DatabaseSeeder extends Seeder
             $roleModel = Role::firstOrCreate(['name' => $rol]);
             $roleModel->givePermissionTo($ticketPermissions);
 
+            if ($rol === 'A.I.T') {
+                continue;
+            }
+
             $override = $roleUserOverrides[$rol] ?? null;
 
             $emailName = preg_replace('/[^a-z0-9]/', '', strtolower($rol)) ?? strtolower($rol);
