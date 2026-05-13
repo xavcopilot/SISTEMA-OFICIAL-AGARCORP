@@ -233,6 +233,10 @@ class SolicitudCompraFlow
             return false;
         }
 
+        if ((string) ($solicitudCompra->rechazo_etapa ?? '') === 'historial') {
+            return false;
+        }
+
         // Cada version rechazada solo se corrige una vez: si ya existe una version posterior, se bloquea.
         return ! self::hasNewerVersion($solicitudCompra);
     }
@@ -385,6 +389,7 @@ class SolicitudCompraFlow
                     ->orWhere(function (Builder $rejectedQuery): void {
                         $rejectedQuery
                             ->where('estado', 'RECHAZADA')
+                            ->where('rechazo_etapa', '!=', 'historial')
                             ->whereNotExists(function ($subQuery): void {
                                 $subQuery
                                     ->selectRaw('1')
@@ -454,12 +459,16 @@ class SolicitudCompraFlow
                             ->orWhere(function ($rejectedQuery): void {
                                 $rejectedQuery
                                     ->where('history_versions.estado', 'RECHAZADA')
-                                    ->whereExists(function ($newerVersionQuery): void {
-                                        $newerVersionQuery
-                                            ->selectRaw('1')
-                                            ->from('solicitud_compras as newer_versions')
-                                            ->whereColumn('newer_versions.codigo_control', 'history_versions.codigo_control')
-                                            ->whereColumn('newer_versions.id', '>', 'history_versions.id');
+                                    ->where(function ($rejectedHistoryQuery): void {
+                                        $rejectedHistoryQuery
+                                            ->where('history_versions.rechazo_etapa', 'historial')
+                                            ->orWhereExists(function ($newerVersionQuery): void {
+                                                $newerVersionQuery
+                                                    ->selectRaw('1')
+                                                    ->from('solicitud_compras as newer_versions')
+                                                    ->whereColumn('newer_versions.codigo_control', 'history_versions.codigo_control')
+                                                    ->whereColumn('newer_versions.id', '>', 'history_versions.id');
+                                            });
                                     });
                             });
                     })
@@ -471,12 +480,16 @@ class SolicitudCompraFlow
                     ->orWhere(function (Builder $rejectedQuery): void {
                         $rejectedQuery
                             ->where('estado', 'RECHAZADA')
-                            ->whereExists(function ($subQuery): void {
-                                $subQuery
-                                    ->selectRaw('1')
-                                    ->from('solicitud_compras as newer_versions')
-                                    ->whereColumn('newer_versions.codigo_control', 'solicitud_compras.codigo_control')
-                                    ->whereColumn('newer_versions.id', '>', 'solicitud_compras.id');
+                            ->where(function (Builder $rejectedHistoryQuery): void {
+                                $rejectedHistoryQuery
+                                    ->where('rechazo_etapa', 'historial')
+                                    ->orWhereExists(function ($subQuery): void {
+                                        $subQuery
+                                            ->selectRaw('1')
+                                            ->from('solicitud_compras as newer_versions')
+                                            ->whereColumn('newer_versions.codigo_control', 'solicitud_compras.codigo_control')
+                                            ->whereColumn('newer_versions.id', '>', 'solicitud_compras.id');
+                                    });
                             });
                     });
             })
@@ -690,6 +703,7 @@ class SolicitudCompraFlow
             'almacen' => 'ALMACEN',
             'aprobador' => 'APROBADOR',
             'procura' => 'PROCURA',
+            'historial' => 'HISTORIAL',
             default => null,
         };
     }
