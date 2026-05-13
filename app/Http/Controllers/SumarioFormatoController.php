@@ -16,7 +16,6 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
-use PhpOffice\PhpSpreadsheet\Writer\Pdf\Dompdf as PdfDompdfWriter;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -135,13 +134,12 @@ class SumarioFormatoController extends Controller
             );
 
             if (! $wasConvertedByLibreOffice) {
-                Log::warning('Fallo conversion LibreOffice para Sumario, se usara fallback Dompdf.', [
+                Log::warning('Fallo conversion LibreOffice para Sumario. No se usara fallback PDF.', [
                     'sumario_id' => $sumario->id,
                     'correlativo_sdc' => $sumario->correlativo_sdc ?? null,
                 ]);
 
-                $pdfWriter = new PdfDompdfWriter($spreadsheet);
-                $pdfWriter->save($pdfPath);
+                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario porque LibreOffice no pudo convertir el archivo.');
             }
 
             if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
