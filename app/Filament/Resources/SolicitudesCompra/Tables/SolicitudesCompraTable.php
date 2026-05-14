@@ -65,9 +65,11 @@ class SolicitudesCompraTable
                 TextColumn::make('para_ser_usado_en')
                     ->toggleable()
                     ->label('Para ser usado en')
+                    ->grow()
+                    ->tooltip(fn (?string $state): ?string => filled($state) ? $state : null)
                     ->wrap()
                     ->extraAttributes([
-                        'style' => 'max-width: 50rem; white-space: normal; word-break: break-word; line-height: 1.4;',
+                        'style' => 'width: clamp(18rem, 34vw, 52rem); max-width: clamp(18rem, 34vw, 52rem); white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
                     ])
                     ->searchable(),
 
@@ -626,9 +628,11 @@ class SolicitudesCompraTable
                 TextColumn::make('para_ser_usado_en')
                     ->toggleable()
                     ->label('Para ser usado en')
+                    ->grow()
+                    ->tooltip(fn (?string $state): ?string => filled($state) ? $state : null)
                     ->wrap()
                     ->extraAttributes([
-                        'style' => 'max-width: 44rem; white-space: normal; word-break: break-word; line-height: 1.4;',
+                        'style' => 'width: clamp(18rem, 34vw, 52rem); max-width: clamp(18rem, 34vw, 52rem); white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
                     ])
                     ->searchable(),
 
