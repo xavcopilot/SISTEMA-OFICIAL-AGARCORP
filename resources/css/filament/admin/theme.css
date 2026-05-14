@@ -532,7 +532,7 @@
     display: inline-flex;
     flex-direction: column;
     gap: 0.22rem;
-    min-width: 280px;
+    min-width: min(280px, 100%);
     border-radius: 1rem !important;
     background: linear-gradient(135deg, rgba(20, 73, 157, 0.08), rgba(15, 35, 73, 0.12)) !important;
 }
@@ -694,8 +694,28 @@
 
 .ag-desktop-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(min(320px, 100%), 0.8fr);
     gap: 1.25rem;
+}
+
+.fi-main,
+.fi-main-ctn,
+.fi-page,
+.fi-page-content,
+.fi-page-content > *,
+.fi-section,
+.fi-section-content-ctn,
+.fi-widget,
+.fi-widget > *,
+.fi-ta,
+.fi-ta-content,
+.fi-in,
+.fi-fo-component-ctn,
+.fi-fo-field-wrp,
+.fi-fo-grid,
+.fi-tabs {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .ag-desktop-card {
