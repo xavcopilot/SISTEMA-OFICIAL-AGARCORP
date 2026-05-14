@@ -14,6 +14,7 @@ use App\Filament\Resources\RecepcionMaterialesNuevos\RecepcionMaterialesNuevosRe
 use App\Filament\Resources\RecepcionProductosProcura\RecepcionProductosProcuraResource;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Filament\Resources\Sumarios\SumarioResource;
+use App\Filament\Resources\Tickets\TicketResource;
 use App\Support\Filament\DatabaseNotificationSender;
 use App\Models\User;
 use Filament\Notifications\Notification;
@@ -29,6 +30,11 @@ class FlowInboxNotificationService
     public function trackedResources(): array
     {
         return [
+            [
+                'resource' => TicketResource::class,
+                'module' => 'Tickets',
+                'description' => 'Tickets nuevos y pendientes visibles para el equipo que gestiona soporte.',
+            ],
             [
                 'resource' => SolicitudCompraResource::class,
                 'module' => 'Solicitudes',
