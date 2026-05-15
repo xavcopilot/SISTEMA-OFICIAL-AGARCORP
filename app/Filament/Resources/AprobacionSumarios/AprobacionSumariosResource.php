@@ -50,7 +50,12 @@ class AprobacionSumariosResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->whereIn('workflow_estado', ['VALIDADO_FINANZAS']);
+            ->whereIn('workflow_estado', [
+                'VALIDADO_FINANZAS',
+                'APROBADO_GERENCIA_FINANZAS',
+                'ODC_GENERADA',
+                'RECHAZADO_GERENCIA_FINANZAS',
+            ]);
     }
 
     public static function canAccess(): bool
@@ -75,7 +80,9 @@ class AprobacionSumariosResource extends Resource
             return null;
         }
 
-        $count = static::getEloquentQuery()->count();
+        $count = parent::getEloquentQuery()
+            ->where('workflow_estado', 'VALIDADO_FINANZAS')
+            ->count();
 
         return $count > 0 ? (string) $count : null;
     }

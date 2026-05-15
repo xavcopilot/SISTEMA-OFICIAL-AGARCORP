@@ -191,8 +191,6 @@ class SumariosTable
     {
         return $table
             ->persistColumnsInSession(true)
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->whereIn('workflow_estado', ['VALIDADO_FINANZAS']))
             ->columns([
                 TextColumn::make('correlativo_sdc')
                     ->toggleable()
@@ -226,6 +224,8 @@ class SumariosTable
                     ->formatStateUsing(fn (?string $state): string => self::humanReadableWorkflowState((string) $state))
                     ->color(fn (?string $state): string => match ((string) $state) {
                         'VALIDADO_FINANZAS' => 'info',
+                        'APROBADO_GERENCIA_FINANZAS', 'ODC_GENERADA' => 'success',
+                        'RECHAZADO_GERENCIA_FINANZAS' => 'danger',
                         default => 'gray',
                     }),
             ])

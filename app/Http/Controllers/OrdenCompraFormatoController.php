@@ -6,6 +6,7 @@ use App\Models\InformacionAgarcorp;
 use App\Models\OrdenCompra;
 use App\Models\User;
 use App\Support\LibreOfficePdfConverter;
+use App\Support\OdcModalSummaryRenderer;
 use App\Support\UserSignaturePath;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -168,7 +169,7 @@ class OrdenCompraFormatoController extends Controller
                     'variant' => $variant,
                 ]);
 
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF de la ODC porque LibreOffice no pudo convertir el archivo.');
+                return $this->fallbackPreviewResponse($ordenCompra, $variant, 'No se pudo generar el PDF de la ODC porque LibreOffice no logro convertir el archivo en este servidor.');
             }
 
             if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
@@ -179,7 +180,7 @@ class OrdenCompraFormatoController extends Controller
                     'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
                 ]);
 
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF de la ODC. Verifique que LibreOffice este instalado en el servidor.');
+                return $this->fallbackPreviewResponse($ordenCompra, $variant, 'No se pudo generar un PDF valido de la ODC. Verifique LibreOffice o use la descarga en Excel mientras se corrige el servidor.');
             }
 
             if (file_exists($xlsxPath)) {
@@ -191,11 +192,18 @@ class OrdenCompraFormatoController extends Controller
         } catch (HttpExceptionInterface $exception) {
             throw $exception;
         } catch (\Throwable $exception) {
+            Log::error('Excepcion al generar vista previa de ODC.', [
+                'orden_compra_id' => $ordenCompra->id,
+                'variant' => $variant,
+                'message' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
             if (file_exists($xlsxPath)) {
                 @unlink($xlsxPath);
             }
 
-            abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar la ODC desde la plantilla Excel.');
+            return $this->fallbackPreviewResponse($ordenCompra, $variant, 'No se pudo generar la vista previa PDF de la ODC desde la plantilla Excel.');
         }
 
         if (request()->boolean('download')) {
@@ -206,6 +214,26 @@ class OrdenCompraFormatoController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $pdfFileName . '"',
         ])->deleteFileAfterSend(true);
+    }
+
+    private function fallbackPreviewResponse(OrdenCompra $ordenCompra, string $variant, string $message)
+    {
+        if (request()->boolean('download')) {
+            abort(Response::HTTP_INTERNAL_SERVER_ERROR, $message);
+        }
+
+        return response()->view('ordenes-compra.pdf-fallback', [
+            'ordenCompra' => $ordenCompra,
+            'variant' => $variant,
+            'message' => $message,
+            'summaryHtml' => OdcModalSummaryRenderer::render($ordenCompra),
+            'excelUrl' => route('ordenes-compra.formato', [
+                'ordenCompra' => $ordenCompra,
+                'variant' => $variant,
+                'format' => 'xlsx',
+                'download' => 1,
+            ]),
+        ]);
     }
 
     private function buildGlobalTokens(OrdenCompra $ordenCompra, string $variant = self::DEFAULT_VARIANT): array
