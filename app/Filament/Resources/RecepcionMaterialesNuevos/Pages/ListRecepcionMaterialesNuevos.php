@@ -23,7 +23,9 @@ class ListRecepcionMaterialesNuevos extends ListRecords
             ->count();
 
         $pendienteEntradaFinalCount = RecepcionMaterialesNuevosResource::getEloquentQuery()
-            ->where('workflow_post_compra', 'CONFORMIDAD_POR_ITEMS_COMPLETA')
+            ->whereHas('items', fn (Builder $query): Builder => $query
+                ->where('decision_solicitante', 'ACEPTADO')
+                ->whereNull('procesado_almacen_at'))
             ->count();
 
         return [
@@ -39,7 +41,9 @@ class ListRecepcionMaterialesNuevos extends ListRecords
             'pendiente_entrada' => Tab::make('Pendiente de entrada final')
                 ->badge($pendienteEntradaFinalCount > 0 ? (string) $pendienteEntradaFinalCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'CONFORMIDAD_POR_ITEMS_COMPLETA')),
+                    ->whereHas('items', fn (Builder $itemsQuery): Builder => $itemsQuery
+                        ->where('decision_solicitante', 'ACEPTADO')
+                        ->whereNull('procesado_almacen_at'))),
         ];
     }
 }

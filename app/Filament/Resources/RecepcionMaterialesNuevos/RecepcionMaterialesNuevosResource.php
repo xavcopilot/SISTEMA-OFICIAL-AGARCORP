@@ -66,11 +66,27 @@ class RecepcionMaterialesNuevosResource extends Resource
     {
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra.solicitadoPor', 'proveedor'])
-            ->whereIn('workflow_post_compra', [
-                'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
-                'EN_TRANSICION_ALMACEN',
-                'CONFORMIDAD_POR_ITEMS_COMPLETA',
-            ]);
+            ->withCount([
+                'items as accepted_pending_warehouse_count' => fn (Builder $query): Builder => $query
+                    ->where('decision_solicitante', 'ACEPTADO')
+                    ->whereNull('procesado_almacen_at'),
+                'items as rejected_items_count' => fn (Builder $query): Builder => $query
+                    ->where('decision_solicitante', 'RECHAZADO'),
+                'items as undecided_items_count' => fn (Builder $query): Builder => $query
+                    ->whereNull('decision_solicitante'),
+            ])
+            ->where(function (Builder $query): void {
+                $query
+                    ->where(function (Builder $subQuery): void {
+                        $subQuery
+                            ->where('workflow_post_compra', 'DOCUMENTO_RECEPCION_CARGADO_PROCURA')
+                            ->whereNull('recepcion_procesada_at');
+                    })
+                    ->orWhere('workflow_post_compra', 'EN_TRANSICION_ALMACEN')
+                    ->orWhereHas('items', fn (Builder $itemsQuery): Builder => $itemsQuery
+                        ->where('decision_solicitante', 'ACEPTADO')
+                        ->whereNull('procesado_almacen_at'));
+            });
     }
 
     public static function getNavigationBadge(): ?string

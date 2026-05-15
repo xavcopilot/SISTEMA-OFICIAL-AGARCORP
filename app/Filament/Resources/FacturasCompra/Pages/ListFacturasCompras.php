@@ -21,7 +21,6 @@ class ListFacturasCompras extends ListRecords
             'enviadas' => Tab::make('Facturas enviadas')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereNotNull('factura_enviada_administracion_at')),
-            'todas' => Tab::make('Todas'),
         ];
     }
 }

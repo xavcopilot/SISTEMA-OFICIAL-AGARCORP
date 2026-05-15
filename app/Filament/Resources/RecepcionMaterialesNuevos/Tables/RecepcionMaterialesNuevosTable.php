@@ -74,8 +74,9 @@ class RecepcionMaterialesNuevosTable
                     ->toggleable()
                     ->label('Estado')
                     ->badge()
-                    ->state(fn ($record): string => self::resolveEstadoLabel((string) ($record->workflow_post_compra ?? '')))
-                    ->color(fn ($record): string => self::resolveEstadoColor((string) ($record->workflow_post_compra ?? ''))),
+                    ->state(fn ($record): string => self::resolveEstadoLabel($record))
+                    ->color(fn ($record): string => self::resolveEstadoColor($record))
+                    ->description(fn ($record): ?string => self::resolveEstadoDescription($record)),
 
                 TextColumn::make('tipo_documento_recepcion')
                     ->toggleable()
@@ -252,22 +253,109 @@ class RecepcionMaterialesNuevosTable
         return '';
     }
 
-    private static function resolveEstadoLabel(string $workflow): string
+    private static function resolveEstadoLabel(mixed $record): string
     {
+        $workflow = (string) ($record->workflow_post_compra ?? '');
+        $acceptedPendingCount = self::acceptedPendingWarehouseCount($record);
+        $rejectedCount = self::rejectedItemsCount($record);
+
+        if ($acceptedPendingCount > 0) {
+            return $rejectedCount > 0
+                ? 'PENDIENTE DE ENTRADA FINAL (PARCIAL)'
+                : 'PENDIENTE DE ENTRADA FINAL';
+        }
+
         return match ($workflow) {
             'EN_TRANSICION_ALMACEN' => 'DISPONIBLE EN ZONA DE TRANSICION',
-            'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'PENDIENTE DE ENTRADA FINAL',
+            'DEVOLUCION_REALIZADA' => 'EN NUEVA CONFORMIDAD DEL SOLICITANTE',
             default => 'RECIBIDO EN ALMACEN',
         };
     }
 
-    private static function resolveEstadoColor(string $workflow): string
+    private static function resolveEstadoColor(mixed $record): string
     {
+        $workflow = (string) ($record->workflow_post_compra ?? '');
+        $acceptedPendingCount = self::acceptedPendingWarehouseCount($record);
+
+        if ($acceptedPendingCount > 0) {
+            return self::rejectedItemsCount($record) > 0 ? 'warning' : 'success';
+        }
+
         return match ($workflow) {
             'EN_TRANSICION_ALMACEN' => 'info',
-            'CONFORMIDAD_POR_ITEMS_COMPLETA' => 'success',
+            'DEVOLUCION_REALIZADA' => 'info',
             default => 'warning',
         };
+    }
+
+    private static function resolveEstadoDescription(mixed $record): ?string
+    {
+        $acceptedPendingCount = self::acceptedPendingWarehouseCount($record);
+        $rejectedCount = self::rejectedItemsCount($record);
+        $undecidedCount = self::undecidedItemsCount($record);
+        $workflow = (string) ($record->workflow_post_compra ?? '');
+
+        if ($acceptedPendingCount <= 0) {
+            return match ($workflow) {
+                'DEVOLUCION_REALIZADA' => $undecidedCount > 0
+                    ? 'Los items devueltos quedaron listos para nueva conformidad del solicitante.'
+                    : null,
+                default => null,
+            };
+        }
+
+        return match ($workflow) {
+            'RECHAZADA_SOLICITANTE' => $rejectedCount > 0
+                ? 'Este renglon se retiene porque aun tiene items aceptados por ingresar y items rechazados pendientes de devolucion.'
+                : null,
+            'DEVOLUCION_PLANIFICADA' => 'Este renglon sigue disponible para entrada final mientras Procura gestiona la devolucion de los items rechazados.',
+            'DEVOLUCION_REALIZADA' => $undecidedCount > 0
+                ? 'Los items aceptados siguen listos para entrada final y los devueltos esperan nueva conformidad del solicitante.'
+                : null,
+            default => $rejectedCount > 0
+                ? 'Tiene items aceptados pendientes de entrada y otros items en flujo de devolucion.'
+                : null,
+        };
+    }
+
+    private static function acceptedPendingWarehouseCount(mixed $record): int
+    {
+        $count = $record->accepted_pending_warehouse_count ?? null;
+
+        if ($count !== null) {
+            return (int) $count;
+        }
+
+        return (int) $record->items()
+            ->where('decision_solicitante', 'ACEPTADO')
+            ->whereNull('procesado_almacen_at')
+            ->count();
+    }
+
+    private static function rejectedItemsCount(mixed $record): int
+    {
+        $count = $record->rejected_items_count ?? null;
+
+        if ($count !== null) {
+            return (int) $count;
+        }
+
+        return (int) $record->items()
+            ->where('decision_solicitante', 'RECHAZADO')
+            ->count();
+    }
+
+    private static function undecidedItemsCount(mixed $record): int
+    {
+        $count = $record->undecided_items_count ?? null;
+
+        if ($count !== null) {
+            return (int) $count;
+        }
+
+        return (int) $record->items()
+            ->whereNull('decision_solicitante')
+            ->count();
     }
 
     private static function hasPendingEntradaItems(mixed $record): bool
