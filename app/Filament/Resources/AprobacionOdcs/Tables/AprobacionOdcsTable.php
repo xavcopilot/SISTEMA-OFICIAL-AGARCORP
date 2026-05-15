@@ -96,6 +96,19 @@ class AprobacionOdcsTable
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderSumarioSummaryModal($record))),
 
+                Action::make('verOdc')
+                    ->label('Ver ODC')
+                    ->icon(Heroicon::OutlinedClipboardDocument)
+                    ->color('gray')
+                    ->visible(fn ($record, $livewire): bool => self::isHistoryTab($livewire))
+                    ->modalHeading(fn ($record): string => 'Resumen ODC | ' . (string) ($record->correlativo_odc ?? ('#' . $record->id)))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('7xl')
+                    ->modalContent(fn ($record): HtmlString => new HtmlString(
+                        OdcModalSummaryRenderer::render($record)
+                    )),
+
                 Action::make('aprobacionOdc')
                     ->label('Aprobacion de ODC')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)
@@ -304,6 +317,28 @@ class AprobacionOdcsTable
             'PENDIENTE_PAGO_FINANZAS', 'PAGO_REGISTRADO_FINANZAS', 'PAGADO_Y_EN_TRANSITO' => 'success',
             default => 'gray',
         };
+    }
+
+    private static function isHistoryTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'historial_aprobacion';
+    }
+
+    private static function resolveActiveTab(mixed $livewire = null): string
+    {
+        if (! is_object($livewire)) {
+            return '';
+        }
+
+        if (method_exists($livewire, 'getActiveTab')) {
+            return (string) $livewire->getActiveTab();
+        }
+
+        if (property_exists($livewire, 'activeTab')) {
+            return (string) ($livewire->activeTab ?? '');
+        }
+
+        return '';
     }
 
     private static function getSolicitudViewSchema(): array
