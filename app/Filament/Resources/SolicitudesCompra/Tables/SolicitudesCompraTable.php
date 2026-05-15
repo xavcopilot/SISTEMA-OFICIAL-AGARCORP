@@ -69,7 +69,7 @@ class SolicitudesCompraTable
                     ->tooltip(fn (?string $state): ?string => filled($state) ? $state : null)
                     ->wrap()
                     ->extraAttributes([
-                        'style' => 'width: clamp(18rem, 34vw, 52rem); max-width: clamp(18rem, 34vw, 52rem); white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
+                        'style' => 'white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
                     ])
                     ->searchable(),
 
@@ -632,7 +632,7 @@ class SolicitudesCompraTable
                     ->tooltip(fn (?string $state): ?string => filled($state) ? $state : null)
                     ->wrap()
                     ->extraAttributes([
-                        'style' => 'width: clamp(18rem, 34vw, 52rem); max-width: clamp(18rem, 34vw, 52rem); white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
+                        'style' => 'white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.4;',
                     ])
                     ->searchable(),
 

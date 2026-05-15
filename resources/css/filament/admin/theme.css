@@ -718,6 +718,43 @@
     max-width: 100%;
 }
 
+.fi-ta-header-cell.fi-growable,
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) {
+    width: auto !important;
+    max-width: none !important;
+}
+
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) {
+    min-width: clamp(18rem, 24vw, 32rem);
+}
+
+.fi-ta-record:has(.fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-cell:has(.fi-ta-actions) {
+    width: 1%;
+    white-space: normal;
+}
+
+.fi-ta-record:has(.fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-actions {
+    max-width: 14rem;
+    column-gap: 0.5rem;
+    row-gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) > .fi-ta-col,
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-text,
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-text-item {
+    width: 100%;
+    max-width: 100%;
+}
+
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-text.fi-wrapped,
+.fi-ta-cell:has(> .fi-ta-col.fi-growable > .fi-ta-text.fi-wrapped) .fi-ta-text-item {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-wrap: pretty;
+}
+
 .ag-desktop-card {
     padding: 1.35rem;
     border-radius: 1.5rem;
