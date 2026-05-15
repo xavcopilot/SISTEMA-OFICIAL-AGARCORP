@@ -525,9 +525,9 @@ class SolicitudesCompraTable
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $itemNumber . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;">' . $descripcion . '</td>'
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $unidad . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $solicitada . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $existencia . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . $comprar . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $solicitada . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $existencia . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . $comprar . '</td>'
                     . '</tr>';
             })
             ->implode('');
@@ -1391,12 +1391,12 @@ class SolicitudesCompraTable
                     . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">'
                     . '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:' . e((string) ($item['cobertura_bg'] ?? '#f3f4f6')) . ';color:' . e((string) ($item['cobertura_color'] ?? '#374151')) . ';">' . e((string) ($item['cobertura_label'] ?? 'Pendiente')) . '</span>'
                     . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) ($item['en_cotizacion'] ?? '0,00')) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) ($item['en_odc'] ?? '0,00')) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['cantidad_pedida']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['entregados']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;">' . e((string) $item['faltantes']) . '</td>'
-                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:right;font-weight:700;">' . e((string) $item['porcentaje']) . '%</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($item['en_cotizacion'] ?? '0,00')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) ($item['en_odc'] ?? '0,00')) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['cantidad_pedida']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['entregados']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;">' . e((string) $item['faltantes']) . '</td>'
+                    . '<td style="border:1px solid #d1d5db;padding:8px;text-align:center;font-weight:700;">' . e((string) $item['porcentaje']) . '%</td>'
                     . '</tr>';
             })
             ->implode('');

@@ -13,6 +13,11 @@ class ProductForm
     {
         return $schema
             ->components([
+                TextInput::make('descripcion')
+                    ->label('Descripcion')
+                    ->required()
+                    ->maxLength(255),
+
                 TextInput::make('ubicacion')
                     ->label('Ubicacion')
                     ->required()
