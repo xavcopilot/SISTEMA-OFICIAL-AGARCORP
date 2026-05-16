@@ -29,7 +29,7 @@ class ListRecepcionMaterialesNuevos extends ListRecords
             ->count();
 
         return [
-            'por_recibir' => Tab::make('Por recibir en almacen')
+            'por_recibir' => Tab::make('Recibidos en Almacen')
                 ->badge($porRecibirCount > 0 ? (string) $porRecibirCount : null)
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->where('workflow_post_compra', 'DOCUMENTO_RECEPCION_CARGADO_PROCURA')
