@@ -462,3 +462,4 @@ DROP VIEW IF EXISTS pbi_v_kpi_gerencia;
 SQL);
     }
 };
+

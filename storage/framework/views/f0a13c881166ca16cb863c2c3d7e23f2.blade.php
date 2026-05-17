@@ -1,1 +1,0 @@
-{{ $livewireKey }}.actions.deselect-all

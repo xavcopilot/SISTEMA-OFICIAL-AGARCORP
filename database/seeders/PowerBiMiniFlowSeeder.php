@@ -13,8 +13,8 @@ class PowerBiMiniFlowSeeder extends Seeder
      */
     public function run(): void
     {
-        if (! Schema::hasTable('T_roles')) {
-            $this->command?->warn('No existen tablas T_*. Ejecuta primero las migraciones.');
+        if (! Schema::hasTable('pbi_roles')) {
+            $this->command?->warn('No existen tablas pbi_*. Ejecuta primero las migraciones.');
 
             return;
         }
@@ -22,31 +22,35 @@ class PowerBiMiniFlowSeeder extends Seeder
         DB::transaction(function (): void {
             Schema::disableForeignKeyConstraints();
 
-            DB::table('T_facturas_finanzas')->delete();
-            DB::table('T_documentacion_administracion')->delete();
-            DB::table('T_revision_solicitante')->delete();
-            DB::table('T_entregas_almacen')->delete();
-            DB::table('T_recepciones_procura')->delete();
-            DB::table('T_pagos_finanzas')->delete();
-            DB::table('T_orden_compra_items')->delete();
-            DB::table('T_ordenes_compra')->delete();
-            DB::table('T_sumario_items')->delete();
-            DB::table('T_sumarios_cotizacion')->delete();
-            DB::table('T_solicitud_items')->delete();
-            DB::table('T_solicitudes_compra')->delete();
-            DB::table('T_movimientos_inventario')->delete();
-            DB::table('T_productos')->delete();
-            DB::table('T_categorias_producto')->delete();
-            DB::table('T_proveedores')->delete();
-            DB::table('T_usuarios')->delete();
-            DB::table('T_departamentos')->delete();
-            DB::table('T_roles')->delete();
+            DB::statement(<<<'SQL'
+TRUNCATE TABLE
+    pbi_facturas_finanzas,
+    pbi_documentacion_administracion,
+    pbi_revision_solicitante,
+    pbi_entregas_almacen,
+    pbi_recepciones_procura,
+    pbi_pagos_finanzas,
+    pbi_orden_compra_items,
+    pbi_ordenes_compra,
+    pbi_sumario_items,
+    pbi_sumarios_cotizacion,
+    pbi_solicitud_items,
+    pbi_solicitudes_compra,
+    pbi_movimientos_inventario,
+    pbi_productos,
+    pbi_categorias_producto,
+    pbi_proveedores,
+    pbi_usuarios,
+    pbi_departamentos,
+    pbi_roles
+RESTART IDENTITY CASCADE
+SQL);
 
             Schema::enableForeignKeyConstraints();
 
-            $now = now();
+            $now = \Carbon\Carbon::create(2026, 5, 2, 0, 0, 21);
 
-            DB::table('T_roles')->insert([
+            DB::table('pbi_roles')->insert([
                 ['nombre' => 'OPERACIONES', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'TALENTO HUMANO', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'S.I.H.O', 'created_at' => $now, 'updated_at' => $now],
@@ -59,7 +63,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ['nombre' => 'GERENCIA', 'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            DB::table('T_departamentos')->insert([
+            DB::table('pbi_departamentos')->insert([
                 ['nombre' => 'OPERACIONES', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'PROCURA', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'ALMACEN', 'created_at' => $now, 'updated_at' => $now],
@@ -72,10 +76,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ['nombre' => 'CALIDAD', 'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            $rolId = fn (string $nombre): int => (int) DB::table('T_roles')->where('nombre', $nombre)->value('id');
-            $deptoId = fn (string $nombre): int => (int) DB::table('T_departamentos')->where('nombre', $nombre)->value('id');
+            $rolId = fn (string $nombre): int => (int) DB::table('pbi_roles')->where('nombre', $nombre)->value('id');
+            $deptoId = fn (string $nombre): int => (int) DB::table('pbi_departamentos')->where('nombre', $nombre)->value('id');
 
-            DB::table('T_usuarios')->insert([
+            DB::table('pbi_usuarios')->insert([
                 [
                     'nombre' => 'Ana Operaciones',
                     'email' => 'ana.solicitante@demo.local',
@@ -186,9 +190,9 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $usuarioId = fn (string $email): int => (int) DB::table('T_usuarios')->where('email', $email)->value('id');
+            $usuarioId = fn (string $email): int => (int) DB::table('pbi_usuarios')->where('email', $email)->value('id');
 
-            DB::table('T_proveedores')->insert([
+            DB::table('pbi_proveedores')->insert([
                 ['rif' => 'J-40123456-1', 'nombre' => 'Tech Import C.A.', 'categoria' => 'TECNOLOGIA', 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
                 ['rif' => 'J-40999999-2', 'nombre' => 'Suministros Delta, C.A.', 'categoria' => 'OFICINA', 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
                 ['rif' => 'J-41234567-3', 'nombre' => 'Industrial Lara, C.A.', 'categoria' => 'INDUSTRIAL', 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
@@ -201,15 +205,15 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ['rif' => 'J-48901234-0', 'nombre' => 'Distribuidora Centro Occidental C.A.', 'categoria' => 'MIXTA', 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            DB::table('T_categorias_producto')->insert([
+            DB::table('pbi_categorias_producto')->insert([
                 ['nombre' => 'EQUIPOS', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'CONSUMIBLES', 'created_at' => $now, 'updated_at' => $now],
                 ['nombre' => 'REPUESTOS', 'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            $categoriaId = fn (string $nombre): int => (int) DB::table('T_categorias_producto')->where('nombre', $nombre)->value('id');
+            $categoriaId = fn (string $nombre): int => (int) DB::table('pbi_categorias_producto')->where('nombre', $nombre)->value('id');
 
-            DB::table('T_productos')->insert([
+            DB::table('pbi_productos')->insert([
                 ['codigo' => 'PBI-LAP-15', 'nombre' => 'Laptop 15"', 'categoria_id' => $categoriaId('EQUIPOS'), 'unidad_medida' => 'UND', 'costo_referencia' => 1200, 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
                 ['codigo' => 'PBI-IMP-LSR', 'nombre' => 'Impresora Laser', 'categoria_id' => $categoriaId('EQUIPOS'), 'unidad_medida' => 'UND', 'costo_referencia' => 420, 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
                 ['codigo' => 'PBI-TON-85A', 'nombre' => 'Toner 85A', 'categoria_id' => $categoriaId('CONSUMIBLES'), 'unidad_medida' => 'UND', 'costo_referencia' => 65, 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
@@ -234,11 +238,11 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ['codigo' => 'PBI-TERM-IR', 'nombre' => 'Termometro Infrarrojo', 'categoria_id' => $categoriaId('EQUIPOS'), 'unidad_medida' => 'UND', 'costo_referencia' => 89, 'activo' => true, 'created_at' => $now, 'updated_at' => $now],
             ]);
 
-            $productoId = fn (string $codigo): int => (int) DB::table('T_productos')->where('codigo', $codigo)->value('id');
-            $proveedorId = fn (string $rif): int => (int) DB::table('T_proveedores')->where('rif', $rif)->value('id');
+            $productoId = fn (string $codigo): int => (int) DB::table('pbi_productos')->where('codigo', $codigo)->value('id');
+            $proveedorId = fn (string $rif): int => (int) DB::table('pbi_proveedores')->where('rif', $rif)->value('id');
             $facturaNumero = fn (int $secuencia): string => 'F001-' . str_pad((string) $secuencia, 6, '0', STR_PAD_LEFT);
 
-            DB::table('T_solicitudes_compra')->insert([
+            DB::table('pbi_solicitudes_compra')->insert([
                 [
                     'codigo' => 'SC-2026-0001',
                     'fecha_solicitud' => '2026-04-01',
@@ -269,9 +273,9 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $solicitudId = fn (string $codigo): int => (int) DB::table('T_solicitudes_compra')->where('codigo', $codigo)->value('id');
+            $solicitudId = fn (string $codigo): int => (int) DB::table('pbi_solicitudes_compra')->where('codigo', $codigo)->value('id');
 
-            DB::table('T_solicitud_items')->insert([
+            DB::table('pbi_solicitud_items')->insert([
                 [
                     'solicitud_compra_id' => $solicitudId('SC-2026-0001'),
                     'producto_id' => $productoId('PBI-LAP-15'),
@@ -304,12 +308,12 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $solicitudItemId = fn (int $solicitudId, int $productoId): int => (int) DB::table('T_solicitud_items')
+            $solicitudItemId = fn (int $solicitudId, int $productoId): int => (int) DB::table('pbi_solicitud_items')
                 ->where('solicitud_compra_id', $solicitudId)
                 ->where('producto_id', $productoId)
                 ->value('id');
 
-            DB::table('T_sumarios_cotizacion')->insert([
+            DB::table('pbi_sumarios_cotizacion')->insert([
                 [
                     'codigo' => 'SUM-2026-0001',
                     'solicitud_compra_id' => $solicitudId('SC-2026-0001'),
@@ -325,7 +329,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'codigo' => 'SUM-2026-0002',
                     'solicitud_compra_id' => $solicitudId('SC-2026-0001'),
                     'analista_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
-                    'fecha_sumario' => '2026-04-15',
+                    'fecha_sumario' => '2026-04-03',
                     'estado' => 'CERRADO',
                     'monto_referencial_total' => 5400,
                     'observaciones' => 'Cierre de cantidades pendientes de la solicitud.',
@@ -345,9 +349,9 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $sumarioId = fn (string $codigo): int => (int) DB::table('T_sumarios_cotizacion')->where('codigo', $codigo)->value('id');
+            $sumarioId = fn (string $codigo): int => (int) DB::table('pbi_sumarios_cotizacion')->where('codigo', $codigo)->value('id');
 
-            DB::table('T_sumario_items')->insert([
+            DB::table('pbi_sumario_items')->insert([
                 [
                     'sumario_cotizacion_id' => $sumarioId('SUM-2026-0001'),
                     'solicitud_item_id' => $solicitudItemId($solicitudId('SC-2026-0001'), $productoId('PBI-LAP-15')),
@@ -400,21 +404,21 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $sumarioItemId = fn (int $sumarioId, int $productoId): int => (int) DB::table('T_sumario_items')
+            $sumarioItemId = fn (int $sumarioId, int $productoId): int => (int) DB::table('pbi_sumario_items')
                 ->where('sumario_cotizacion_id', $sumarioId)
                 ->where('producto_id', $productoId)
                 ->orderBy('id')
                 ->value('id');
 
-            DB::table('T_ordenes_compra')->insert([
+            DB::table('pbi_ordenes_compra')->insert([
                 [
                     'codigo' => 'OC-2026-0001',
                     'sumario_cotizacion_id' => $sumarioId('SUM-2026-0001'),
                     'proveedor_id' => $proveedorId('J-40123456-1'),
                     'comprador_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'fecha_emision' => '2026-04-04',
-                    'fecha_compromiso_entrega' => '2026-04-11',
-                    'fecha_entrega_real' => '2026-04-12',
+                    'fecha_compromiso_entrega' => '2026-04-08',
+                    'fecha_entrega_real' => '2026-04-08',
                     'estado' => 'FACTURA_CARGADA',
                     'monto_subtotal' => 7080,
                     'monto_impuestos' => 1132.8,
@@ -428,8 +432,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'proveedor_id' => $proveedorId('J-40999999-2'),
                     'comprador_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'fecha_emision' => '2026-04-04',
-                    'fecha_compromiso_entrega' => '2026-04-13',
-                    'fecha_entrega_real' => '2026-04-13',
+                    'fecha_compromiso_entrega' => '2026-04-08',
+                    'fecha_entrega_real' => '2026-04-08',
                     'estado' => 'FACTURA_CARGADA',
                     'monto_subtotal' => 1200,
                     'monto_impuestos' => 192,
@@ -442,8 +446,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'sumario_cotizacion_id' => $sumarioId('SUM-2026-0002'),
                     'proveedor_id' => $proveedorId('J-40123456-1'),
                     'comprador_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
-                    'fecha_emision' => '2026-04-16',
-                    'fecha_compromiso_entrega' => '2026-04-24',
+                    'fecha_emision' => '2026-04-04',
+                    'fecha_compromiso_entrega' => '2026-04-08',
                     'fecha_entrega_real' => null,
                     'estado' => 'FACTURA_CARGADA',
                     'monto_subtotal' => 5270,
@@ -458,8 +462,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'proveedor_id' => $proveedorId('J-41234567-3'),
                     'comprador_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'fecha_emision' => '2026-04-08',
-                    'fecha_compromiso_entrega' => '2026-04-15',
-                    'fecha_entrega_real' => '2026-04-15',
+                    'fecha_compromiso_entrega' => '2026-04-12',
+                    'fecha_entrega_real' => '2026-04-12',
                     'estado' => 'FACTURA_CARGADA',
                     'monto_subtotal' => 2760,
                     'monto_impuestos' => 441.6,
@@ -469,9 +473,9 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $ordenId = fn (string $codigo): int => (int) DB::table('T_ordenes_compra')->where('codigo', $codigo)->value('id');
+            $ordenId = fn (string $codigo): int => (int) DB::table('pbi_ordenes_compra')->where('codigo', $codigo)->value('id');
 
-            DB::table('T_orden_compra_items')->insert([
+            DB::table('pbi_orden_compra_items')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
                     'sumario_item_id' => $sumarioItemId($sumarioId('SUM-2026-0001'), $productoId('PBI-LAP-15')),
@@ -524,11 +528,11 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-                        DB::table('T_pagos_finanzas')->insert([
+            DB::table('pbi_pagos_finanzas')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
-                    'fecha_programada_pago' => '2026-04-05',
-                    'fecha_pago' => '2026-04-06',
+                    'fecha_programada_pago' => '2026-04-12',
+                    'fecha_pago' => '2026-04-13',
                     'pagado_por_user_id' => $usuarioId('carlos.finanzas@demo.local'),
                     'estado_pago' => 'PAGADO',
                     'metodo_pago' => 'TRANSFERENCIA',
@@ -539,8 +543,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
-                    'fecha_programada_pago' => '2026-04-05',
-                    'fecha_pago' => '2026-04-06',
+                    'fecha_programada_pago' => '2026-04-12',
+                    'fecha_pago' => '2026-04-13',
                     'pagado_por_user_id' => $usuarioId('carlos.finanzas@demo.local'),
                     'estado_pago' => 'PAGADO',
                     'metodo_pago' => 'TRANSFERENCIA',
@@ -551,8 +555,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0003'),
-                    'fecha_programada_pago' => '2026-04-18',
-                    'fecha_pago' => '2026-04-19',
+                    'fecha_programada_pago' => '2026-04-12',
+                    'fecha_pago' => '2026-04-13',
                     'pagado_por_user_id' => $usuarioId('carlos.finanzas@demo.local'),
                     'estado_pago' => 'PAGADO',
                     'metodo_pago' => 'TRANSFERENCIA',
@@ -563,8 +567,8 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0004'),
-                    'fecha_programada_pago' => '2026-04-09',
-                    'fecha_pago' => '2026-04-10',
+                    'fecha_programada_pago' => '2026-04-16',
+                    'fecha_pago' => '2026-04-17',
                     'pagado_por_user_id' => $usuarioId('carlos.finanzas@demo.local'),
                     'estado_pago' => 'PAGADO',
                     'metodo_pago' => 'TRANSFERENCIA',
@@ -575,10 +579,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-                        DB::table('T_recepciones_procura')->insert([
+            DB::table('pbi_recepciones_procura')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
-                    'fecha_recepcion_procura' => '2026-04-12',
+                    'fecha_recepcion_procura' => '2026-04-08',
                     'recibido_procura_por_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'tipo_documento_recepcion' => 'NOTA_ENTREGA',
                     'estado_recepcion_procura' => 'RECIBIDO',
@@ -588,7 +592,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
-                    'fecha_recepcion_procura' => '2026-04-13',
+                    'fecha_recepcion_procura' => '2026-04-08',
                     'recibido_procura_por_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'tipo_documento_recepcion' => 'FACTURA',
                     'estado_recepcion_procura' => 'RECIBIDO',
@@ -598,7 +602,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0003'),
-                    'fecha_recepcion_procura' => '2026-04-24',
+                    'fecha_recepcion_procura' => '2026-04-08',
                     'recibido_procura_por_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'tipo_documento_recepcion' => 'NOTA_ENTREGA',
                     'estado_recepcion_procura' => 'RECIBIDO',
@@ -608,7 +612,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0004'),
-                    'fecha_recepcion_procura' => '2026-04-15',
+                    'fecha_recepcion_procura' => '2026-04-12',
                     'recibido_procura_por_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'tipo_documento_recepcion' => 'FACTURA',
                     'estado_recepcion_procura' => 'RECIBIDO',
@@ -618,10 +622,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-                        DB::table('T_entregas_almacen')->insert([
+            DB::table('pbi_entregas_almacen')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
-                    'fecha_entrega_almacen' => '2026-04-12',
+                    'fecha_entrega_almacen' => '2026-04-08',
                     'recibido_almacen_por_user_id' => $usuarioId('luisa.almacen@demo.local'),
                     'estado_entrega_almacen' => 'EN_TRANSICION',
                     'porcentaje_cumplimiento' => 100,
@@ -631,7 +635,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0003'),
-                    'fecha_entrega_almacen' => '2026-04-24',
+                    'fecha_entrega_almacen' => '2026-04-08',
                     'recibido_almacen_por_user_id' => $usuarioId('luisa.almacen@demo.local'),
                     'estado_entrega_almacen' => 'EN_TRANSICION',
                     'porcentaje_cumplimiento' => 100,
@@ -641,7 +645,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
-                    'fecha_entrega_almacen' => '2026-04-13',
+                    'fecha_entrega_almacen' => '2026-04-08',
                     'recibido_almacen_por_user_id' => $usuarioId('luisa.almacen@demo.local'),
                     'estado_entrega_almacen' => 'VALIDADA',
                     'porcentaje_cumplimiento' => 100,
@@ -651,7 +655,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0004'),
-                    'fecha_entrega_almacen' => '2026-04-15',
+                    'fecha_entrega_almacen' => '2026-04-12',
                     'recibido_almacen_por_user_id' => $usuarioId('luisa.almacen@demo.local'),
                     'estado_entrega_almacen' => 'VALIDADA',
                     'porcentaje_cumplimiento' => 95,
@@ -661,20 +665,20 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-                        DB::table('T_revision_solicitante')->insert([
+            DB::table('pbi_revision_solicitante')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
-                    'fecha_revision' => '2026-04-14',
+                    'fecha_revision' => '2026-04-09',
                     'solicitante_user_id' => $usuarioId('ana.solicitante@demo.local'),
                     'decision' => 'RECHAZADO',
                     'motivo_rechazo' => 'Dos equipos con especificacion de RAM inferior.',
-                    'fecha_devolucion_proveedor' => '2026-04-15',
+                    'fecha_devolucion_proveedor' => '2026-04-10',
                     'created_at' => $now,
                     'updated_at' => $now,
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
-                    'fecha_revision' => '2026-04-14',
+                    'fecha_revision' => '2026-04-09',
                     'solicitante_user_id' => $usuarioId('ana.solicitante@demo.local'),
                     'decision' => 'ACEPTADO',
                     'motivo_rechazo' => null,
@@ -684,7 +688,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0004'),
-                    'fecha_revision' => '2026-04-16',
+                    'fecha_revision' => '2026-04-13',
                     'solicitante_user_id' => $usuarioId('ana.solicitante@demo.local'),
                     'decision' => 'ACEPTADO',
                     'motivo_rechazo' => null,
@@ -694,10 +698,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            DB::table('T_documentacion_administracion')->insert([
+            DB::table('pbi_documentacion_administracion')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
-                    'fecha_entrega_administracion' => '2026-04-12',
+                    'fecha_entrega_administracion' => '2026-04-10',
                     'entregado_por_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'estado_documentacion' => 'ENTREGADA',
                     'observaciones' => 'Factura entregada, pendiente nota de credito por devolucion parcial.',
@@ -706,7 +710,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
-                    'fecha_entrega_administracion' => '2026-04-13',
+                    'fecha_entrega_administracion' => '2026-04-10',
                     'entregado_por_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'estado_documentacion' => 'ENTREGADA',
                     'observaciones' => 'Documentacion completa.',
@@ -714,8 +718,17 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'updated_at' => $now,
                 ],
                 [
+                    'orden_compra_id' => $ordenId('OC-2026-0003'),
+                    'fecha_entrega_administracion' => '2026-04-10',
+                    'entregado_por_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
+                    'estado_documentacion' => 'ENTREGADA',
+                    'observaciones' => 'Documentacion completa para cierre financiero.',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
                     'orden_compra_id' => $ordenId('OC-2026-0004'),
-                    'fecha_entrega_administracion' => '2026-04-15',
+                    'fecha_entrega_administracion' => '2026-04-14',
                     'entregado_por_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                     'estado_documentacion' => 'ENTREGADA',
                     'observaciones' => 'Documentacion completa.',
@@ -724,18 +737,18 @@ class PowerBiMiniFlowSeeder extends Seeder
                 ],
             ]);
 
-            $docId = fn (string $ocCodigo): int => (int) DB::table('T_documentacion_administracion')
+            $docId = fn (string $ocCodigo): int => (int) DB::table('pbi_documentacion_administracion')
                 ->where('orden_compra_id', $ordenId($ocCodigo))
                 ->value('id');
 
-            DB::table('T_facturas_finanzas')->insert([
+            DB::table('pbi_facturas_finanzas')->insert([
                 [
                     'orden_compra_id' => $ordenId('OC-2026-0001'),
                     'documentacion_administracion_id' => $docId('OC-2026-0001'),
                     'numero_factura' => $facturaNumero(128),
-                    'fecha_factura' => '2026-04-12',
-                    'fecha_recepcion_finanzas' => '2026-04-12',
-                    'fecha_carga_factura' => '2026-04-16',
+                    'fecha_factura' => '2026-04-11',
+                    'fecha_recepcion_finanzas' => '2026-04-11',
+                    'fecha_carga_factura' => '2026-04-11',
                     'monto_base' => 7080,
                     'monto_impuestos' => 1132.8,
                     'monto_total' => 8212.8,
@@ -747,12 +760,26 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'orden_compra_id' => $ordenId('OC-2026-0002'),
                     'documentacion_administracion_id' => $docId('OC-2026-0002'),
                     'numero_factura' => $facturaNumero(129),
-                    'fecha_factura' => '2026-04-13',
-                    'fecha_recepcion_finanzas' => '2026-04-13',
-                    'fecha_carga_factura' => '2026-04-14',
+                    'fecha_factura' => '2026-04-11',
+                    'fecha_recepcion_finanzas' => '2026-04-11',
+                    'fecha_carga_factura' => '2026-04-11',
                     'monto_base' => 1200,
                     'monto_impuestos' => 192,
                     'monto_total' => 1392,
+                    'estado_finanzas' => 'CARGADA',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                [
+                    'orden_compra_id' => $ordenId('OC-2026-0003'),
+                    'documentacion_administracion_id' => $docId('OC-2026-0003'),
+                    'numero_factura' => $facturaNumero(130),
+                    'fecha_factura' => '2026-04-11',
+                    'fecha_recepcion_finanzas' => '2026-04-11',
+                    'fecha_carga_factura' => '2026-04-11',
+                    'monto_base' => 5270,
+                    'monto_impuestos' => 843.2,
+                    'monto_total' => 6113.2,
                     'estado_finanzas' => 'CARGADA',
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -763,7 +790,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                     'numero_factura' => $facturaNumero(455),
                     'fecha_factura' => '2026-04-15',
                     'fecha_recepcion_finanzas' => '2026-04-15',
-                    'fecha_carga_factura' => '2026-04-16',
+                    'fecha_carga_factura' => '2026-04-15',
                     'monto_base' => 2760,
                     'monto_impuestos' => 441.6,
                     'monto_total' => 3201.6,
@@ -816,20 +843,20 @@ class PowerBiMiniFlowSeeder extends Seeder
                 'J-44567890-6' => 75,
                 'J-48901234-0' => 85,
             ];
-            $ocSinFacturaCargada = ['6-1', '12-1', '18-1', '24-1'];
+            $ocSinFacturaCargada = ['4-1', '5-1', '6-1', '12-1', '18-1', '24-1'];
             $sumarioSeq = 4;
             $ocSeq = 5;
             $facturaSeq = 500;
             $facturasLoopObjetivo = 14;
             $facturasLoopGeneradas = 0;
 
-            for ($n = 3; $n <= 27; $n++) {
+            for ($n = 3; $n <= 6; $n++) {
                 $fechaSolicitud = \Carbon\Carbon::create(2026, 5, 1)->addDays($n - 3);
                 $estadoSolicitud = $n % 6 === 0 ? 'EN_PROCESO' : 'COMPLETADA';
                 $deptoSolicitudNombre = $deptosSolicitantes[$n % count($deptosSolicitantes)];
                 $emailSolicitante = $usuariosPorDepto[$deptoSolicitudNombre][0];
 
-                $solicitudCompraId = (int) DB::table('T_solicitudes_compra')->insertGetId([
+                $solicitudCompraId = (int) DB::table('pbi_solicitudes_compra')->insertGetId([
                     'codigo' => sprintf('SC-2026-%04d', $n),
                     'fecha_solicitud' => $fechaSolicitud->toDateString(),
                     'solicitante_user_id' => $usuarioId($emailSolicitante),
@@ -851,7 +878,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                 for ($k = 0; $k < $itemCount; $k++) {
                     $codigoProducto = $productCodes[($n + $k) % count($productCodes)];
                     $productoIdNuevo = $productoId($codigoProducto);
-                    $costo = (float) DB::table('T_productos')->where('id', $productoIdNuevo)->value('costo_referencia');
+                    $costo = (float) DB::table('pbi_productos')->where('id', $productoIdNuevo)->value('costo_referencia');
                     $cantidad = (float) (($n % 4) + $k + 1);
                     if ($deptoSolicitudNombre === 'CALIDAD' && $k === 0) {
                         $cantidad = 40;
@@ -859,7 +886,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                     $subtotal = round($cantidad * $costo, 2);
                     $montoEstimado += $subtotal;
 
-                    $solicitudItemNuevoId = (int) DB::table('T_solicitud_items')->insertGetId([
+                    $solicitudItemNuevoId = (int) DB::table('pbi_solicitud_items')->insertGetId([
                         'solicitud_compra_id' => $solicitudCompraId,
                         'producto_id' => $productoIdNuevo,
                         'descripcion' => 'Item generado para solicitud de escala ' . $n,
@@ -878,7 +905,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                     ];
                 }
 
-                DB::table('T_solicitudes_compra')
+                DB::table('pbi_solicitudes_compra')
                     ->where('id', $solicitudCompraId)
                     ->update([
                         'monto_estimado_total' => round($montoEstimado, 2),
@@ -894,10 +921,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                     $precioReferencial = round($itemSeleccionado['costo'] * $factor, 2);
                     $subtotalReferencial = round($cantidadCotizada * $precioReferencial, 2);
 
-                    $fechaSumario = $fechaSolicitud->copy()->addDays(2 + (($n + $s) % 2));
+                    $fechaSumario = $fechaSolicitud->copy()->addDays(2);
                     $analistaEmail = $analistasProcura[($n + $s) % count($analistasProcura)];
 
-                    $sumarioCotizacionId = (int) DB::table('T_sumarios_cotizacion')->insertGetId([
+                    $sumarioCotizacionId = (int) DB::table('pbi_sumarios_cotizacion')->insertGetId([
                         'codigo' => sprintf('SUM-2026-%04d', $sumarioSeq++),
                         'solicitud_compra_id' => $solicitudCompraId,
                         'analista_procura_user_id' => $usuarioId($analistaEmail),
@@ -909,7 +936,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                         'updated_at' => $now,
                     ]);
 
-                    $sumarioItemNuevoId = (int) DB::table('T_sumario_items')->insertGetId([
+                    $sumarioItemNuevoId = (int) DB::table('pbi_sumario_items')->insertGetId([
                         'sumario_cotizacion_id' => $sumarioCotizacionId,
                         'solicitud_item_id' => $itemSeleccionado['id'],
                         'producto_id' => $itemSeleccionado['producto_id'],
@@ -942,14 +969,14 @@ class PowerBiMiniFlowSeeder extends Seeder
                     $montoImpuestos = round($montoSubtotal * 0.16, 2);
                     $montoTotal = round($montoSubtotal + $montoImpuestos, 2);
 
-                    $ordenCompraNuevaId = (int) DB::table('T_ordenes_compra')->insertGetId([
+                    $ordenCompraNuevaId = (int) DB::table('pbi_ordenes_compra')->insertGetId([
                         'codigo' => sprintf('OC-2026-%04d', $ocSeq++),
                         'sumario_cotizacion_id' => $sumarioCotizacionId,
                         'proveedor_id' => $proveedorId($rifProveedor),
                         'comprador_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                         'fecha_emision' => $fechaEmision->toDateString(),
-                        'fecha_compromiso_entrega' => $fechaEmision->copy()->addDays(5)->toDateString(),
-                        'fecha_entrega_real' => $estadoOc === 'EMITIDA' ? null : $fechaEmision->copy()->addDays(6)->toDateString(),
+                        'fecha_compromiso_entrega' => $fechaEmision->copy()->addDays(4)->toDateString(),
+                        'fecha_entrega_real' => $estadoOc === 'EMITIDA' ? null : $fechaEmision->copy()->addDays(4)->toDateString(),
                         'estado' => $estadoOc,
                         'monto_subtotal' => $montoSubtotal,
                         'monto_impuestos' => $montoImpuestos,
@@ -958,7 +985,7 @@ class PowerBiMiniFlowSeeder extends Seeder
                         'updated_at' => $now,
                     ]);
 
-                    DB::table('T_orden_compra_items')->insert([
+                    DB::table('pbi_orden_compra_items')->insert([
                         'orden_compra_id' => $ordenCompraNuevaId,
                         'sumario_item_id' => $sumarioItemNuevoId,
                         'producto_id' => $itemSeleccionado['producto_id'],
@@ -970,10 +997,10 @@ class PowerBiMiniFlowSeeder extends Seeder
                     ]);
 
                     if (in_array($estadoOc, ['PAGADA', 'FACTURA_CARGADA'], true)) {
-            DB::table('T_pagos_finanzas')->insert([
+                        DB::table('pbi_pagos_finanzas')->insert([
                             'orden_compra_id' => $ordenCompraNuevaId,
-                            'fecha_programada_pago' => $fechaEmision->copy()->addDays(2)->toDateString(),
-                            'fecha_pago' => $fechaEmision->copy()->addDays(3)->toDateString(),
+                            'fecha_programada_pago' => $fechaEmision->copy()->addDays(8)->toDateString(),
+                            'fecha_pago' => $fechaEmision->copy()->addDays(9)->toDateString(),
                             'pagado_por_user_id' => $usuarioId('carlos.finanzas@demo.local'),
                             'estado_pago' => 'PAGADO',
                             'metodo_pago' => 'TRANSFERENCIA',
@@ -988,13 +1015,11 @@ class PowerBiMiniFlowSeeder extends Seeder
                         $cumplBase = $cumplimientoPorProveedor[$rifProveedor] ?? 85;
                         $cumplAjustado = max(30, min(100, $cumplBase + ((($n + $s) % 5) - 2) * 2));
                         $enTransicion = (($n + $s) % 3 === 0) || $estadoOc === 'RECIBIDA_PROCURA';
-                        $fechaEntregaAlmacen = $enTransicion
-                            ? now()->copy()->subDays(4 + (($n + $s) % 7))->toDateString()
-                            : $fechaEmision->copy()->addDays(5)->toDateString();
+                        $fechaEntregaAlmacen = $fechaEmision->copy()->addDays(4)->toDateString();
 
-            DB::table('T_recepciones_procura')->insert([
+                        DB::table('pbi_recepciones_procura')->insert([
                             'orden_compra_id' => $ordenCompraNuevaId,
-                            'fecha_recepcion_procura' => $fechaEmision->copy()->addDays(5)->toDateString(),
+                            'fecha_recepcion_procura' => $fechaEmision->copy()->addDays(4)->toDateString(),
                             'recibido_procura_por_user_id' => $usuarioId('pedro.procura@demo.local'),
                             'tipo_documento_recepcion' => 'NOTA_ENTREGA',
                             'estado_recepcion_procura' => 'RECIBIDO',
@@ -1006,7 +1031,7 @@ class PowerBiMiniFlowSeeder extends Seeder
 
                     if (in_array($estadoOc, ['RECIBIDA_PROCURA', 'PAGADA', 'FACTURA_CARGADA'], true)) {
                         $estadoEntrega = $enTransicion ? 'EN_TRANSICION' : 'VALIDADA';
-            DB::table('T_entregas_almacen')->insert([
+                        DB::table('pbi_entregas_almacen')->insert([
                             'orden_compra_id' => $ordenCompraNuevaId,
                             'fecha_entrega_almacen' => $fechaEntregaAlmacen,
                             'recibido_almacen_por_user_id' => $usuarioId('luisa.almacen@demo.local'),
@@ -1019,23 +1044,23 @@ class PowerBiMiniFlowSeeder extends Seeder
                     }
 
                     if (in_array($estadoOc, ['RECIBIDA_PROCURA', 'FACTURA_CARGADA'], true)) {
-            DB::table('T_revision_solicitante')->insert([
+                        DB::table('pbi_revision_solicitante')->insert([
                             'orden_compra_id' => $ordenCompraNuevaId,
-                            'fecha_revision' => $fechaEmision->copy()->addDays(9)->toDateString(),
+                            'fecha_revision' => $fechaEmision->copy()->addDays(5)->toDateString(),
                             'solicitante_user_id' => $usuarioId($emailSolicitante),
                             'decision' => (($n + $s) % 5 === 0) ? 'RECHAZADO' : 'ACEPTADO',
                             'motivo_rechazo' => (($n + $s) % 5 === 0) ? 'Observacion de calidad en revision automatica.' : null,
-                            'fecha_devolucion_proveedor' => (($n + $s) % 5 === 0) ? $fechaEmision->copy()->addDays(10)->toDateString() : null,
+                            'fecha_devolucion_proveedor' => (($n + $s) % 5 === 0) ? $fechaEmision->copy()->addDays(6)->toDateString() : null,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);
                     }
 
-                        $documentacionId = null;
+                    $documentacionId = null;
                     if (in_array($estadoOc, ['PAGADA', 'FACTURA_CARGADA'], true)) {
-                        $documentacionId = (int) DB::table('T_documentacion_administracion')->insertGetId([
+                        $documentacionId = (int) DB::table('pbi_documentacion_administracion')->insertGetId([
                             'orden_compra_id' => $ordenCompraNuevaId,
-                            'fecha_entrega_administracion' => $fechaEmision->copy()->addDays(8)->toDateString(),
+                            'fecha_entrega_administracion' => $fechaEmision->copy()->addDays(6)->toDateString(),
                             'entregado_por_procura_user_id' => $usuarioId('pedro.procura@demo.local'),
                             'estado_documentacion' => 'ENTREGADA',
                             'observaciones' => 'Documentacion generada automaticamente para escala.',
@@ -1045,13 +1070,13 @@ class PowerBiMiniFlowSeeder extends Seeder
                     }
 
                     if ($estadoOc === 'FACTURA_CARGADA' && $documentacionId && $facturasLoopGeneradas < $facturasLoopObjetivo) {
-                        DB::table('T_facturas_finanzas')->insert([
+                        DB::table('pbi_facturas_finanzas')->insert([
                             'orden_compra_id' => $ordenCompraNuevaId,
                             'documentacion_administracion_id' => $documentacionId,
                             'numero_factura' => $facturaNumero($facturaSeq++),
-                            'fecha_factura' => $fechaEmision->copy()->addDays(2)->toDateString(),
-                            'fecha_recepcion_finanzas' => $fechaEmision->copy()->addDays(2)->toDateString(),
-                            'fecha_carga_factura' => $fechaEmision->copy()->addDays(3)->toDateString(),
+                            'fecha_factura' => $fechaEmision->copy()->addDays(7)->toDateString(),
+                            'fecha_recepcion_finanzas' => $fechaEmision->copy()->addDays(7)->toDateString(),
+                            'fecha_carga_factura' => $fechaEmision->copy()->addDays(7)->toDateString(),
                             'monto_base' => $montoSubtotal,
                             'monto_impuestos' => $montoImpuestos,
                             'monto_total' => $montoTotal,
@@ -1068,3 +1093,4 @@ class PowerBiMiniFlowSeeder extends Seeder
         $this->command?->info('PowerBiMiniFlowSeeder ejecutado correctamente.');
     }
 }
+
