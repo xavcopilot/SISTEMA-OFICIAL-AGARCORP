@@ -213,7 +213,8 @@ class SumarioFormatoController extends Controller
         $groupedTotals = SumarioProviderGrouping::groupedTotalsFromSumario($sumario);
 
         $fechaElaborado = optional($sumario->enviado_validacion_finanzas_at ?? $sumario->created_at)->format('d/m/Y');
-        $fechaRevisado = optional($sumario->decision_gerencia_finanzas_at ?? $sumario->updated_at)->format('d/m/Y');
+        $revisor = $sumario->validadoPor ?? $sumario->revisadoPor;
+        $fechaRevisado = optional($sumario->validado_finanzas_at ?? $sumario->decision_gerencia_finanzas_at ?? $sumario->updated_at)->format('d/m/Y');
 
         return [
             'sumario_numero' => (string) ($sumario->correlativo_sdc ?? ''),
@@ -261,8 +262,8 @@ class SumarioFormatoController extends Controller
             'elaborado_por_nombre' => (string) ($sumario->elaboradoPor?->name ?? ''),
             'elaborado_por_cargo' => (string) ($sumario->elaboradoPor?->cargo?->nombre ?? ''),
             'elaborado_fecha' => (string) $fechaElaborado,
-            'revisado_por_nombre' => (string) ($sumario->revisadoPor?->name ?? ''),
-            'revisado_por_cargo' => (string) ($sumario->revisadoPor?->cargo?->nombre ?? ''),
+            'revisado_por_nombre' => (string) ($revisor?->name ?? ''),
+            'revisado_por_cargo' => (string) ($revisor?->cargo?->nombre ?? ''),
             'revisado_fecha' => (string) $fechaRevisado,
         ];
     }

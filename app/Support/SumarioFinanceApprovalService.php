@@ -270,7 +270,9 @@ class SumarioFinanceApprovalService
 
                 $sumario->forceFill([
                     'estado' => $pendingGroupsCount > 0 ? 'PENDIENTE_CREACION_ODC' : 'REVISADO_FINANZAS',
-                    'revisado_por_user_id' => $user->id,
+                    'revisado_por_user_id' => $sumario->revisado_por_user_id
+                        ?? $sumario->validado_por_user_id
+                        ?? $user->id,
                     'workflow_estado' => $pendingGroupsCount > 0 ? 'APROBADO_GERENCIA_FINANZAS' : 'ODC_GENERADA',
                 ])->save();
             }

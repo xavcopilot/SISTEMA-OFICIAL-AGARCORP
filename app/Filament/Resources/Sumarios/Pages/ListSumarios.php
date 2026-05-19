@@ -43,6 +43,7 @@ class ListSumarios extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
                     ->whereIn('workflow_estado', [
                         'PENDIENTE_VALIDACION_FINANZAS',
+                        'VALIDADO_FINANZAS',
                         'RECHAZADO_VALIDACION_FINANZAS',
                         'RECHAZADO_GERENCIA_FINANZAS',
                     ])),
