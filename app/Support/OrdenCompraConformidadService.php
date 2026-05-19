@@ -260,6 +260,14 @@ class OrdenCompraConformidadService
                 ->whereNull('procesado_almacen_at')
                 ->exists();
 
+            $hasRejected = $ordenCompra->items()
+                ->where('decision_solicitante', 'RECHAZADO')
+                ->exists();
+
+            $hasUndecided = $ordenCompra->items()
+                ->whereNull('decision_solicitante')
+                ->exists();
+
             $movement->forceFill([
                 'total_items' => (int) $movement->items()->count(),
             ])->save();
@@ -267,7 +275,7 @@ class OrdenCompraConformidadService
             $ordenCompra->forceFill([
                 'inventario_movimiento_id' => $movement->id,
                 'factura_pendiente' => false,
-                'workflow_post_compra' => $remaining ? 'CONFORMIDAD_POR_ITEMS_COMPLETA' : 'CERRADA_CONFORME',
+                'workflow_post_compra' => $this->resolvePostWarehouseWorkflow($ordenCompra, $remaining, $hasRejected, $hasUndecided),
             ])->save();
 
             app(SolicitudCompraCompletionService::class)->syncFromOrdenCompra($ordenCompra);
@@ -545,6 +553,14 @@ class OrdenCompraConformidadService
             ->whereNull('procesado_almacen_at')
             ->exists();
 
+        $hasRejected = $ordenCompra->items()
+            ->where('decision_solicitante', 'RECHAZADO')
+            ->exists();
+
+        $hasUndecided = $ordenCompra->items()
+            ->whereNull('decision_solicitante')
+            ->exists();
+
         $movement->forceFill([
             'total_items' => (int) $movement->items()->count(),
         ])->save();
@@ -552,12 +568,35 @@ class OrdenCompraConformidadService
         $ordenCompra->forceFill([
             'inventario_movimiento_id' => $movement->id,
             'factura_pendiente' => false,
-            'workflow_post_compra' => $remaining ? 'CONFORMIDAD_POR_ITEMS_COMPLETA' : 'CERRADA_CONFORME',
+            'workflow_post_compra' => $this->resolvePostWarehouseWorkflow($ordenCompra, $remaining, $hasRejected, $hasUndecided),
         ])->save();
 
         app(SolicitudCompraCompletionService::class)->syncFromOrdenCompra($ordenCompra);
 
         return $ordenCompra->fresh(['items', 'sumario.solicitudCompra', 'inventarioMovimiento']);
+    }
+
+    private function resolvePostWarehouseWorkflow(OrdenCompra $ordenCompra, bool $hasAcceptedPending, bool $hasRejected, bool $hasUndecided): string
+    {
+        $currentWorkflow = strtoupper((string) ($ordenCompra->workflow_post_compra ?? ''));
+
+        if (! $hasAcceptedPending && ! $hasRejected && ! $hasUndecided) {
+            return 'CERRADA_CONFORME';
+        }
+
+        if ($hasRejected) {
+            if ($currentWorkflow === 'DEVOLUCION_PLANIFICADA') {
+                return 'DEVOLUCION_PLANIFICADA';
+            }
+
+            return 'RECHAZADA_SOLICITANTE';
+        }
+
+        if ($hasUndecided) {
+            return 'DEVOLUCION_REALIZADA';
+        }
+
+        return 'CONFORMIDAD_POR_ITEMS_COMPLETA';
     }
 
     private function calculateWeightedAverageUnitPrice(int $currentStock, float $currentUnitPrice, int $incomingQty, float $incomingUnitPrice): float

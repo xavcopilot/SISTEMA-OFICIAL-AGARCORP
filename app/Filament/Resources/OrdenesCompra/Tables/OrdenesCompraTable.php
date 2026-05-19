@@ -531,24 +531,34 @@ class OrdenesCompraTable
                         FileUpload::make('factura_path')
                             ->label('Imagen de Factura')
                             ->image()
-                            ->disk('public')
-                            ->directory('ordenes-compra/facturas')
-                            ->visibility('public')
+                            ->disk('odc_facturas')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA')
                             ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA'),
+
+                        FileUpload::make('nota_entrega_path')
+                            ->label('Imagen de Nota de Entrega')
+                            ->image()
+                            ->disk('odc_notas_entrega')
+                            ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA')
+                            ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA'),
                     ])
                     ->action(function (array $data, $record): void {
                         try {
+                            $tipoDocumento = (string) ($data['tipo_documento_recepcion'] ?? '');
+                            $documentoPath = strtoupper($tipoDocumento) === 'NOTA'
+                                ? ($data['nota_entrega_path'] ?? null)
+                                : ($data['factura_path'] ?? null);
+
                             app(OrdenCompraRecepcionService::class)->cargarDocumentoProcura(
                                 $record,
                                 auth()->user(),
-                                (string) ($data['tipo_documento_recepcion'] ?? ''),
-                                $data['factura_path'] ?? null,
+                                $tipoDocumento,
+                                $documentoPath,
                             );
 
                             Notification::make()
                                 ->title('Documento de recepcion cargado')
-                                ->body((string) ($data['tipo_documento_recepcion'] ?? '') === 'NOTA'
+                                ->body($tipoDocumento === 'NOTA'
                                     ? 'Se cargo NOTA. Almacen ya puede recibir en el modulo Recepcion de Nuevos Materiales.'
                                     : 'Se cargo FACTURA y se notifico a Finanzas para su bandeja de factura.')
                                 ->success()

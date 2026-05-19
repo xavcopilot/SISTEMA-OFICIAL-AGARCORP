@@ -55,10 +55,12 @@ class AdministracionPagosOdcResource extends Resource
     {
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
-            ->whereIn('workflow_post_compra', [
-                'PENDIENTE_PAGO_FINANZAS',
-                'PAGO_REGISTRADO_FINANZAS',
-            ]);
+            ->where(function (Builder $query): void {
+                $query
+                    ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')
+                    ->orWhereNotNull('pago_registrado_at')
+                    ->orWhereNotNull('comprobante_pago_path');
+            });
     }
 
     public static function canAccess(): bool

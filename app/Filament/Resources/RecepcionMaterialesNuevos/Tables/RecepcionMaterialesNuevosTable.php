@@ -306,9 +306,9 @@ class RecepcionMaterialesNuevosTable
 
         return match ($workflow) {
             'RECHAZADA_SOLICITANTE' => $rejectedCount > 0
-                ? 'Este renglon se retiene porque aun tiene items aceptados por ingresar y items rechazados pendientes de devolucion.'
+                ? 'Esta ODC aun tiene items aceptados por ingresar e items rechazados pendientes de devolucion.'
                 : null,
-            'DEVOLUCION_PLANIFICADA' => 'Este renglon sigue disponible para entrada final mientras Procura gestiona la devolucion de los items rechazados.',
+            'DEVOLUCION_PLANIFICADA' => 'Esta ODC sigue disponible para entrada final mientras Procura gestiona la devolucion de los items rechazados.',
             'DEVOLUCION_REALIZADA' => $undecidedCount > 0
                 ? 'Los items aceptados siguen listos para entrada final y los devueltos esperan nueva conformidad del solicitante.'
                 : null,

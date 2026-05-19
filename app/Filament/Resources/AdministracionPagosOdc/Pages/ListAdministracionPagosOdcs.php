@@ -20,7 +20,11 @@ class ListAdministracionPagosOdcs extends ListRecords
                     ->where('workflow_post_compra', 'PENDIENTE_PAGO_FINANZAS')),
             'pagos_registrados' => Tab::make('Pagos Registrados')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                    ->where('workflow_post_compra', 'PAGO_REGISTRADO_FINANZAS')),
+                    ->where(function (Builder $subQuery): void {
+                        $subQuery
+                            ->whereNotNull('pago_registrado_at')
+                            ->orWhereNotNull('comprobante_pago_path');
+                    })),
         ];
     }
 }

@@ -10,38 +10,28 @@ class OrdenCompraDocumentoRecepcionDownloadController extends Controller
 {
     public function __invoke(OrdenCompra $ordenCompra): StreamedResponse
     {
-        $path = $this->normalizePath((string) ($ordenCompra->factura_path ?? ''));
+        $storedPath = $this->normalizePath((string) ($ordenCompra->factura_path ?? ''));
         $tipoDocumento = (string) ($ordenCompra->tipo_documento_recepcion ?? '');
-        $downloadName = $this->buildDownloadName($ordenCompra, $path, $tipoDocumento);
 
-        if ($path === '') {
+        if ($storedPath === '') {
             abort(404, 'No hay documento de recepcion disponible para esta ODC.');
         }
 
-        $disk = $this->resolveReceptionDisk($tipoDocumento);
+        [$disk, $path] = $this->resolveReceptionLocation($storedPath, $tipoDocumento);
 
-        if (Storage::disk($disk)->exists($path)) {
-            if (request()->boolean('inline')) {
-                return Storage::disk($disk)->response($path, $downloadName, [
-                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
-                ]);
-            }
-
-            return Storage::disk($disk)->download($path, $downloadName);
+        if ($disk === null || $path === null) {
+            abort(404, 'No se encontro el documento de recepcion.');
         }
 
-        // Fallback para documentos historicos guardados en public.
-        if (Storage::disk('public')->exists($path)) {
-            if (request()->boolean('inline')) {
-                return Storage::disk('public')->response($path, $downloadName, [
-                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
-                ]);
-            }
+        $downloadName = $this->buildDownloadName($ordenCompra, $path, $tipoDocumento);
 
-            return Storage::disk('public')->download($path, $downloadName);
+        if (request()->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $downloadName, [
+                'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+            ]);
         }
 
-        abort(404, 'No se encontro el documento de recepcion.');
+        return Storage::disk($disk)->download($path, $downloadName);
     }
 
     private function resolveReceptionDisk(string $tipoDocumento): string
@@ -49,6 +39,57 @@ class OrdenCompraDocumentoRecepcionDownloadController extends Controller
         return strtoupper(trim($tipoDocumento)) === 'NOTA'
             ? 'odc_notas_entrega'
             : 'odc_facturas';
+    }
+
+    private function resolveReceptionLocation(string $storedPath, string $tipoDocumento): array
+    {
+        $normalized = $this->normalizePath($storedPath);
+
+        if ($normalized === '') {
+            return [null, null];
+        }
+
+        $disk = $this->resolveReceptionDisk($tipoDocumento);
+        $folderHint = $disk === 'odc_notas_entrega' ? 'notas-entrega/' : 'facturas/';
+
+        $candidates = array_values(array_unique(array_filter([
+            $normalized,
+            basename($normalized),
+            $this->stripPublicOrderPrefix($normalized, $folderHint),
+            $this->stripPublicOrderPrefix($normalized, ''),
+        ])));
+
+        foreach ($candidates as $candidate) {
+            if (Storage::disk($disk)->exists($candidate)) {
+                return [$disk, $candidate];
+            }
+        }
+
+        // Fallback para documentos historicos guardados en public.
+        foreach ($candidates as $candidate) {
+            if (Storage::disk('public')->exists($candidate)) {
+                return ['public', $candidate];
+            }
+        }
+
+        return [null, null];
+    }
+
+    private function stripPublicOrderPrefix(string $path, string $suffix): ?string
+    {
+        $prefix = 'ordenes-compra/';
+
+        if (! str_starts_with($path, $prefix)) {
+            return null;
+        }
+
+        $stripped = substr($path, strlen($prefix));
+
+        if ($suffix !== '' && str_starts_with($stripped, $suffix)) {
+            return substr($stripped, strlen($suffix));
+        }
+
+        return $suffix === '' ? $stripped : null;
     }
 
     private function normalizePath(string $path): string

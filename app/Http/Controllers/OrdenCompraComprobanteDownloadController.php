@@ -10,35 +10,77 @@ class OrdenCompraComprobanteDownloadController extends Controller
 {
     public function __invoke(OrdenCompra $ordenCompra): StreamedResponse
     {
-        $path = $this->normalizePath((string) ($ordenCompra->comprobante_pago_path ?? ''));
-        $downloadName = $this->buildDownloadName($ordenCompra, $path);
+        $storedPath = $this->normalizePath((string) ($ordenCompra->comprobante_pago_path ?? ''));
 
-        if ($path === '') {
+        if ($storedPath === '') {
             abort(404, 'No hay comprobante disponible para esta ODC.');
         }
 
-        if (Storage::disk('odc_comprobantes')->exists($path)) {
-            if (request()->boolean('inline')) {
-                return Storage::disk('odc_comprobantes')->response($path, $downloadName, [
-                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
-                ]);
-            }
+        [$disk, $path] = $this->resolveComprobanteLocation($storedPath);
 
-            return Storage::disk('odc_comprobantes')->download($path, $downloadName);
+        if ($disk === null || $path === null) {
+            abort(404, 'No se encontro el archivo del comprobante.');
         }
 
-        // Fallback para comprobantes antiguos guardados en el disco public.
-        if (Storage::disk('public')->exists($path)) {
-            if (request()->boolean('inline')) {
-                return Storage::disk('public')->response($path, $downloadName, [
-                    'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
-                ]);
-            }
+        $downloadName = $this->buildDownloadName($ordenCompra, $path);
 
-            return Storage::disk('public')->download($path, $downloadName);
+        if (request()->boolean('inline')) {
+            return Storage::disk($disk)->response($path, $downloadName, [
+                'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+            ]);
         }
 
-        abort(404, 'No se encontro el archivo del comprobante.');
+        return Storage::disk($disk)->download($path, $downloadName);
+    }
+
+    private function resolveComprobanteLocation(string $storedPath): array
+    {
+        $normalized = $this->normalizePath($storedPath);
+
+        if ($normalized === '') {
+            return [null, null];
+        }
+
+        // Preferimos la raiz de Comprobantes-ODC (disco odc_comprobantes).
+        $candidates = array_values(array_unique(array_filter([
+            $normalized,
+            basename($normalized),
+            $this->stripPublicOrderPrefix($normalized, 'comprobantes-pago/'),
+            $this->stripPublicOrderPrefix($normalized, 'comprobantes/'),
+            $this->stripPublicOrderPrefix($normalized, ''),
+        ])));
+
+        foreach ($candidates as $candidate) {
+            if (Storage::disk('odc_comprobantes')->exists($candidate)) {
+                return ['odc_comprobantes', $candidate];
+            }
+        }
+
+        // Fallback para comprobantes historicos guardados en public.
+        foreach ($candidates as $candidate) {
+            if (Storage::disk('public')->exists($candidate)) {
+                return ['public', $candidate];
+            }
+        }
+
+        return [null, null];
+    }
+
+    private function stripPublicOrderPrefix(string $path, string $suffix): ?string
+    {
+        $prefix = 'ordenes-compra/';
+
+        if (! str_starts_with($path, $prefix)) {
+            return null;
+        }
+
+        $stripped = substr($path, strlen($prefix));
+
+        if ($suffix !== '' && str_starts_with($stripped, $suffix)) {
+            return substr($stripped, strlen($suffix));
+        }
+
+        return $suffix === '' ? $stripped : null;
     }
 
     private function normalizePath(string $path): string

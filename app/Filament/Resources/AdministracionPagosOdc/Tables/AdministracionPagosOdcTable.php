@@ -57,9 +57,11 @@ class AdministracionPagosOdcTable
                     ->toggleable()
                     ->label('Estado')
                     ->badge()
-                    ->state(fn ($record): string => (string) ($record->workflow_post_compra === 'PAGO_REGISTRADO_FINANZAS'
-                        ? 'PAGO REGISTRADO FINANZAS'
-                        : 'PENDIENTE PAGO FINANZAS')),
+                    ->state(fn ($record): string => match ((string) ($record->workflow_post_compra ?? '')) {
+                        'PAGO_REGISTRADO_FINANZAS' => 'PAGO REGISTRADO FINANZAS',
+                        'PAGADO_Y_EN_TRANSITO' => 'PAGADO Y EN TRANSITO',
+                        default => str_replace('_', ' ', (string) ($record->workflow_post_compra ?? 'PENDIENTE_PAGO_FINANZAS')),
+                    }),
             ])
             ->recordActions([
                 Action::make('verResumenOdc')
@@ -71,6 +73,16 @@ class AdministracionPagosOdcTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record))),
+
+                Action::make('verComprobantePago')
+                    ->label('Ver comprobante')
+                    ->icon(Heroicon::OutlinedDocumentArrowDown)
+                    ->color('info')
+                    ->visible(fn ($record): bool => filled($record->comprobante_pago_path))
+                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                        ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
+                        : null)
+                    ->openUrlInNewTab(),
 
                 Action::make('editarTasaBcv')
                     ->label('Ver / editar tasa BCV')

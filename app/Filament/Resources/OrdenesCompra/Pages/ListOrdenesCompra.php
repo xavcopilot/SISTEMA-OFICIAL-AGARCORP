@@ -473,7 +473,16 @@ class ListOrdenesCompra extends ListRecords
             ->where(function ($query): void {
                 $query
                     ->whereNull('workflow_post_compra')
-                    ->orWhere('workflow_post_compra', '!=', 'CERRADA_CONFORME');
+                    ->orWhere('workflow_post_compra', '!=', 'CERRADA_CONFORME')
+                    ->orWhere(function ($stuckQuery): void {
+                        $stuckQuery
+                            ->where('workflow_post_compra', 'CERRADA_CONFORME')
+                            ->whereHas('items', function ($itemsQuery): void {
+                                $itemsQuery
+                                    ->where('decision_solicitante', 'RECHAZADO')
+                                    ->orWhereNull('decision_solicitante');
+                            });
+                    });
             })
             ->orderByDesc('id')
             ->limit(300)
