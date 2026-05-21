@@ -35,7 +35,7 @@ class OrdenCompraFormatoController extends Controller
     ];
     private const SIGNATURE_RENDER_OVERRIDES = [
         2 => ['height' => 90, 'offset_x' => 20, 'offset_y' => 0],
-        14 => ['height' => 90, 'offset_x' => 8, 'offset_y' => 2],
+        13 => ['height' => 90, 'offset_x' => 8, 'offset_y' => 2],
     ];
     private const TEMPLATE_VARIANTS = [
         'divisas' => [

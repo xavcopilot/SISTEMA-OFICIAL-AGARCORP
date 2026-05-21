@@ -33,9 +33,9 @@ class SumarioFormatoController extends Controller
         'firma_revisado',
     ];
     private const SIGNATURE_RENDER_OVERRIDES = [
-           14 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 2],
+           13 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 2],
         2 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
-        6 => ['height' => 90, 'offset_x' => 30, 'offset_y' => 2],
+        5 => ['height' => 90, 'offset_x' => 30, 'offset_y' => 2],
      
     ];
 
