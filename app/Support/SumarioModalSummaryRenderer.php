@@ -224,22 +224,22 @@ class SumarioModalSummaryRenderer
             $selectedOptionNumber = (int) ($selectedOption?->opcion_numero ?? 0);
 
             $styleProv1 = $selectedOptionNumber === 1
-                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;color:#14532d;'
                 : 'border:1px solid #d1d5db;padding:8px;';
             $styleProv2 = $selectedOptionNumber === 2
-                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;color:#14532d;'
                 : 'border:1px solid #d1d5db;padding:8px;';
             $styleProv3 = $selectedOptionNumber === 3
-                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;background:#dcfce7;color:#14532d;'
                 : 'border:1px solid #d1d5db;padding:8px;';
             $styleProv1Numeric = $selectedOptionNumber === 1
-                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;color:#14532d;font-weight:600;'
                 : 'border:1px solid #d1d5db;padding:8px;text-align:right;';
             $styleProv2Numeric = $selectedOptionNumber === 2
-                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;color:#14532d;font-weight:600;'
                 : 'border:1px solid #d1d5db;padding:8px;text-align:right;';
             $styleProv3Numeric = $selectedOptionNumber === 3
-                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;'
+                ? 'border:1px solid #86efac;padding:8px;text-align:right;background:#dcfce7;color:#14532d;font-weight:600;'
                 : 'border:1px solid #d1d5db;padding:8px;text-align:right;';
 
             $rows .= '<tr>'
