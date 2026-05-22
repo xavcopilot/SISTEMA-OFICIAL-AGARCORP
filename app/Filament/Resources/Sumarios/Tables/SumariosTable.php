@@ -1071,8 +1071,12 @@ class SumariosTable
                 ->color('info')
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $solicitud->fresh()))
                 ->schema(self::procuraSignatureSchemaForCreation())
-                ->action(function (array $data) use ($solicitud): void {
-                    self::signProcuraFromCreationModal($solicitud, $data);
+                ->action(function (array $data, $livewire) use ($solicitud): void {
+                    $redirectUrl = self::signProcuraFromCreationModal($solicitud, $data);
+
+                    if (filled($redirectUrl)) {
+                        $livewire->redirect($redirectUrl, navigate: true);
+                    }
                 }),
 
             Action::make('rechazarProcuraDesdeVerSolicitudCreacion')
@@ -1256,7 +1260,7 @@ class SumariosTable
             Select::make('crear_sumario_ahora')
                 ->label('¿Deseas realizar el sumario ahora?')
                 ->options([
-                    'SI' => 'Sí, abrir pestaña Creación de Sumarios en Sumarios Cotizaciones',
+                    'SI' => 'Sí, abrir pestaña Creación de Sumarios',
                     'NO' => 'No, continuar luego',
                 ])
                 ->default('NO')
@@ -1330,12 +1334,12 @@ class SumariosTable
         );
     }
 
-    private static function signProcuraFromCreationModal(SolicitudCompra $solicitud, array $data): void
+    private static function signProcuraFromCreationModal(SolicitudCompra $solicitud, array $data): ?string
     {
         $record = $solicitud->fresh();
 
         if (! SolicitudCompraFlow::canSignProcura(auth()->user(), $record) || ! self::validatePasswordForCreationModal($data)) {
-            return;
+            return null;
         }
 
         $record->forceFill([
@@ -1356,9 +1360,21 @@ class SumariosTable
             'success'
         );
 
-        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI' && self::hasPendingItemsForSumario($record)) {
-            self::ensureDraftSumarioForSolicitud($record);
+        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI') {
+            if (self::hasPendingItemsForSumario($record)) {
+                return route('filament.agarcorp.resources.sumarios.create', [
+                    'solicitud_compra_id' => $record->id,
+                ]);
+            }
+
+            Notification::make()
+                ->title('Sin items pendientes para sumario')
+                ->body('Todos los items ya fueron llevados a sumario para esta solicitud.')
+                ->warning()
+                ->send();
         }
+
+        return null;
     }
 
     private static function rejectFromCreationModal(SolicitudCompra $solicitud, array $data, string $etapa): void

@@ -137,7 +137,7 @@ class ViewSolicitudCompra extends ViewRecord
             Select::make('crear_sumario_ahora')
                 ->label('¿Deseas realizar el sumario ahora?')
                 ->options([
-                    'SI' => 'Sí, abrir pestaña Creación de Sumarios en Sumarios Cotizaciones',
+                    'SI' => 'Sí, abrir pestaña Creación de Sumarios',
                     'NO' => 'No, continuar luego',
                 ])
                 ->default('NO')
@@ -335,10 +335,8 @@ class ViewSolicitudCompra extends ViewRecord
 
         if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI') {
             if ($this->hasPendingItemsForSumario($record)) {
-                $draftSumario = $this->ensureDraftSumarioForSolicitud($record);
-
-                $this->redirect(SumarioResource::getUrl('edit', [
-                    'record' => $draftSumario,
+                $this->redirect(SumarioResource::getUrl('create', [
+                    'solicitud_compra_id' => $record->id,
                 ]), navigate: true);
 
                 return;

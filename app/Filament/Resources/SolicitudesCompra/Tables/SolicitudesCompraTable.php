@@ -789,14 +789,13 @@ class SolicitudesCompraTable
                 ->label('Firmar recepción procura')
                 ->icon(Heroicon::OutlinedCheckBadge)
                 ->color('info')
-                ->successRedirectUrl(AprobacionesCompraResource::getUrl('index'))
                 ->visible(fn (): bool => SolicitudCompraFlow::canSignProcura(auth()->user(), $record->fresh()))
                 ->schema(self::procuraSignatureSchema())
-                ->action(function (array $data) use ($record) {
+                ->action(function (array $data, $livewire) use ($record): void {
                     $redirectUrl = self::signProcuraFromModal($record, $data);
 
                     if (filled($redirectUrl)) {
-                        return redirect($redirectUrl);
+                        $livewire->redirect($redirectUrl, navigate: true);
                     }
                 }),
 
@@ -848,7 +847,7 @@ class SolicitudesCompraTable
             Select::make('crear_sumario_ahora')
                 ->label('¿Deseas realizar el sumario ahora?')
                 ->options([
-                    'SI' => 'Sí, abrir pestaña Creación de Sumarios en Sumarios Cotizaciones',
+                    'SI' => 'Sí, abrir pestaña Creación de Sumarios',
                     'NO' => 'No, continuar luego',
                 ])
                 ->default('NO')
@@ -969,12 +968,18 @@ class SolicitudesCompraTable
             'success'
         );
 
-        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI' && self::hasPendingItemsForSumario($record)) {
-            $draftSumario = self::ensureDraftSumarioForSolicitud($record);
+        if ((string) ($data['crear_sumario_ahora'] ?? 'NO') === 'SI') {
+            if (self::hasPendingItemsForSumario($record)) {
+                return SumarioResource::getUrl('create', [
+                    'solicitud_compra_id' => $record->id,
+                ]);
+            }
 
-            return SumarioResource::getUrl('edit', [
-                'record' => $draftSumario,
-            ]);
+            Notification::make()
+                ->title('Sin items pendientes para sumario')
+                ->body('Todos los items ya fueron llevados a sumario para esta solicitud.')
+                ->warning()
+                ->send();
         }
 
         return null;
