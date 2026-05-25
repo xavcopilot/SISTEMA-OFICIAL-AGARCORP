@@ -109,6 +109,12 @@ class AprobacionOdcsTable
                         OdcModalSummaryRenderer::render($record)
                     )),
 
+                Action::make('vistaPdfOdcAprobacionGerencia')
+                    ->label('Vista PDF ODC')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->url(fn ($record) => route('ordenes-compra.formato.print', ['ordenCompra' => $record]))
+                    ->openUrlInNewTab(),
+
                 Action::make('aprobacionOdc')
                     ->label('Aprobacion de ODC')
                     ->icon(Heroicon::OutlinedClipboardDocumentCheck)

@@ -194,7 +194,13 @@ class SumarioFormatoController extends Controller
             abort(401);
         }
 
-        return $user->hasRole('Procura');
+        if ($user->hasRole('Procura') || $user->hasRole('Validador Finanzas') || $user->hasRole('Gerencia de Finanzas')) {
+            return true;
+        }
+
+        return $user->can('ViewAny:Sumario')
+            || $user->can('ValidateFinance:Sumario')
+            || $user->can('ApprovePayment:Sumario');
     }
 
     private function buildGlobalTokens(Sumario $sumario): array

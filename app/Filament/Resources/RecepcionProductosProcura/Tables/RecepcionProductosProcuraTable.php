@@ -103,6 +103,8 @@ class RecepcionProductosProcuraTable
                                 'image/png',
                                 'image/webp',
                             ])
+                            ->maxSize(8000)
+                            ->helperText('Tamano maximo recomendado: 8 MB por archivo.')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA')
                             ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA'),
 
@@ -115,6 +117,8 @@ class RecepcionProductosProcuraTable
                                 'image/png',
                                 'image/webp',
                             ])
+                            ->maxSize(8000)
+                            ->helperText('Tamano maximo recomendado: 8 MB por archivo.')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA')
                             ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA'),
                     ])

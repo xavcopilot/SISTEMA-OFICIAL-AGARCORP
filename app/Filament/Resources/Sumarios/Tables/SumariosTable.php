@@ -44,8 +44,6 @@ class SumariosTable
     {
         return $table
             ->persistColumnsInSession(true)
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->where('workflow_estado', 'PENDIENTE_VALIDACION_FINANZAS'))
             ->columns([
                 TextColumn::make('correlativo_sdc')
                     ->toggleable()
@@ -79,6 +77,8 @@ class SumariosTable
                     ->formatStateUsing(fn (?string $state): string => self::humanReadableWorkflowState((string) $state))
                     ->color(fn (?string $state): string => match ((string) $state) {
                         'PENDIENTE_VALIDACION_FINANZAS' => 'warning',
+                        'VALIDADO_FINANZAS', 'APROBADO_GERENCIA_FINANZAS', 'ODC_GENERADA' => 'success',
+                        'RECHAZADO_VALIDACION_FINANZAS', 'RECHAZADO_GERENCIA_FINANZAS' => 'danger',
                         default => 'gray',
                     }),
             ])
@@ -92,6 +92,12 @@ class SumariosTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderInspectionSummary($record))),
+
+                Action::make('vistaPdfSumarioInspeccion')
+                    ->label('Vista PDF Sumario')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->url(fn ($record) => route('sumarios.formato.print', ['sumario' => $record]))
+                    ->openUrlInNewTab(),
 
                 Action::make('verSolicitudAsociadaInspeccion')
                     ->label('Ver solicitud asociada')
@@ -119,8 +125,9 @@ class SumariosTable
                             ->password()
                             ->required(),
                     ])
-                    ->visible(fn ($record): bool => self::canValidateFinance($record)
-                        && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
+                    ->visible(fn ($record, $livewire): bool => self::canValidateFinance($record)
+                        && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS'
+                        && self::isInspectionInboxTab($livewire))
                     ->action(function (array $data, $record): void {
                         if (! self::validatePasswordForCreationModal($data)) {
                             return;
@@ -159,8 +166,9 @@ class SumariosTable
                             ->required()
                             ->rows(4),
                     ])
-                    ->visible(fn ($record): bool => self::canValidateFinance($record)
-                        && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS')
+                    ->visible(fn ($record, $livewire): bool => self::canValidateFinance($record)
+                        && (string) ($record->workflow_estado ?? '') === 'PENDIENTE_VALIDACION_FINANZAS'
+                        && self::isInspectionInboxTab($livewire))
                     ->action(function (array $data, $record): void {
                         $record->forceFill([
                             'workflow_estado' => 'RECHAZADO_VALIDACION_FINANZAS',
@@ -239,6 +247,12 @@ class SumariosTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(self::renderInspectionSummary($record))),
+
+                Action::make('vistaPdfSumarioAprobacionGerencia')
+                    ->label('Vista PDF Sumario')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->url(fn ($record) => route('sumarios.formato.print', ['sumario' => $record]))
+                    ->openUrlInNewTab(),
 
                 Action::make('verSolicitudAsociadaAprobacionGerencia')
                     ->label('Ver solicitud asociada')
@@ -1495,6 +1509,18 @@ class SumariosTable
     private static function isCreationTab(mixed $livewire = null): bool
     {
         return self::resolveActiveTab($livewire) === 'creacion_sumarios';
+    }
+
+    private static function isInspectionInboxTab(mixed $livewire = null): bool
+    {
+        $activeTab = self::resolveActiveTab($livewire);
+
+        return $activeTab === '' || $activeTab === 'mis_inspecciones';
+    }
+
+    private static function isInspectionHistoryTab(mixed $livewire = null): bool
+    {
+        return self::resolveActiveTab($livewire) === 'historial_inspeccion';
     }
 
     private static function isCorrectionTab(mixed $livewire = null): bool

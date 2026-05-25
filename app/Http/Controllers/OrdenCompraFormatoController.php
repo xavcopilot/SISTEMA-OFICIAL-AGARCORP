@@ -22,7 +22,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class OrdenCompraFormatoController extends Controller
 {
-    private const DEFAULT_VARIANT = 'divisas';
+    private const DEFAULT_VARIANT = 'bolivares';
     private const PDF_PRINT_AREA_START = 'B6';
     private const PDF_PRINT_AREA_END = 'H65';
     private const PDF_PRINT_AREA_END_BOLIVARES = 'I65';
@@ -66,17 +66,17 @@ class OrdenCompraFormatoController extends Controller
             'ordenCompra' => $ordenCompra,
             'selectedVariant' => $selectedVariant,
             'variantOptions' => [
-                'divisas' => [
-                    'label' => 'Ver ODC Divisas',
-                    'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas']),
-                    'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'download' => 1]),
-                    'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'format' => 'xlsx', 'download' => 1]),
-                ],
                 'bolivares' => [
                     'label' => 'Ver ODC con Bolivares',
                     'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares']),
                     'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares', 'download' => 1]),
                     'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'bolivares', 'format' => 'xlsx', 'download' => 1]),
+                ],
+                'divisas' => [
+                    'label' => 'Ver ODC Divisas',
+                    'pdfUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas']),
+                    'downloadUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'download' => 1]),
+                    'excelUrl' => route('ordenes-compra.formato', ['ordenCompra' => $ordenCompra, 'variant' => 'divisas', 'format' => 'xlsx', 'download' => 1]),
                 ],
             ],
         ]);
@@ -260,6 +260,8 @@ class OrdenCompraFormatoController extends Controller
             $totalGeneral *= $bcvRate;
         }
 
+        $totalEnLetrasMoneda = $useBolivares ? 'BOLIVARES' : 'DOLARES';
+
         $elaboradoFecha = (string) ($ordenCompra->elaborado_firmado_at
             ? 'Registrada el ' . $ordenCompra->elaborado_firmado_at->format('d/m/Y H:i')
             : 'Pendiente por registrar');
@@ -285,7 +287,7 @@ class OrdenCompraFormatoController extends Controller
             'iva_16' => $iva,
             'gastos_adicionales' => $gastosAdicionales,
             'total_general' => $totalGeneral,
-            'total_en_letras' => $this->numberToWordsEs($totalGeneral) . ' BOLIVARES',
+            'total_en_letras' => $this->numberToWordsEs($totalGeneral) . ' ' . $totalEnLetrasMoneda,
             'monto_exento_bs' => round((float) ($ordenCompra->monto_exento ?? 0) * $bcvRate, 2),
             'sub_total_bs' => round((float) ($ordenCompra->sub_total ?? 0) * $bcvRate, 2),
             'iva_16_bs' => round((float) ($ordenCompra->iva_16 ?? 0) * $bcvRate, 2),

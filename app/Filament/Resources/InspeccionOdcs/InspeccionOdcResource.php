@@ -61,7 +61,27 @@ class InspeccionOdcResource extends Resource
     {
         return parent::getEloquentQuery()
             ->with(['sumario.solicitudCompra', 'proveedor'])
-            ->where('workflow_post_compra', 'PENDIENTE_VALIDACION_FINANZAS');
+            ->where(function (Builder $query): void {
+                $query
+                    ->where('workflow_post_compra', 'PENDIENTE_VALIDACION_FINANZAS')
+                    ->orWhereIn('workflow_post_compra', [
+                        'PENDIENTE_APROBACION_GERENCIA_FINANZAS',
+                        'PENDIENTE_PAGO_FINANZAS',
+                        'PAGO_REGISTRADO_FINANZAS',
+                        'PAGADO_Y_EN_TRANSITO',
+                        'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
+                        'EN_TRANSICION_ALMACEN',
+                        'CONFORMIDAD_POR_ITEMS_COMPLETA',
+                        'FACTURA_ENVIADA_ADMINISTRACION',
+                        'BACKUP_FACTURA_COMPLETADO',
+                        'CERRADA_CONFORME',
+                    ])
+                    ->orWhere(function (Builder $rejectedQuery): void {
+                        $rejectedQuery
+                            ->where('rechazo_etapa', 'validacion_finanzas')
+                            ->whereIn('workflow_post_compra', ['BORRADOR_ODC', 'PENDIENTE_VALIDACION_FINANZAS']);
+                    });
+            });
     }
 
     public static function canAccess(): bool
@@ -86,7 +106,9 @@ class InspeccionOdcResource extends Resource
             return null;
         }
 
-        $count = static::getEloquentQuery()->count();
+        $count = parent::getEloquentQuery()
+            ->where('workflow_post_compra', 'PENDIENTE_VALIDACION_FINANZAS')
+            ->count();
 
         return $count > 0 ? (string) $count : null;
     }
