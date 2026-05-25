@@ -52,8 +52,26 @@ class RecepcionProductosProcuraResource extends Resource
             ->with(['sumario.solicitudCompra', 'proveedor'])
             ->where(function (Builder $query): Builder {
                 return $query
-                    ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
-                    ->orWhere('factura_pendiente', true);
+                    ->where(function (Builder $pendingWorkflowQuery): void {
+                        $pendingWorkflowQuery
+                            ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
+                            ->where(function (Builder $documentQuery): void {
+                                $documentQuery
+                                    ->whereNull('tipo_documento_recepcion')
+                                    ->orWhere('factura_pendiente', true)
+                                    ->orWhere(function (Builder $notaQuery): void {
+                                        $notaQuery
+                                            ->where('tipo_documento_recepcion', 'NOTA')
+                                            ->whereNull('factura_cargada_administracion_at');
+                                    });
+                            });
+                    })
+                    ->orWhere('factura_pendiente', true)
+                    ->orWhere(function (Builder $pendingInvoiceQuery): void {
+                        $pendingInvoiceQuery
+                            ->where('tipo_documento_recepcion', 'NOTA')
+                            ->whereNull('factura_cargada_administracion_at');
+                    });
             });
     }
 
@@ -80,7 +98,29 @@ class RecepcionProductosProcuraResource extends Resource
         }
 
         $count = static::getEloquentQuery()
-            ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
+            ->where(function (Builder $query): void {
+                $query
+                    ->where(function (Builder $pendingWorkflowQuery): void {
+                        $pendingWorkflowQuery
+                            ->where('workflow_post_compra', 'PAGADO_Y_EN_TRANSITO')
+                            ->where(function (Builder $documentQuery): void {
+                                $documentQuery
+                                    ->whereNull('tipo_documento_recepcion')
+                                    ->orWhere('factura_pendiente', true)
+                                    ->orWhere(function (Builder $notaQuery): void {
+                                        $notaQuery
+                                            ->where('tipo_documento_recepcion', 'NOTA')
+                                            ->whereNull('factura_cargada_administracion_at');
+                                    });
+                            });
+                    })
+                    ->orWhere('factura_pendiente', true)
+                    ->orWhere(function (Builder $pendingInvoiceQuery): void {
+                        $pendingInvoiceQuery
+                            ->where('tipo_documento_recepcion', 'NOTA')
+                            ->whereNull('factura_cargada_administracion_at');
+                    });
+            })
             ->count();
 
         return $count > 0 ? (string) $count : null;

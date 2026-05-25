@@ -274,7 +274,7 @@ class OrdenCompraConformidadService
 
             $ordenCompra->forceFill([
                 'inventario_movimiento_id' => $movement->id,
-                'factura_pendiente' => false,
+                'factura_pendiente' => $this->shouldKeepFacturaPendiente($ordenCompra),
                 'workflow_post_compra' => $this->resolvePostWarehouseWorkflow($ordenCompra, $remaining, $hasRejected, $hasUndecided),
             ])->save();
 
@@ -567,7 +567,7 @@ class OrdenCompraConformidadService
 
         $ordenCompra->forceFill([
             'inventario_movimiento_id' => $movement->id,
-            'factura_pendiente' => false,
+            'factura_pendiente' => $this->shouldKeepFacturaPendiente($ordenCompra),
             'workflow_post_compra' => $this->resolvePostWarehouseWorkflow($ordenCompra, $remaining, $hasRejected, $hasUndecided),
         ])->save();
 
@@ -597,6 +597,12 @@ class OrdenCompraConformidadService
         }
 
         return 'CONFORMIDAD_POR_ITEMS_COMPLETA';
+    }
+
+    private function shouldKeepFacturaPendiente(OrdenCompra $ordenCompra): bool
+    {
+        return (string) ($ordenCompra->tipo_documento_recepcion ?? '') === 'NOTA'
+            && blank($ordenCompra->factura_cargada_administracion_at);
     }
 
     private function calculateWeightedAverageUnitPrice(int $currentStock, float $currentUnitPrice, int $incomingQty, float $incomingUnitPrice): float

@@ -30,8 +30,22 @@ class OrdenCompraRecepcionService
                 ->lockForUpdate()
                 ->findOrFail($ordenCompra->id);
 
-            if ($ordenCompra->recepcion_procesada_at) {
+            $invoiceAfterNota = $this->isInvoiceAfterNotaPending($ordenCompra, $tipoDocumento);
+
+            if ($ordenCompra->recepcion_procesada_at && ! $invoiceAfterNota) {
                 return $ordenCompra;
+            }
+
+            if ($invoiceAfterNota) {
+                $ordenCompra->forceFill([
+                    'tipo_documento_recepcion' => 'FACTURA',
+                    'factura_path' => $facturaPath,
+                    'factura_pendiente' => false,
+                ])->save();
+
+                $this->notifyFinanzas($ordenCompra);
+
+                return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
             }
 
             $ordenCompra->forceFill([
@@ -49,6 +63,14 @@ class OrdenCompraRecepcionService
 
             return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
         });
+    }
+
+    private function isInvoiceAfterNotaPending(OrdenCompra $ordenCompra, string $tipoDocumento): bool
+    {
+        return $tipoDocumento === 'FACTURA'
+            && (string) ($ordenCompra->tipo_documento_recepcion ?? '') === 'NOTA'
+            && filled($ordenCompra->recepcion_procesada_at)
+            && blank($ordenCompra->factura_cargada_administracion_at);
     }
 
     public function marcarZonaTransicionAlmacen(OrdenCompra $ordenCompra, User $user): OrdenCompra

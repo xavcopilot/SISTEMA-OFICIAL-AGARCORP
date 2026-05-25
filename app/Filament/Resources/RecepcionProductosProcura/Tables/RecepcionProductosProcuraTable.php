@@ -4,6 +4,7 @@ namespace App\Filament\Resources\RecepcionProductosProcura\Tables;
 
 use App\Support\OrdenCompraRecepcionService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
@@ -74,16 +75,24 @@ class RecepcionProductosProcuraTable
             ])
             ->recordActions([
                 Action::make('marcarEntregadoAlmacen')
-                    ->label(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
+                    ->label(fn ($record): string => self::requiresFacturaAfterNota($record)
                         ? 'Cargar Factura'
-                        : 'Cargar Nota/Factura y enviar a Almacén')
+                        : ((bool) ($record->factura_pendiente ?? false)
+                        ? 'Cargar Factura'
+                        : 'Cargar Nota/Factura y enviar a Almacén'))
                     ->icon(Heroicon::OutlinedInboxArrowDown)
                     ->color('warning')
                     ->modalHeading('Cargar documento para Almacen')
-                    ->modalDescription(fn ($record): string => (bool) ($record->factura_pendiente ?? false)
-                        ? 'Ya existe Nota de Entrega. Debes cargar la FACTURA para completar el proceso administrativo.'
-                        : 'Agregar Nota de Entrega o Factura segun sea el caso para enviar a Almacen.')
+                    ->modalDescription(fn ($record): string => self::requiresFacturaAfterNota($record)
+                        ? 'Esta ODC ya ingreso por Nota de Entrega y ya fue recibida por Almacen. Solo falta cargar la FACTURA para continuar con Finanzas y Administracion.'
+                        : ((bool) ($record->factura_pendiente ?? false)
+                            ? 'Ya existe Nota de Entrega. Debes cargar la FACTURA para completar el proceso administrativo.'
+                            : 'Agregar Nota de Entrega o Factura segun sea el caso para enviar a Almacen.'))
                     ->form([
+                        Hidden::make('tipo_documento_recepcion')
+                            ->default('FACTURA')
+                            ->visible(fn ($record): bool => self::requiresFacturaAfterNota($record)),
+
                         Radio::make('tipo_documento_recepcion')
                             ->label('Documento recibido')
                             ->options([
@@ -92,7 +101,8 @@ class RecepcionProductosProcuraTable
                             ])
                             ->required()
                             ->live()
-                            ->default('NOTA'),
+                            ->default(fn ($record): string => self::requiresFacturaAfterNota($record) ? 'FACTURA' : 'NOTA')
+                            ->visible(fn ($record): bool => ! self::requiresFacturaAfterNota($record)),
 
                         FileUpload::make('factura_path')
                             ->label('Adjuntar Factura')
@@ -120,11 +130,16 @@ class RecepcionProductosProcuraTable
                             ->maxSize(12000)
                             ->helperText('Tamano maximo recomendado: 12 MB por archivo.')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA')
-                            ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA'),
+                            ->visible(fn (callable $get, $record): bool => ! self::requiresFacturaAfterNota($record)
+                                && (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA'),
                     ])
                     ->action(function (array $data, $record): void {
                         try {
                             $tipoDocumento = (string) ($data['tipo_documento_recepcion'] ?? '');
+
+                            if (self::requiresFacturaAfterNota($record) && strtoupper($tipoDocumento) !== 'FACTURA') {
+                                throw new \RuntimeException('Esta ODC ya tiene Nota de Entrega. Debes cargar la FACTURA para continuar.');
+                            }
 
                             if ((bool) ($record->factura_pendiente ?? false) && strtoupper($tipoDocumento) !== 'FACTURA') {
                                 throw new \RuntimeException('Esta ODC ya tiene Nota de Entrega. Debes cargar la FACTURA para continuar.');
@@ -145,7 +160,7 @@ class RecepcionProductosProcuraTable
                                 ->title('Producto entregado a almacen')
                                 ->body(strtoupper($tipoDocumento) === 'NOTA'
                                     ? 'La Nota de Entrega se registro para agilizar Almacen/Solicitante. La ODC quedara en espera hasta cargar la FACTURA.'
-                                    : 'La FACTURA fue cargada y la ODC ya no quedara pendiente en Recepcion de Productos.')
+                                    : 'La FACTURA fue cargada y se notifico a Finanzas para continuar el flujo administrativo.')
                                 ->success()
                                 ->send();
                         } catch (\Throwable $exception) {
@@ -164,6 +179,13 @@ class RecepcionProductosProcuraTable
                     ->openUrlInNewTab(),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function requiresFacturaAfterNota(mixed $record): bool
+    {
+        return (string) ($record->tipo_documento_recepcion ?? '') === 'NOTA'
+            && filled($record->recepcion_procesada_at)
+            && blank($record->factura_cargada_administracion_at);
     }
 }
 
