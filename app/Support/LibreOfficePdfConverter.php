@@ -26,6 +26,18 @@ class LibreOfficePdfConverter
         $isWindows = $this->isWindows();
         $runtimePaths = null;
         $profileDir = null;
+        $isolatedOutputDir = rtrim($outputDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'lo-out-' . bin2hex(random_bytes(6));
+
+        if (! is_dir($isolatedOutputDir) && ! @mkdir($isolatedOutputDir, 0775, true) && ! is_dir($isolatedOutputDir)) {
+            Log::warning('No se pudo crear directorio temporal de salida para LibreOffice.', [
+                ...$context,
+                'output_dir' => $outputDir,
+                'isolated_output_dir' => $isolatedOutputDir,
+                'xlsx' => $xlsxPath,
+            ]);
+
+            return false;
+        }
 
         $command = [
             $binary,
@@ -38,7 +50,7 @@ class LibreOfficePdfConverter
             '--convert-to',
             'pdf:calc_pdf_Export',
             '--outdir',
-            $outputDir,
+            $isolatedOutputDir,
             $xlsxPath,
         ];
 
@@ -76,6 +88,7 @@ class LibreOfficePdfConverter
                     'exit_code' => $process->getExitCode(),
                     'xlsx' => $xlsxPath,
                     'output_dir' => $outputDir,
+                    'isolated_output_dir' => $isolatedOutputDir,
                     'error' => $process->getErrorOutput(),
                     'output' => $process->getOutput(),
                 ]);
@@ -83,7 +96,7 @@ class LibreOfficePdfConverter
                 return false;
             }
 
-            $generatedPdfPath = $this->resolveGeneratedPdfPath($outputDir, $xlsxPath);
+            $generatedPdfPath = $this->resolveGeneratedPdfPath($isolatedOutputDir, $xlsxPath);
 
             if ($generatedPdfPath === null || ! file_exists($generatedPdfPath)) {
                 Log::warning('LibreOffice termino sin generar PDF esperado.', [
@@ -92,7 +105,8 @@ class LibreOfficePdfConverter
                     'exit_code' => $process->getExitCode(),
                     'xlsx' => $xlsxPath,
                     'expected_pdf' => $outputDir . DIRECTORY_SEPARATOR . pathinfo($xlsxPath, PATHINFO_FILENAME) . '.pdf',
-                    'pdf_candidates' => $this->listPdfCandidates($outputDir),
+                    'isolated_output_dir' => $isolatedOutputDir,
+                    'pdf_candidates' => $this->listPdfCandidates($isolatedOutputDir),
                     'error' => $process->getErrorOutput(),
                     'output' => $process->getOutput(),
                 ]);
@@ -113,6 +127,8 @@ class LibreOfficePdfConverter
             if ($profileDir !== null) {
                 $this->deleteDirectory($profileDir);
             }
+
+            $this->deleteDirectory($isolatedOutputDir);
         }
     }
 

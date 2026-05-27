@@ -102,9 +102,16 @@ class RecepcionMaterialesNuevosTable
                 TextColumn::make('factura_path')
                     ->toggleable()
                     ->label('Soporte de entrega')
-                    ->state(fn ($record): string => filled($record->factura_path) ? 'Descargar documento' : 'Sin documento')
-                    ->url(fn ($record): ?string => filled($record->factura_path)
-                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
+                    ->state(fn ($record): string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                        ? ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()
+                            ? 'Descargar nota de entrega'
+                            : 'Descargar factura')
+                        : 'Sin documento')
+                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                        ? route('ordenes-compra.documento-recepcion.download', [
+                            'ordenCompra' => $record,
+                            'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                        ])
                         : null)
                     ->openUrlInNewTab(),
             ])

@@ -24,8 +24,43 @@ class OrdenCompraFormatoController extends Controller
 {
     private const DEFAULT_VARIANT = 'bolivares';
     private const PDF_PRINT_AREA_START = 'B6';
-    private const PDF_PRINT_AREA_END = 'H65';
-    private const PDF_PRINT_AREA_END_BOLIVARES = 'I65';
+    private const PDF_VARIANT_SETTINGS = [
+        'bolivares' => [
+            'print_area_end' => 'I65',
+            'width_scale' => 0.79,
+            'horizontal_centered' => true,
+            'vertical_centered' => true,
+            'margins' => [
+                'top' => 0.5,
+                'bottom' => 0.5,
+                'left' => 0.5,
+                'right' => 0.5,
+            ],
+            'column_width_overrides' => [],
+        ],
+        'divisas' => [
+            // Misma base visual que bolivares; se fuerzan anchos equivalentes en B:H.
+            'print_area_end' => 'H65',
+            'width_scale' => 0.79,
+            'horizontal_centered' => true,
+            'vertical_centered' => true,
+            'margins' => [
+                'top' => 0.5,
+                'bottom' => 0.5,
+                'left' => 0.5,
+                'right' => 0.5,
+            ],
+            'column_width_overrides' => [
+                'B' => 19.84,
+                'C' => 50.35,
+                'D' => 20.54,
+                'E' => 19.48,
+                'F' => 13.08,
+                'G' => 19.92,
+                'H' => 17.64,
+            ],
+        ],
+    ];
     private const ITEMS_START_ROW = 32;
     private const ITEMS_END_ROW = 43;
     private const DEFAULT_SIGNATURE_HEIGHT = 100;
@@ -84,6 +119,8 @@ class OrdenCompraFormatoController extends Controller
 
     public function __invoke(OrdenCompra $ordenCompra)
     {
+        $this->configureExportRuntime();
+
         if (! auth()->check()) {
             abort(401);
         }
@@ -114,7 +151,7 @@ class OrdenCompraFormatoController extends Controller
         }
 
         $outputFormat = strtolower((string) request('format', 'pdf'));
-        $fileBaseName = 'orden-compra-' . $variant . '-' . $ordenCompra->id . '-' . now()->format('YmdHis');
+        $fileBaseName = 'orden-compra-' . $variant . '-' . $ordenCompra->id . '-' . now()->format('YmdHisu') . '-' . bin2hex(random_bytes(3));
         $xlsxPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.xlsx';
         $pdfPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.pdf';
         $excelFileName = 'ODC_' . $variantConfig['filename_suffix'] . '_' . ($ordenCompra->correlativo_odc ?: $ordenCompra->id) . '.xlsx';
@@ -234,6 +271,19 @@ class OrdenCompraFormatoController extends Controller
                 'download' => 1,
             ]),
         ]);
+    }
+
+    private function configureExportRuntime(): void
+    {
+        $memoryLimit = (string) env('PDF_EXPORT_MEMORY_LIMIT', '512M');
+        $executionTime = (int) env('PDF_EXPORT_MAX_EXECUTION_TIME', 180);
+
+        @ini_set('memory_limit', $memoryLimit);
+
+        if ($executionTime > 0) {
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', (string) $executionTime);
+        }
     }
 
     private function buildGlobalTokens(OrdenCompra $ordenCompra, string $variant = self::DEFAULT_VARIANT): array
@@ -792,26 +842,60 @@ class OrdenCompraFormatoController extends Controller
 
     private function normalizeSheetForPdf(Worksheet $sheet, string $variant = self::DEFAULT_VARIANT): void
     {
+        $settings = $this->pdfVariantSettings($variant);
         $pageSetup = $sheet->getPageSetup();
-        $printAreaEnd = $variant === 'bolivares'
-            ? self::PDF_PRINT_AREA_END_BOLIVARES
-            : self::PDF_PRINT_AREA_END;
+        $printAreaEnd = (string) $settings['print_area_end'];
+
+        $this->scalePrintAreaColumnsForPdf($sheet, $printAreaEnd, $settings);
 
         $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . $printAreaEnd);
 
         $pageMargins = $sheet->getPageMargins();
-        $pageMargins->setTop(0.5);
-        $pageMargins->setBottom(0.5);
-        $pageMargins->setLeft(0.5);
-        $pageMargins->setRight(0.5);
+        $pageMargins->setTop((float) $settings['margins']['top']);
+        $pageMargins->setBottom((float) $settings['margins']['bottom']);
+        $pageMargins->setLeft((float) $settings['margins']['left']);
+        $pageMargins->setRight((float) $settings['margins']['right']);
 
         $pageSetup->setOrientation(PageSetup::ORIENTATION_PORTRAIT);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
         $pageSetup->setFitToPage(true);
         $pageSetup->setFitToWidth(1);
         $pageSetup->setFitToHeight(1);
-        $pageSetup->setHorizontalCentered(true);
-        $pageSetup->setVerticalCentered(true);
+        $pageSetup->setHorizontalCentered((bool) $settings['horizontal_centered']);
+        $pageSetup->setVerticalCentered((bool) $settings['vertical_centered']);
+    }
+
+    private function scalePrintAreaColumnsForPdf(Worksheet $sheet, string $printAreaEnd, array $settings): void
+    {
+        $startColumn = preg_replace('/\d+$/', '', self::PDF_PRINT_AREA_START) ?: 'B';
+        $endColumn = preg_replace('/\d+$/', '', $printAreaEnd) ?: $startColumn;
+        $startIndex = Coordinate::columnIndexFromString($startColumn);
+        $endIndex = Coordinate::columnIndexFromString($endColumn);
+        $widthScale = (float) $settings['width_scale'];
+
+        for ($columnIndex = $startIndex; $columnIndex <= $endIndex; $columnIndex++) {
+            $column = Coordinate::stringFromColumnIndex($columnIndex);
+            $dimension = $sheet->getColumnDimension($column);
+            $width = (float) $dimension->getWidth();
+
+            if ($width <= 0) {
+                continue;
+            }
+
+            $dimension->setWidth(round($width * $widthScale, 4));
+        }
+
+        foreach ($settings['column_width_overrides'] as $column => $width) {
+            $sheet->getColumnDimension((string) $column)->setWidth((float) $width);
+        }
+    }
+
+    private function pdfVariantSettings(string $variant): array
+    {
+        $defaultSettings = self::PDF_VARIANT_SETTINGS[self::DEFAULT_VARIANT];
+        $variantSettings = self::PDF_VARIANT_SETTINGS[$variant] ?? [];
+
+        return array_replace_recursive($defaultSettings, $variantSettings);
     }
 
     private function numberToWordsEs(float $number): string

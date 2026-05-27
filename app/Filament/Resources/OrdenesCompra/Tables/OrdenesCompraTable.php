@@ -371,13 +371,16 @@ class OrdenesCompraTable
                     ->visible(fn (): bool => false),
 
                 Action::make('verDocumentoRecepcionHistorial')
-                    ->label(fn ($record): string => (string) ($record->tipo_documento_recepcion ?? '') === 'NOTA'
+                    ->label(fn ($record): string => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion())
                         ? 'Ver nota de entrega'
                         : 'Ver factura')
                     ->icon(Heroicon::OutlinedDocumentText)
                     ->color('warning')
-                    ->url(fn ($record): ?string => filled($record->factura_path)
-                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
+                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                        ? route('ordenes-compra.documento-recepcion.download', [
+                            'ordenCompra' => $record,
+                            'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                        ])
                         : null)
                     ->openUrlInNewTab()
                     ->visible(fn (): bool => false),
@@ -434,9 +437,16 @@ class OrdenesCompraTable
                             ->required(),
                         FileUpload::make('comprobantes_pago_paths')
                             ->label('Comprobantes bancarios')
-                            ->image()
                             ->multiple()
                             ->disk('odc_comprobantes')
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                            ])
+                            ->maxSize(12000)
+                            ->helperText('Tamano maximo recomendado: 12 MB por archivo.')
                             ->required(),
                         Textarea::make('observacion_pago')
                             ->label('Observacion')
@@ -529,16 +539,30 @@ class OrdenesCompraTable
                             ->live(),
 
                         FileUpload::make('factura_path')
-                            ->label('Imagen de Factura')
-                            ->image()
+                            ->label('Adjuntar Factura')
                             ->disk('odc_facturas')
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                            ])
+                            ->maxSize(12000)
+                            ->helperText('Tamano maximo recomendado: 12 MB por archivo.')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA')
                             ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'FACTURA'),
 
                         FileUpload::make('nota_entrega_path')
-                            ->label('Imagen de Nota de Entrega')
-                            ->image()
+                            ->label('Adjuntar Nota de Entrega')
                             ->disk('odc_notas_entrega')
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                            ])
+                            ->maxSize(12000)
+                            ->helperText('Tamano maximo recomendado: 12 MB por archivo.')
                             ->required(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA')
                             ->visible(fn (callable $get): bool => (string) ($get('tipo_documento_recepcion') ?? '') === 'NOTA'),
                     ])
@@ -901,9 +925,12 @@ class OrdenesCompraTable
         return Action::make('abrirFacturaImagen')
             ->label('Descargar factura/nota')
             ->icon(Heroicon::OutlinedEye)
-            ->visible(fn ($record): bool => filled($record->factura_path))
-            ->url(fn ($record): ?string => filled($record->factura_path)
-                ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
+            ->visible(fn ($record): bool => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion())
+            ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                ? route('ordenes-compra.documento-recepcion.download', [
+                    'ordenCompra' => $record,
+                    'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                ])
                 : null)
             ->openUrlInNewTab();
     }

@@ -49,6 +49,7 @@ return new class extends Migration
             $table->foreignId('confirmado_por_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('tipo_documento_recepcion', 20)->nullable();
             $table->string('factura_path')->nullable();
+            $table->string('nota_entrega_path')->nullable();
             $table->string('factura_numero')->nullable();
             $table->string('factura_numero_control')->nullable();
             $table->date('factura_fecha_emision')->nullable();

@@ -106,7 +106,7 @@
     </div>
 
     <div class="canvas">
-        <iframe id="pdfFrame" src="{{ $variantOptions[$selectedVariant]['pdfUrl'] }}" title="Vista previa PDF ODC"></iframe>
+        <iframe id="pdfFrame" src="about:blank" title="Vista previa PDF ODC"></iframe>
     </div>
 
     <script>
@@ -131,7 +131,11 @@
                     return;
                 }
 
-                frame.src = button.dataset.pdfUrl;
+                const nextUrl = (button.dataset.pdfUrl || '') + '#zoom=page-width';
+
+                if (frame.src !== nextUrl) {
+                    frame.src = nextUrl;
+                }
 
                 if (downloadPdfBtn) {
                     downloadPdfBtn.href = button.dataset.downloadUrl || '#';
@@ -145,6 +149,17 @@
             }
 
             function triggerPrint() {
+                const pdfUrl = frame ? frame.getAttribute('src') : null;
+
+                if (pdfUrl) {
+                    const popup = window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+
+                    if (popup) {
+                        popup.focus();
+                        return;
+                    }
+                }
+
                 if (!frame || !frame.contentWindow) {
                     window.print();
                     return;
@@ -166,6 +181,19 @@
                 const selectedButton = variantButtons.find((button) => button.dataset.variant === '{{ $selectedVariant }}') || variantButtons[0];
                 updateVariant(selectedButton);
             }
+
+            document.addEventListener('keydown', function (event) {
+                const isMac = navigator.platform.toUpperCase().includes('MAC');
+                const isPrintShortcut = (isMac && event.metaKey && event.key.toLowerCase() === 'p')
+                    || (!isMac && event.ctrlKey && event.key.toLowerCase() === 'p');
+
+                if (!isPrintShortcut) {
+                    return;
+                }
+
+                event.preventDefault();
+                triggerPrint();
+            });
         })();
     </script>
 </body>

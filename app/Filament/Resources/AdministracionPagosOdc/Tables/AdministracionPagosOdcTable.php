@@ -125,9 +125,16 @@ class AdministracionPagosOdcTable
                             ->default(fn ($record): float => self::syncPendingPaymentBcvRate($record))
                             ->required(),
                         FileUpload::make('comprobante_pago_path')
-                            ->label('Imagen de comprobante de pago')
-                            ->image()
+                            ->label('Adjuntar comprobante de pago')
                             ->disk('odc_comprobantes')
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'image/webp',
+                            ])
+                            ->maxSize(12000)
+                            ->helperText('Tamano maximo recomendado: 12 MB por archivo.')
                             ->required(),
                     ])
                     ->action(function (array $data, $record): void {

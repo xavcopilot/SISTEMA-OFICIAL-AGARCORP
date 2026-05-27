@@ -1497,7 +1497,11 @@ class SolicitudesCompraTable
                         $count++;
                     }
 
-                    if (filled($ordenCompra->factura_path)) {
+                    if ($ordenCompra->hasFacturaRecepcion()) {
+                        $count++;
+                    }
+
+                    if ($ordenCompra->hasNotaEntregaRecepcion()) {
                         $count++;
                     }
 
@@ -1517,12 +1521,12 @@ class SolicitudesCompraTable
                     $comprobanteUrl = filled($ordenCompra->comprobante_pago_path)
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $ordenCompra, 'inline' => 1])
                         : null;
-                    $documentoRecepcionUrl = filled($ordenCompra->factura_path)
-                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1])
+                    $facturaUrl = $ordenCompra->hasFacturaRecepcion()
+                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1, 'documento' => 'factura'])
                         : null;
-                    $documentoRecepcionLabel = strtoupper((string) ($ordenCompra->tipo_documento_recepcion ?? '')) === 'NOTA'
-                        ? 'Ver nota de entrega'
-                        : 'Ver factura';
+                    $notaEntregaUrl = $ordenCompra->hasNotaEntregaRecepcion()
+                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1, 'documento' => 'nota'])
+                        : null;
 
                     $links = [
                         '<a href="' . e($odcPdfUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#1d4ed8;background:#eff6ff;">Vista PDF ODC</a>',
@@ -1532,8 +1536,12 @@ class SolicitudesCompraTable
                         $links[] = '<a href="' . e($comprobanteUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#065f46;background:#ecfdf5;">Ver comprobante</a>';
                     }
 
-                    if ($documentoRecepcionUrl) {
-                        $links[] = '<a href="' . e($documentoRecepcionUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#92400e;background:#fffbeb;">' . e($documentoRecepcionLabel) . '</a>';
+                    if ($facturaUrl) {
+                        $links[] = '<a href="' . e($facturaUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#92400e;background:#fffbeb;">Ver factura</a>';
+                    }
+
+                    if ($notaEntregaUrl) {
+                        $links[] = '<a href="' . e($notaEntregaUrl) . '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;text-decoration:none;color:#92400e;background:#fff7ed;">Ver nota de entrega</a>';
                     }
 
                     $badges = [
@@ -1548,7 +1556,7 @@ class SolicitudesCompraTable
                         $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#fff7ed;color:#9a3412;font-size:11px;">Sin comprobante</span>';
                     }
 
-                    if (! $documentoRecepcionUrl) {
+                    if (! $facturaUrl && ! $notaEntregaUrl) {
                         $badges[] = '<span style="display:inline-block;padding:4px 8px;border-radius:9999px;background:#fef2f2;color:#b91c1c;font-size:11px;">Sin factura/nota</span>';
                     }
 

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class OrdenCompraRecepcionService
 {
-    public function cargarDocumentoProcura(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $facturaPath = null): OrdenCompra
+    public function cargarDocumentoProcura(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $documentoPath = null): OrdenCompra
     {
         $tipoDocumento = strtoupper(trim($tipoDocumento));
 
@@ -20,11 +20,11 @@ class OrdenCompraRecepcionService
             throw new \InvalidArgumentException('Tipo de documento de recepcion no valido.');
         }
 
-        if (blank($facturaPath)) {
+        if (blank($documentoPath)) {
             throw new \InvalidArgumentException('Debe cargar la imagen o PDF de la factura o nota de entrega.');
         }
 
-        return DB::transaction(function () use ($ordenCompra, $user, $tipoDocumento, $facturaPath): OrdenCompra {
+        return DB::transaction(function () use ($ordenCompra, $user, $tipoDocumento, $documentoPath): OrdenCompra {
             $ordenCompra = OrdenCompra::query()
                 ->with(['items', 'sumario.solicitudCompra.solicitadoPor'])
                 ->lockForUpdate()
@@ -33,13 +33,30 @@ class OrdenCompraRecepcionService
             $invoiceAfterNota = $this->isInvoiceAfterNotaPending($ordenCompra, $tipoDocumento);
 
             if ($ordenCompra->recepcion_procesada_at && ! $invoiceAfterNota) {
-                return $ordenCompra;
+                $payload = [
+                    'tipo_documento_recepcion' => $tipoDocumento,
+                    'factura_pendiente' => $tipoDocumento === 'NOTA',
+                ];
+
+                if ($tipoDocumento === 'NOTA') {
+                    $payload['nota_entrega_path'] = $documentoPath;
+                } else {
+                    $payload['factura_path'] = $documentoPath;
+                }
+
+                $ordenCompra->forceFill($payload)->save();
+
+                if ($tipoDocumento === 'FACTURA' && filled($documentoPath)) {
+                    $this->notifyFinanzas($ordenCompra);
+                }
+
+                return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
             }
 
             if ($invoiceAfterNota) {
                 $ordenCompra->forceFill([
                     'tipo_documento_recepcion' => 'FACTURA',
-                    'factura_path' => $facturaPath,
+                    'factura_path' => $documentoPath,
                     'factura_pendiente' => false,
                 ])->save();
 
@@ -48,16 +65,23 @@ class OrdenCompraRecepcionService
                 return $ordenCompra->fresh(['sumario.solicitudCompra.solicitadoPor']);
             }
 
-            $ordenCompra->forceFill([
+            $payload = [
                 'tipo_documento_recepcion' => $tipoDocumento,
-                'factura_path' => $facturaPath,
                 'factura_pendiente' => $tipoDocumento === 'NOTA',
                 'estado' => 'RECIBIDA',
                 'workflow_post_compra' => 'DOCUMENTO_RECEPCION_CARGADO_PROCURA',
                 'confirmado_por_user_id' => $user->id,
-            ])->save();
+            ];
 
-            if ($tipoDocumento === 'FACTURA' && filled($facturaPath)) {
+            if ($tipoDocumento === 'NOTA') {
+                $payload['nota_entrega_path'] = $documentoPath;
+            } else {
+                $payload['factura_path'] = $documentoPath;
+            }
+
+            $ordenCompra->forceFill($payload)->save();
+
+            if ($tipoDocumento === 'FACTURA' && filled($documentoPath)) {
                 $this->notifyFinanzas($ordenCompra);
             }
 
@@ -108,9 +132,9 @@ class OrdenCompraRecepcionService
         });
     }
 
-    public function procesarRecepcion(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $facturaPath = null): OrdenCompra
+    public function procesarRecepcion(OrdenCompra $ordenCompra, User $user, string $tipoDocumento, ?string $documentoPath = null): OrdenCompra
     {
-        $this->cargarDocumentoProcura($ordenCompra, $user, $tipoDocumento, $facturaPath);
+        $this->cargarDocumentoProcura($ordenCompra, $user, $tipoDocumento, $documentoPath);
 
         return $this->marcarZonaTransicionAlmacen($ordenCompra, $user);
     }

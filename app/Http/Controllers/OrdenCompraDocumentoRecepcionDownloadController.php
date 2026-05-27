@@ -10,8 +10,8 @@ class OrdenCompraDocumentoRecepcionDownloadController extends Controller
 {
     public function __invoke(OrdenCompra $ordenCompra): StreamedResponse
     {
-        $storedPath = $this->normalizePath((string) ($ordenCompra->factura_path ?? ''));
-        $tipoDocumento = (string) ($ordenCompra->tipo_documento_recepcion ?? '');
+        $tipoDocumento = $this->resolveRequestedDocumentType($ordenCompra, (string) request('documento', ''));
+        $storedPath = $this->storedPathForDocument($ordenCompra, $tipoDocumento);
 
         if ($storedPath === '') {
             abort(404, 'No hay documento de recepcion disponible para esta ODC.');
@@ -32,6 +32,34 @@ class OrdenCompraDocumentoRecepcionDownloadController extends Controller
         }
 
         return Storage::disk($disk)->download($path, $downloadName);
+    }
+
+    private function resolveRequestedDocumentType(OrdenCompra $ordenCompra, string $requestedDocument): string
+    {
+        $requestedDocument = strtoupper(trim($requestedDocument));
+
+        if (in_array($requestedDocument, ['FACTURA', 'NOTA'], true)) {
+            return $requestedDocument;
+        }
+
+        if ((string) ($ordenCompra->tipo_documento_recepcion ?? '') === 'NOTA' && $ordenCompra->hasNotaEntregaRecepcion()) {
+            return 'NOTA';
+        }
+
+        if ($ordenCompra->hasFacturaRecepcion()) {
+            return 'FACTURA';
+        }
+
+        return 'NOTA';
+    }
+
+    private function storedPathForDocument(OrdenCompra $ordenCompra, string $tipoDocumento): string
+    {
+        $path = $tipoDocumento === 'NOTA'
+            ? $ordenCompra->notaEntregaRecepcionPath()
+            : $ordenCompra->facturaRecepcionPath();
+
+        return $this->normalizePath((string) ($path ?? ''));
     }
 
     private function resolveReceptionDisk(string $tipoDocumento): string

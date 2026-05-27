@@ -26,7 +26,20 @@ class SumarioFormatoController extends Controller
     private const ITEMS_START_ROW = 17;
     private const ITEMS_END_ROW = 28;
     private const PDF_PRINT_AREA_START = 'B3';
-    private const PDF_PRINT_AREA_END = 'P43';
+    private const PDF_PRINT_AREA_END_COLUMN = 'P';
+    private const PDF_PRINT_AREA_MIN_END_ROW = 37;
+    private const PDF_PRINT_AREA_MAX_END_ROW = 41;
+    private const PDF_SETTINGS = [
+        'width_scale' => 0.85,
+        'horizontal_centered' => true,
+        'vertical_centered' => true,
+        'margins' => [
+            'top' => 0.5,
+            'bottom' => 0.5,
+            'left' => 0.5,
+            'right' => 0.5,
+        ],
+    ];
     private const DEFAULT_SIGNATURE_HEIGHT = 100;
     private const SIGNATURE_TOKENS = [
         'firma_elaborado',
@@ -59,6 +72,8 @@ class SumarioFormatoController extends Controller
 
     public function __invoke(Sumario $sumario)
     {
+        $this->configureExportRuntime();
+
         if (! $this->canAccess()) {
             abort(403);
         }
@@ -84,7 +99,7 @@ class SumarioFormatoController extends Controller
         }
 
         $outputFormat = strtolower((string) request('format', 'pdf'));
-        $fileBaseName = 'sumario-cotizaciones-' . $sumario->id . '-' . now()->format('YmdHis');
+        $fileBaseName = 'sumario-cotizaciones-' . $sumario->id . '-' . now()->format('YmdHisu') . '-' . bin2hex(random_bytes(3));
         $xlsxPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.xlsx';
         $pdfPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.pdf';
         $excelFileName = 'SUMARIO_' . ($sumario->correlativo_sdc ?: $sumario->id) . '.xlsx';
@@ -100,10 +115,10 @@ class SumarioFormatoController extends Controller
             );
 
             if ($missingTokens !== []) {
-                return response(
-                    'Faltan placeholders requeridos en FORMATO SUM COTIZACIONES.xlsx: ' . implode(', ', $missingTokens),
-                    Response::HTTP_UNPROCESSABLE_ENTITY,
-                    ['Content-Type' => 'text/plain; charset=UTF-8']
+                return $this->fallbackPreviewResponse(
+                    $sumario,
+                    'La plantilla de Sumario no contiene todos los placeholders requeridos: ' . implode(', ', $missingTokens),
+                    Response::HTTP_UNPROCESSABLE_ENTITY
                 );
             }
 
@@ -139,7 +154,11 @@ class SumarioFormatoController extends Controller
                     'correlativo_sdc' => $sumario->correlativo_sdc ?? null,
                 ]);
 
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario porque LibreOffice no pudo convertir el archivo.');
+                return $this->fallbackPreviewResponse(
+                    $sumario,
+                    'No se pudo generar el PDF del Sumario porque LibreOffice no logro convertir el archivo en este servidor.',
+                    Response::HTTP_INTERNAL_SERVER_ERROR
+                );
             }
 
             if (! file_exists($pdfPath) || filesize($pdfPath) < 100) {
@@ -150,7 +169,11 @@ class SumarioFormatoController extends Controller
                     'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
                 ]);
 
-                abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario. Verifique que LibreOffice este instalado en el servidor.');
+                return $this->fallbackPreviewResponse(
+                    $sumario,
+                    'No se pudo generar un PDF valido del Sumario. Verifique LibreOffice o use la descarga en Excel mientras se corrige el servidor.',
+                    Response::HTTP_INTERNAL_SERVER_ERROR
+                );
             }
 
             if (file_exists($xlsxPath)) {
@@ -173,7 +196,11 @@ class SumarioFormatoController extends Controller
                 'exception' => $exception,
             ]);
 
-            abort(Response::HTTP_INTERNAL_SERVER_ERROR, 'No se pudo generar el PDF del sumario desde la plantilla Excel.');
+            return $this->fallbackPreviewResponse(
+                $sumario,
+                'No se pudo generar la vista previa PDF del Sumario desde la plantilla Excel.',
+                Response::HTTP_INTERNAL_SERVER_ERROR
+            );
         }
 
         if (request()->boolean('download')) {
@@ -184,6 +211,36 @@ class SumarioFormatoController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $pdfFileName . '"',
         ])->deleteFileAfterSend(true);
+    }
+
+    private function fallbackPreviewResponse(Sumario $sumario, string $message, int $statusCode = Response::HTTP_INTERNAL_SERVER_ERROR)
+    {
+        if (request()->boolean('download')) {
+            abort($statusCode, $message);
+        }
+
+        return response()->view('sumarios.pdf-fallback', [
+            'sumario' => $sumario,
+            'message' => $message,
+            'excelUrl' => route('sumarios.formato', [
+                'sumario' => $sumario,
+                'format' => 'xlsx',
+                'download' => 1,
+            ]),
+        ]);
+    }
+
+    private function configureExportRuntime(): void
+    {
+        $memoryLimit = (string) env('PDF_EXPORT_MEMORY_LIMIT', '512M');
+        $executionTime = (int) env('PDF_EXPORT_MAX_EXECUTION_TIME', 180);
+
+        @ini_set('memory_limit', $memoryLimit);
+
+        if ($executionTime > 0) {
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', (string) $executionTime);
+        }
     }
 
     private function canAccess(): bool
@@ -690,14 +747,59 @@ class SumarioFormatoController extends Controller
 
     private function normalizeSheetForPdf(Worksheet $sheet): void
     {
+        $highestDataRow = (int) $sheet->getHighestDataRow();
+        $highestDrawingRow = 0;
+
+        foreach ($sheet->getDrawingCollection() as $drawing) {
+            $coordinate = (string) $drawing->getCoordinates();
+            if (preg_match('/\d+$/', $coordinate, $matches) === 1) {
+                $highestDrawingRow = max($highestDrawingRow, (int) $matches[0]);
+            }
+        }
+
+        $contentRow = max($highestDataRow, $highestDrawingRow);
+        $endRow = max(
+            self::PDF_PRINT_AREA_MIN_END_ROW,
+            min($contentRow, self::PDF_PRINT_AREA_MAX_END_ROW)
+        );
+
+        $this->scalePrintAreaColumnsForPdf($sheet, self::PDF_PRINT_AREA_END_COLUMN);
+
         $pageSetup = $sheet->getPageSetup();
-        $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . self::PDF_PRINT_AREA_END);
+        $pageSetup->setPrintArea(self::PDF_PRINT_AREA_START . ':' . self::PDF_PRINT_AREA_END_COLUMN . $endRow);
+
+        $pageMargins = $sheet->getPageMargins();
+        $pageMargins->setTop((float) self::PDF_SETTINGS['margins']['top']);
+        $pageMargins->setBottom((float) self::PDF_SETTINGS['margins']['bottom']);
+        $pageMargins->setLeft((float) self::PDF_SETTINGS['margins']['left']);
+        $pageMargins->setRight((float) self::PDF_SETTINGS['margins']['right']);
+
         $pageSetup->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
         $pageSetup->setPaperSize(PageSetup::PAPERSIZE_LETTER);
         $pageSetup->setFitToPage(true);
         $pageSetup->setFitToWidth(1);
         $pageSetup->setFitToHeight(1);
-        $pageSetup->setHorizontalCentered(true);
-        $pageSetup->setVerticalCentered(false);
+        $pageSetup->setHorizontalCentered((bool) self::PDF_SETTINGS['horizontal_centered']);
+        $pageSetup->setVerticalCentered((bool) self::PDF_SETTINGS['vertical_centered']);
+    }
+
+    private function scalePrintAreaColumnsForPdf(Worksheet $sheet, string $endColumn): void
+    {
+        $startColumn = preg_replace('/\d+$/', '', self::PDF_PRINT_AREA_START) ?: 'B';
+        $startIndex = Coordinate::columnIndexFromString($startColumn);
+        $endIndex = Coordinate::columnIndexFromString($endColumn);
+        $widthScale = (float) self::PDF_SETTINGS['width_scale'];
+
+        for ($columnIndex = $startIndex; $columnIndex <= $endIndex; $columnIndex++) {
+            $column = Coordinate::stringFromColumnIndex($columnIndex);
+            $dimension = $sheet->getColumnDimension($column);
+            $width = (float) $dimension->getWidth();
+
+            if ($width <= 0) {
+                continue;
+            }
+
+            $dimension->setWidth(round($width * $widthScale, 4));
+        }
     }
 }

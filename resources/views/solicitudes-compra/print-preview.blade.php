@@ -122,6 +122,17 @@
             const printBtn = document.getElementById('printBtn');
 
             function triggerPrint() {
+                const pdfUrl = frame ? frame.getAttribute('src') : null;
+
+                if (pdfUrl) {
+                    const popup = window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+
+                    if (popup) {
+                        popup.focus();
+                        return;
+                    }
+                }
+
                 if (!frame || !frame.contentWindow) {
                     window.print();
                     return;
@@ -133,9 +144,17 @@
 
             printBtn.addEventListener('click', triggerPrint);
 
-            // Auto-abre el dialogo de impresion al cargar para reducir pasos.
-            frame.addEventListener('load', function () {
-                setTimeout(triggerPrint, 450);
+            document.addEventListener('keydown', function (event) {
+                const isMac = navigator.platform.toUpperCase().includes('MAC');
+                const isPrintShortcut = (isMac && event.metaKey && event.key.toLowerCase() === 'p')
+                    || (!isMac && event.ctrlKey && event.key.toLowerCase() === 'p');
+
+                if (!isPrintShortcut) {
+                    return;
+                }
+
+                event.preventDefault();
+                triggerPrint();
             });
         })();
     </script>

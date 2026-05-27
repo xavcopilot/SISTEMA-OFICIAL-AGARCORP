@@ -78,6 +78,8 @@ class SolicitudCompraFormatoController extends Controller
     {
         $user = auth()->user();
 
+        $this->configureExportRuntime();
+
         if (! $user) {
             abort(401);
         }
@@ -105,7 +107,7 @@ class SolicitudCompraFormatoController extends Controller
         }
 
         $outputFormat = strtolower((string) request('format', 'pdf'));
-        $fileBaseName = 'solicitud-compra-' . $solicitudCompra->id . '-' . now()->format('YmdHis');
+        $fileBaseName = 'solicitud-compra-' . $solicitudCompra->id . '-' . now()->format('YmdHisu') . '-' . bin2hex(random_bytes(3));
         $excelFileName = 'SOLICITUD_COMPRA_' . $solicitudCompra->id . '.xlsx';
         $xlsxPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.xlsx';
         $pdfPath = $tmpDir . DIRECTORY_SEPARATOR . $fileBaseName . '.pdf';
@@ -235,6 +237,19 @@ class SolicitudCompraFormatoController extends Controller
             'hora_receptor' => (string) ($solicitudCompra->hora_receptor ?? ''),
             'hora' => (string) ($solicitudCompra->hora_receptor ?? ''),
         ];
+    }
+
+    private function configureExportRuntime(): void
+    {
+        $memoryLimit = (string) env('PDF_EXPORT_MEMORY_LIMIT', '512M');
+        $executionTime = (int) env('PDF_EXPORT_MAX_EXECUTION_TIME', 180);
+
+        @ini_set('memory_limit', $memoryLimit);
+
+        if ($executionTime > 0) {
+            @set_time_limit($executionTime);
+            @ini_set('max_execution_time', (string) $executionTime);
+        }
     }
 
     private function renderItemRows(Worksheet $sheet, ?int $itemTemplateRow, SolicitudCompra $solicitudCompra): void

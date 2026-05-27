@@ -47,6 +47,7 @@ class OrdenCompra extends Model
         'confirmado_por_user_id',
         'tipo_documento_recepcion',
         'factura_path',
+        'nota_entrega_path',
         'factura_numero',
         'factura_numero_control',
         'factura_fecha_emision',
@@ -174,6 +175,48 @@ class OrdenCompra extends Model
     public function inventarioMovimiento(): BelongsTo
     {
         return $this->belongsTo(InventoryMovement::class, 'inventario_movimiento_id');
+    }
+
+    public function facturaRecepcionPath(): ?string
+    {
+        $path = trim((string) ($this->factura_path ?? ''));
+
+        if ($path === '') {
+            return null;
+        }
+
+        if ((string) ($this->tipo_documento_recepcion ?? '') === 'NOTA' && blank($this->nota_entrega_path)) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    public function notaEntregaRecepcionPath(): ?string
+    {
+        $path = trim((string) ($this->nota_entrega_path ?? ''));
+
+        if ($path !== '') {
+            return $path;
+        }
+
+        if ((string) ($this->tipo_documento_recepcion ?? '') !== 'NOTA') {
+            return null;
+        }
+
+        $legacyPath = trim((string) ($this->factura_path ?? ''));
+
+        return $legacyPath !== '' ? $legacyPath : null;
+    }
+
+    public function hasFacturaRecepcion(): bool
+    {
+        return $this->facturaRecepcionPath() !== null;
+    }
+
+    public function hasNotaEntregaRecepcion(): bool
+    {
+        return $this->notaEntregaRecepcionPath() !== null;
     }
 
     public function rechazoPor(): BelongsTo
