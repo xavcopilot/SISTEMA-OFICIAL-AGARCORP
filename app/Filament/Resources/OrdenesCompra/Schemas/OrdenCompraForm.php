@@ -9,6 +9,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
@@ -120,11 +121,11 @@ class OrdenCompraForm
                                     ->createOptionForm([
                                         TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
                                         TextInput::make('rif')->label('RIF')->required()->maxLength(255),
-                                        TextInput::make('direccion')->label('Direccion')->required()->maxLength(255),
-                                        TextInput::make('ciudad')->label('Ciudad')->required()->maxLength(255),
+                                        TextInput::make('direccion')->label('Direccion')->maxLength(255),
+                                        TextInput::make('ciudad')->label('Ciudad')->maxLength(255),
                                         TextInput::make('email')->label('Email')->email()->maxLength(255),
-                                        TextInput::make('contacto')->label('Contacto')->required()->maxLength(255),
-                                        TextInput::make('telefono')->label('Telefono')->required()->maxLength(50),
+                                        TextInput::make('contacto')->label('Contacto')->maxLength(255),
+                                        TextInput::make('telefono')->label('Telefono')->maxLength(50),
                                     ])
                                     ->createOptionUsing(function (array $data): int {
                                         $provider = Proveedor::query()->create($data);
@@ -158,13 +159,11 @@ class OrdenCompraForm
 
                                 TextInput::make('rif_proveedor')
                                     ->label('RIF')
-                                    ->required()
                                     ->maxLength(255)
                                     ->columnSpan(4),
 
                                 TextInput::make('direccion_proveedor')
                                     ->label('Direccion')
-                                    ->required()
                                     ->maxLength(255)
                                     ->columnSpan(6),
 
@@ -176,14 +175,12 @@ class OrdenCompraForm
 
                                 TextInput::make('contacto_proveedor')
                                     ->label('Contacto')
-                                    ->required()
                                     ->maxLength(255)
                                     ->columnSpan(2),
 
                                 TextInput::make('telefono_proveedor')
                                     ->label('Numero telefono')
                                     ->maxLength(50)
-                                    ->required(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
                                     ->disabled(fn (callable $get): bool => (bool) $get('es_proveedor_registrado'))
                                     ->dehydrated(false)
                                     ->columnSpan(2),
@@ -191,7 +188,6 @@ class OrdenCompraForm
                                 TextInput::make('ciudad_proveedor')
                                     ->label('Ciudad')
                                     ->maxLength(255)
-                                    ->required(fn (callable $get): bool => ! (bool) $get('es_proveedor_registrado'))
                                     ->disabled(fn (callable $get): bool => (bool) $get('es_proveedor_registrado'))
                                     ->dehydrated(false)
                                     ->columnSpan(6),
@@ -259,8 +255,13 @@ class OrdenCompraForm
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
+                            ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                $rows = self::normalizeOrderItemRows(is_array($state) ? $state : []);
+                                $set('items', $rows);
+                                self::recalculateTotals($set, $get);
+                            })
                             ->schema([
-                                Grid::make(14)
+                                Grid::make(15)
                                     ->schema([
                                         TextInput::make('item')
                                             ->label('Codigo')
@@ -272,22 +273,55 @@ class OrdenCompraForm
 
                                         TextInput::make('unidad_medida')
                                             ->label('Unidad MED')
-                                            ->columnSpan(2),
+                                            ->columnSpan(1),
 
                                         TextInput::make('cantidad')
                                             ->label('Cantidad')
                                             ->numeric()
-                                            ->columnSpan(2),
+                                            ->live(debounce: 200)
+                                            ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                                self::syncOrderItemPricing($set, $get);
+                                            })
+                                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                                self::syncOrderItemPricing($set, $get);
+                                            })
+                                            ->columnSpan(1),
 
                                         TextInput::make('precio_unitario')
-                                            ->label(new HtmlString('<span style="white-space: nowrap;">Valor Unitario</span>'))
+                                            ->label(new HtmlString('<span style="white-space: nowrap;">Valor Unitario $</span>'))
                                             ->numeric()
+                                            ->live(debounce: 200)
+                                            ->afterStateHydrated(function ($state, callable $set, callable $get): void {
+                                                self::syncOrderItemPricing($set, $get);
+                                            })
+                                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                                self::syncOrderItemPricing($set, $get);
+                                            })
                                             ->columnSpan(2),
 
-                                        TextInput::make('precio_total')
-                                            ->label('Valor Total')
-                                            ->numeric()
+                                        Placeholder::make('precio_unitario_bs_preview')
+                                            ->label(new HtmlString('<span style="white-space: nowrap;">Valor Unitario BS</span>'))
+                                            ->content(function (callable $get): string {
+                                                $precioUnitario = (float) ($get('precio_unitario') ?? 0);
+                                                $tasaBcv = (float) ($get('../../tasa_bcv') ?? 0);
+
+                                                return number_format(self::calculateOrderItemBsUnit($precioUnitario, $tasaBcv), 2, ',', '.');
+                                            })
                                             ->columnSpan(3),
+
+                                        Placeholder::make('precio_total_bs_preview')
+                                            ->label(new HtmlString('<span style="white-space: nowrap;">Valor Total BS</span>'))
+                                            ->content(function (callable $get): string {
+                                                $cantidad = (float) ($get('cantidad') ?? 0);
+                                                $precioUnitario = (float) ($get('precio_unitario') ?? 0);
+                                                $tasaBcv = (float) ($get('../../tasa_bcv') ?? 0);
+
+                                                return number_format(self::calculateOrderItemBsTotal($cantidad, $precioUnitario, $tasaBcv), 2, ',', '.');
+                                            })
+                                            ->columnSpan(3),
+
+                                        Hidden::make('precio_total')
+                                            ->dehydrated(),
                                     ]),
                             ])
                             ->columnSpanFull(),
@@ -385,6 +419,7 @@ class OrdenCompraForm
                                     ->label('TASA BCV')
                                     ->numeric()
                                     ->step('0.0001')
+                                    ->live(debounce: 200)
                                     ->disabled(fn ($record): bool => filled($record?->pago_registrado_at))
                                     ->afterStateHydrated(function ($state, callable $set): void {
                                         if (filled($state)) {
@@ -396,6 +431,10 @@ class OrdenCompraForm
                                         if ($rate !== null) {
                                             $set('tasa_bcv', round($rate, 4));
                                         }
+                                    })
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                        $set('items', self::normalizeOrderItemRows(is_array($get('items')) ? $get('items') : []));
+                                        self::recalculateTotals($set, $get);
                                     })
                                     ->columnSpan(3),
 
@@ -473,20 +512,83 @@ class OrdenCompraForm
     private static function recalculateTotals(callable $set, callable $get): void
     {
         $items = $get('items') ?? [];
-
-        $subTotal = collect($items)
-            ->filter(fn ($item): bool => is_array($item))
-            ->sum(fn (array $item): float => (float) ($item['precio_total'] ?? 0));
-
-        $subTotal = round((float) $subTotal, 2);
-        $iva = round($subTotal * 0.16, 2);
+        $tasaBcv = (float) ($get('tasa_bcv') ?? 0);
+        [$subTotal, $iva, $totalItemsBs] = self::calculateBsTotals($items, $tasaBcv);
         $montoExento = round((float) ($get('monto_exento') ?? 0), 2);
         $gastosAdicionales = round((float) ($get('gastos_adicionales') ?? 0), 2);
-        $totalGeneral = round($subTotal + $iva + $montoExento + $gastosAdicionales, 2);
+        $totalGeneral = round($totalItemsBs + $montoExento + $gastosAdicionales, 2);
 
         $set('sub_total', $subTotal);
         $set('iva_16', $iva);
         $set('total_general', $totalGeneral);
+    }
+
+    private static function syncOrderItemPricing(callable $set, callable $get): void
+    {
+        $cantidad = (float) ($get('cantidad') ?? 0);
+        $precioUnitario = (float) ($get('precio_unitario') ?? 0);
+
+        $set('precio_total', self::calculateOrderItemUsdTotal($cantidad, $precioUnitario));
+
+        $items = $get('../../items') ?? [];
+        $tasaBcv = (float) ($get('../../tasa_bcv') ?? 0);
+        [$subTotal, $iva, $totalItemsBs] = self::calculateBsTotals($items, $tasaBcv);
+        $montoExento = round((float) ($get('../../monto_exento') ?? 0), 2);
+        $gastosAdicionales = round((float) ($get('../../gastos_adicionales') ?? 0), 2);
+        $totalGeneral = round($totalItemsBs + $montoExento + $gastosAdicionales, 2);
+
+        $set('../../sub_total', $subTotal);
+        $set('../../iva_16', $iva);
+        $set('../../total_general', $totalGeneral);
+    }
+
+    private static function normalizeOrderItemRows(array $items): array
+    {
+        return collect($items)
+            ->map(function ($item): array {
+                if (! is_array($item)) {
+                    return [];
+                }
+
+                $cantidad = (float) ($item['cantidad'] ?? 0);
+                $precioUnitario = (float) ($item['precio_unitario'] ?? 0);
+                $item['precio_total'] = self::calculateOrderItemUsdTotal($cantidad, $precioUnitario);
+
+                return $item;
+            })
+            ->all();
+    }
+
+    private static function calculateOrderItemUsdTotal(float $cantidad, float $precioUnitario): float
+    {
+        return round($cantidad * $precioUnitario, 2);
+    }
+
+    private static function calculateOrderItemBsUnit(float $precioUnitario, float $tasaBcv): float
+    {
+        return round($precioUnitario * max($tasaBcv, 0), 2);
+    }
+
+    private static function calculateOrderItemBsTotal(float $cantidad, float $precioUnitario, float $tasaBcv): float
+    {
+        return round(self::calculateOrderItemUsdTotal($cantidad, $precioUnitario) * max($tasaBcv, 0), 2);
+    }
+
+    private static function calculateBsTotals(array $items, float $tasaBcv): array
+    {
+        $subtotalBs = round(collect($items)
+            ->filter(fn ($item): bool => is_array($item))
+            ->sum(function (array $item) use ($tasaBcv): float {
+                $cantidad = (float) ($item['cantidad'] ?? 0);
+                $precioUnitario = (float) ($item['precio_unitario'] ?? 0);
+
+                return self::calculateOrderItemBsTotal($cantidad, $precioUnitario, $tasaBcv);
+            }), 2);
+
+        $ivaBs = round($subtotalBs * 0.16, 2);
+        $totalItemsBs = round($subtotalBs + $ivaBs, 2);
+
+        return [$subtotalBs, $ivaBs, $totalItemsBs];
     }
 
     private static function hydrateProviderFields(int $providerId, callable $set): void

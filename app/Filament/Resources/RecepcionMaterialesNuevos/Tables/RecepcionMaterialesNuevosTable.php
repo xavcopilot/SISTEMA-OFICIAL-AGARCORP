@@ -78,39 +78,38 @@ class RecepcionMaterialesNuevosTable
                     ->color(fn ($record): string => self::resolveEstadoColor($record))
                     ->description(fn ($record): ?string => self::resolveEstadoDescription($record)),
 
-                TextColumn::make('tipo_documento_recepcion')
-                    ->toggleable()
-                    ->label('Documento recibido')
-                    ->badge()
-                    ->formatStateUsing(fn (?string $state): string => match ((string) $state) {
-                        'FACTURA' => 'FACTURA',
-                        'NOTA' => 'NOTA DE ENTREGA',
-                        default => 'SIN DOCUMENTO',
-                    })
-                    ->color(fn (?string $state): string => match ((string) $state) {
-                        'FACTURA' => 'success',
-                        'NOTA' => 'warning',
-                        default => 'gray',
-                    }),
-
                 TextColumn::make('total_general')
                     ->toggleable()
                     ->label('Total general')
                     ->formatStateUsing(fn ($state): string => '$ ' . number_format((float) ($state ?? 0), 2, ',', '.'))
                     ->sortable(),
 
-                TextColumn::make('factura_path')
+                TextColumn::make('nota_entrega_path')
                     ->toggleable()
-                    ->label('Soporte de entrega')
-                    ->state(fn ($record): string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
-                        ? ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()
-                            ? 'Descargar nota de entrega'
-                            : 'Descargar factura')
-                        : 'Sin documento')
-                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                    ->label('Soporte N/E')
+                    ->state(fn ($record): string => $record->hasNotaEntregaRecepcion()
+                        ? 'Descargar nota de entrega'
+                        : 'No disponible')
+                    ->color(fn ($record): string => $record->hasNotaEntregaRecepcion() ? 'primary' : 'gray')
+                    ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcion()
                         ? route('ordenes-compra.documento-recepcion.download', [
                             'ordenCompra' => $record,
-                            'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                            'documento' => 'nota',
+                        ])
+                        : null)
+                    ->openUrlInNewTab(),
+
+                TextColumn::make('factura_path')
+                    ->toggleable()
+                    ->label('Soporte Factura')
+                    ->state(fn ($record): string => $record->hasFacturaRecepcion()
+                        ? 'Descargar factura'
+                        : 'No disponible')
+                    ->color(fn ($record): string => $record->hasFacturaRecepcion() ? 'primary' : 'gray')
+                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion()
+                        ? route('ordenes-compra.documento-recepcion.download', [
+                            'ordenCompra' => $record,
+                            'documento' => 'factura',
                         ])
                         : null)
                     ->openUrlInNewTab(),

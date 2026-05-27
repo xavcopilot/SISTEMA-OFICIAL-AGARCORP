@@ -345,6 +345,8 @@ class SumarioForm
                                     ->searchable()
                                     ->preload()
                                     ->live()
+                                    ->createOptionForm(self::providerCreateOptionForm())
+                                    ->createOptionUsing(fn (array $data): int => self::createProviderFromForm($data))
                                     ->dehydrated(false)
                                     ->afterStateHydrated(function ($state, callable $set, callable $get): void {
                                         if (filled($state)) {
@@ -366,6 +368,8 @@ class SumarioForm
                                     ->searchable()
                                     ->preload()
                                     ->live()
+                                    ->createOptionForm(self::providerCreateOptionForm())
+                                    ->createOptionUsing(fn (array $data): int => self::createProviderFromForm($data))
                                     ->dehydrated(false)
                                     ->afterStateHydrated(function ($state, callable $set, callable $get): void {
                                         if (filled($state)) {
@@ -387,6 +391,8 @@ class SumarioForm
                                     ->searchable()
                                     ->preload()
                                     ->live()
+                                    ->createOptionForm(self::providerCreateOptionForm())
+                                    ->createOptionUsing(fn (array $data): int => self::createProviderFromForm($data))
                                     ->dehydrated(false)
                                     ->afterStateHydrated(function ($state, callable $set, callable $get): void {
                                         if (filled($state)) {
@@ -631,7 +637,7 @@ class SumarioForm
 
                                         TextInput::make('descripcion')
                                             ->label('DESCRIPCION')
-                                            ->disabled()
+                                            ->required()
                                             ->dehydrated()
                                             ->columnSpan(4),
 
@@ -1135,7 +1141,7 @@ class SumarioForm
             $rows[] = [
                 'solicitud_compra_item_id' => $selectedId,
                 'item' => $item->item ?: $item->id,
-                'descripcion' => $item->descripcion,
+                'descripcion' => (string) ($existing['descripcion'] ?? $item->descripcion),
                 'unidad_medida' => $item->unidad_medida,
                 'cantidad' => $cantidad,
                 'marca_prov1' => $existing['marca_prov1'] ?? null,
@@ -1207,6 +1213,37 @@ class SumarioForm
             ->pluck('nombre', 'id')
             ->map(fn ($name): string => trim((string) $name))
             ->all();
+    }
+
+    /**
+     * @return array<int, TextInput>
+     */
+    private static function providerCreateOptionForm(): array
+    {
+        return [
+            TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
+            TextInput::make('rif')->label('RIF')->required()->maxLength(255),
+            TextInput::make('direccion')->label('Direccion')->required()->maxLength(255),
+            TextInput::make('ciudad')->label('Ciudad')->required()->maxLength(255),
+            TextInput::make('email')
+                ->label('Email')
+                ->email()
+                ->maxLength(255)
+                ->dehydrateStateUsing(fn ($state): ?string => filled(trim((string) $state)) ? trim((string) $state) : null),
+            TextInput::make('contacto')->label('Contacto')->required()->maxLength(255),
+            TextInput::make('telefono')->label('Telefono')->required()->maxLength(50),
+        ];
+    }
+
+    private static function createProviderFromForm(array $data): int
+    {
+        $data['email'] = filled(trim((string) ($data['email'] ?? '')))
+            ? trim((string) $data['email'])
+            : null;
+
+        $provider = Proveedor::query()->create($data);
+
+        return (int) $provider->id;
     }
 
     private static function resolveProviderIdByName(string $name): ?int

@@ -28,14 +28,6 @@ class AdministracionFacturasTable
                     ->label('Proveedor')
                     ->default('-')
                     ->searchable(),
-                TextColumn::make('factura_path')
-                    ->toggleable()
-                    ->label('Factura recibida')
-                    ->state(fn ($record): string => filled($record->factura_path) ? 'Descargar factura' : 'Sin factura')
-                    ->url(fn ($record): ?string => filled($record->factura_path)
-                        ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $record])
-                        : null)
-                    ->openUrlInNewTab(),
                 TextColumn::make('factura_enviada_administracion_at')
                     ->toggleable()
                     ->label('Estado envio')
@@ -59,7 +51,8 @@ class AdministracionFacturasTable
                     ->placeholder('Pendiente'),
             ])
             ->recordActions([
-                OrdenesCompraTable::makeOpenFacturaImageAction(),
+                OrdenesCompraTable::makeOpenFacturaRecepcionAction(),
+                OrdenesCompraTable::makeOpenNotaEntregaRecepcionAction(),
                 OrdenesCompraTable::makeAdministracionFacturaAction(),
             ])
             ->defaultSort('created_at', 'desc');

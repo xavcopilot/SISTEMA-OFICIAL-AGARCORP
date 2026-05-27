@@ -326,14 +326,8 @@ class OrdenesCompraTable
                     ->url(fn ($record): string => OrdenCompraResource::getUrl('edit', ['record' => $record]))
                     ->visible(fn ($record, $livewire): bool => ! self::isPendingSumarioRecord($record)
                         && self::isOdcCorreccionesTab($livewire)
-                        && (
-                            (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_VALIDACION_FINANZAS'
-                            || (string) ($record->workflow_post_compra ?? '') === 'PENDIENTE_APROBACION_GERENCIA_FINANZAS'
-                            || (
-                                (string) ($record->estado ?? '') === 'RECHAZADA'
-                                && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)
-                            )
-                        )),
+                        && (string) ($record->estado ?? '') === 'RECHAZADA'
+                        && in_array((string) ($record->rechazo_etapa ?? ''), ['gerencia_finanzas', 'validacion_finanzas'], true)),
 
                 Action::make('verSumarioOdc')
                     ->label('Ver sumario')
@@ -920,19 +914,39 @@ class OrdenesCompraTable
         ];
     }
 
-    public static function makeOpenFacturaImageAction(): Action
+    public static function makeOpenFacturaRecepcionAction(): Action
     {
-        return Action::make('abrirFacturaImagen')
-            ->label('Descargar factura/nota')
+        return Action::make('abrirFacturaRecepcion')
+            ->label('Descargar factura')
             ->icon(Heroicon::OutlinedEye)
-            ->visible(fn ($record): bool => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion())
-            ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+            ->visible(fn ($record): bool => $record->hasFacturaRecepcion())
+            ->url(fn ($record): ?string => $record->hasFacturaRecepcion()
                 ? route('ordenes-compra.documento-recepcion.download', [
                     'ordenCompra' => $record,
-                    'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                    'documento' => 'factura',
                 ])
                 : null)
             ->openUrlInNewTab();
+    }
+
+    public static function makeOpenNotaEntregaRecepcionAction(): Action
+    {
+        return Action::make('abrirNotaEntregaRecepcion')
+            ->label('Descargar nota de entrega')
+            ->icon(Heroicon::OutlinedDocumentText)
+            ->visible(fn ($record): bool => $record->hasNotaEntregaRecepcion())
+            ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcion()
+                ? route('ordenes-compra.documento-recepcion.download', [
+                    'ordenCompra' => $record,
+                    'documento' => 'nota',
+                ])
+                : null)
+            ->openUrlInNewTab();
+    }
+
+    public static function makeOpenFacturaImageAction(): Action
+    {
+        return self::makeOpenFacturaRecepcionAction();
     }
 
     public static function canAdministracionRegisterInvoice(mixed $record): bool

@@ -207,6 +207,7 @@ class ListOrdenesCompra extends ListRecords
                 'workflow_post_compra' => 'DEVOLUCION_REALIZADA',
                 'conformidad_solicitante_at' => null,
                 'conformidad_por_user_id' => null,
+                'visible_conformidades_procura' => true,
             ])->save();
         });
 
@@ -253,6 +254,7 @@ class ListOrdenesCompra extends ListRecords
 
         $ordenCompra->forceFill([
             'workflow_post_compra' => 'CERRADA_CONFORME',
+            'visible_conformidades_procura' => false,
         ])->save();
 
         Notification::make()
@@ -482,7 +484,8 @@ class ListOrdenesCompra extends ListRecords
                                     ->where('decision_solicitante', 'RECHAZADO')
                                     ->orWhereNull('decision_solicitante');
                             });
-                    });
+                            })
+                            ->orWhere('visible_conformidades_procura', true);
             })
             ->orderByDesc('id')
             ->limit(300)
@@ -591,6 +594,7 @@ class ListOrdenesCompra extends ListRecords
                 'solicitante' => $solicitante,
                 'workflow_raw' => (string) ($orden->workflow_post_compra ?? ''),
                 'workflow' => self::humanReadableOdcFlow((string) ($orden->workflow_post_compra ?: '-')),
+                'keep_visible_for_procura' => (bool) ($orden->visible_conformidades_procura ?? false),
                 'accepted' => $accepted,
                 'rejected' => $rejected,
                 'pending' => $pending,
@@ -653,6 +657,7 @@ class ListOrdenesCompra extends ListRecords
 
                 $openOdcButton = '<a href="' . e((string) $row['print_url']) . '" target="_blank" rel="noopener" style="display:inline-block;border:1px solid #1d4ed8;background:#2563eb;color:#fff;border-radius:6px;padding:5px 9px;text-decoration:none;">Vista imprimir</a>';
                 $workflowRaw = strtoupper((string) ($row['workflow_raw'] ?? ''));
+                $keepVisibleForProcura = (bool) ($row['keep_visible_for_procura'] ?? false);
                 $planActionButton = (int) ($row['rejected'] ?? 0) > 0 && $workflowRaw !== 'DEVOLUCION_PLANIFICADA' && $workflowRaw !== 'DEVOLUCION_REALIZADA'
                     ? '<button type="button" wire:click="marcarDevolucionPlanificada(\'' . e((string) $row['id']) . '\')" style="display:inline-block;border:1px solid #a16207;background:#ca8a04;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">Marcar devolucion planificada</button>'
                     : '';
@@ -661,7 +666,7 @@ class ListOrdenesCompra extends ListRecords
                     : '';
                 $resolveOdcButton = (int) ($row['pending'] ?? 0) === 0
                     && (int) ($row['rejected'] ?? 0) === 0
-                    && $workflowRaw !== 'CERRADA_CONFORME'
+                    && ($workflowRaw !== 'CERRADA_CONFORME' || $keepVisibleForProcura)
                     ? '<div x-data="{ show: false }">
                         <button type="button" @click="show = true" style="display:inline-block;border:1px solid #166534;background:#16a34a;color:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;">ODC Resuelta</button>
                         <div x-show="show" x-cloak style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999;background:rgba(0,0,0,0.5);">
