@@ -33,13 +33,13 @@ class SalidasExport implements FromCollection, WithHeadings, WithEvents
             $movement = $item->movement;
             $product = $item->product;
             $fecha = $movement?->fecha;
+            $dptoResponsable = $movement?->dpto_responsable_unificado;
 
             return [
                 $movement?->nro_control,
                 $fecha?->format('d/m/Y'),
                 $fecha?->format('m'),
-                $movement?->responsable_destino,
-                $movement?->dpto_destino,
+                $dptoResponsable,
                 $movement?->almacenista,
                 $product?->sku,
                 $product?->descripcion,
@@ -63,8 +63,7 @@ class SalidasExport implements FromCollection, WithHeadings, WithEvents
             'N° Control',
             'Fecha',
             'MES',
-            'RESPONSABLE',
-            'AREA/DPTO',
+            'DPTO RESPONSABLE',
             'QUIEN ENTREGA',
             'SKU',
             'DESCRIPCION',
@@ -87,12 +86,12 @@ class SalidasExport implements FromCollection, WithHeadings, WithEvents
             AfterSheet::class => function (AfterSheet $event): void {
                 $sheet = $event->sheet->getDelegate();
 
-                foreach (range('A', 'R') as $column) {
+                foreach (range('A', 'Q') as $column) {
                     $sheet->getColumnDimension($column)->setAutoSize(true);
                 }
 
                 $sheet->getStyle('H')->getAlignment()->setWrapText(true);
-                $sheet->getStyle('R')->getAlignment()->setWrapText(true);
+                $sheet->getStyle('Q')->getAlignment()->setWrapText(true);
             },
         ];
     }

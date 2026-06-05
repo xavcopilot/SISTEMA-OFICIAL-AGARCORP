@@ -40,13 +40,9 @@ class InventoryMovementsTable
                     ->searchable()
                     ->toggleable(),
 
-                TextColumn::make('responsable_destino')
-                    ->label('Responsable')
-                    ->searchable()
-                    ->toggleable(),
-
-                TextColumn::make('dpto_destino')
-                    ->label('Departamento')
+                TextColumn::make('dpto_responsable')
+                    ->label('Dpto Responsable')
+                    ->state(fn (InventoryMovement $record): string => (string) ($record->dpto_responsable_unificado ?? ''))
                     ->searchable()
                     ->toggleable(),
 

@@ -332,13 +332,16 @@ class InventorySpreadsheetImportService
                     }
 
                     $fecha = $this->resolveDateFromStages($group, fn (InventarioSalidaImport $stage): ?string => $this->salidaStageData($stage)['fecha']);
+                    $dptoResponsable = $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['area_dpto'])
+                        ?? $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['responsable']);
                     $movementId = $this->insertInventoryMovement([
                         'tipo' => 'salida',
                         'fecha' => $fecha,
                         'nro_control' => $groupKey,
                         'almacenista' => $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['quien_entrega']) ?? $userName,
-                        'responsable_destino' => $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['responsable']),
-                        'dpto_destino' => $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['area_dpto']),
+                        'dpto_responsable' => $dptoResponsable,
+                        'responsable_destino' => null,
+                        'dpto_destino' => $dptoResponsable,
                         'comentarios' => $this->firstResolvedValue($group, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['observaciones']),
                         'created_by_user_id' => $userId,
                         'total_items' => $group->count(),
@@ -660,13 +663,16 @@ class InventorySpreadsheetImportService
                     }
 
                     $fecha = $this->resolveDateFromStages($stages, fn (InventarioSalidaImport $stage): ?string => $this->salidaStageData($stage)['fecha']);
+                    $dptoResponsable = $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['area_dpto'])
+                        ?? $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['responsable']);
                     $movementId = $this->insertInventoryMovement([
                         'tipo' => 'salida',
                         'fecha' => $fecha,
                         'nro_control' => $groupKey,
                         'almacenista' => $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['quien_entrega']) ?? $userName,
-                        'responsable_destino' => $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['responsable']),
-                        'dpto_destino' => $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['area_dpto']),
+                        'dpto_responsable' => $dptoResponsable,
+                        'responsable_destino' => null,
+                        'dpto_destino' => $dptoResponsable,
                         'comentarios' => $this->firstResolvedValue($stages, fn (InventarioSalidaImport $stage): mixed => $this->salidaStageData($stage)['observaciones']),
                         'created_by_user_id' => $userId,
                         'total_items' => $stages->count(),
@@ -1005,6 +1011,7 @@ class InventorySpreadsheetImportService
             'proveedor' => $attributes['proveedor'] ?? null,
             'almacenista_user_id' => $attributes['almacenista_user_id'] ?? null,
             'almacenista' => $attributes['almacenista'] ?? null,
+            'dpto_responsable' => $attributes['dpto_responsable'] ?? null,
             'responsable_destino' => $attributes['responsable_destino'] ?? null,
             'dpto_destino' => $attributes['dpto_destino'] ?? null,
             'comentarios' => $attributes['comentarios'] ?? null,
@@ -1014,6 +1021,7 @@ class InventorySpreadsheetImportService
             'updated_at' => now(),
         ]);
     }
+
 
     private function findExistingProduct(mixed $sku, mixed $serial, bool $failIfMissing, bool $lockForUpdate = false): ?Product
     {

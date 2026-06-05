@@ -52,6 +52,7 @@ class InventoryMovement extends Model
         'proveedor',
         'entregado_por',
         'almacenista',
+        'dpto_responsable',
         'responsable_destino',
         'dpto_destino',
         'comentarios',
@@ -92,6 +93,19 @@ class InventoryMovement extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by_user_id');
+    }
+
+    public function getDptoResponsableUnificadoAttribute(): ?string
+    {
+        foreach (['dpto_responsable', 'dpto_destino', 'responsable_destino'] as $field) {
+            $value = trim((string) ($this->getAttribute($field) ?? ''));
+
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     public static function generateControlNumber(string $tipo): string

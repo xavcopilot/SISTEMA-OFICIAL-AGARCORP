@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ConsultarSalidas\Tables;
 
+use App\Models\Departamento;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
@@ -48,13 +49,9 @@ class ConsultarSalidasTable
                     ->sortable()
                     ->toggleable(),
 
-                TextColumn::make('responsable_destino')
-                    ->label('Responsable')
-                    ->searchable()
-                    ->toggleable(),
-
-                TextColumn::make('dpto_destino')
-                    ->label('Área / Departamento')
+                TextColumn::make('dpto_responsable')
+                    ->label('Dpto Responsable')
+                    ->state(fn (InventoryMovement $record): string => (string) ($record->dpto_responsable_unificado ?? ''))
                     ->searchable()
                     ->toggleable(),
 
@@ -90,36 +87,25 @@ class ConsultarSalidasTable
                             ->when($data['hasta'] ?? null, fn (Builder $query, $date): Builder => $query->whereDate('fecha', '<=', $date));
                     }),
 
-                Filter::make('responsable_destino')
-                    ->label('Responsable')
+                Filter::make('dpto_responsable')
+                    ->label('Dpto Responsable')
                     ->schema([
-                        TextInput::make('responsable_destino')
-                            ->label('Responsable'),
+                        TextInput::make('dpto_responsable')
+                            ->label('Dpto Responsable'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $responsable = trim((string) ($data['responsable_destino'] ?? ''));
+                        $dptoResponsable = trim((string) ($data['dpto_responsable'] ?? ''));
 
-                        if ($responsable === '') {
+                        if ($dptoResponsable === '') {
                             return $query;
                         }
 
-                        return $query->where('responsable_destino', 'like', '%' . $responsable . '%');
-                    }),
-
-                Filter::make('dpto_destino')
-                    ->label('Departamento')
-                    ->schema([
-                        TextInput::make('dpto_destino')
-                            ->label('Departamento'),
-                    ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        $departamento = trim((string) ($data['dpto_destino'] ?? ''));
-
-                        if ($departamento === '') {
-                            return $query;
-                        }
-
-                        return $query->where('dpto_destino', 'like', '%' . $departamento . '%');
+                        return $query->where(function (Builder $subQuery) use ($dptoResponsable): void {
+                            $subQuery
+                                ->where('dpto_responsable', 'like', '%' . $dptoResponsable . '%')
+                                ->orWhere('dpto_destino', 'like', '%' . $dptoResponsable . '%')
+                                ->orWhere('responsable_destino', 'like', '%' . $dptoResponsable . '%');
+                        });
                     }),
 
                 Filter::make('nro_control')
@@ -163,8 +149,9 @@ class ConsultarSalidasTable
                             $record,
                             [
                                 'almacenista' => $data['almacenista'] ?? null,
-                                'responsable_destino' => $data['responsable_destino'] ?? null,
-                                'dpto_destino' => $data['dpto_destino'] ?? null,
+                                'dpto_responsable' => $data['dpto_responsable'] ?? null,
+                                'responsable_destino' => null,
+                                'dpto_destino' => $data['dpto_responsable'] ?? null,
                                 'comentarios' => $data['comentarios'] ?? null,
                             ],
                             $data['items'] ?? []
@@ -197,13 +184,12 @@ class ConsultarSalidasTable
                         ->searchable()
                         ->required(),
 
-                    TextInput::make('responsable_destino')
-                        ->label('Responsable destino')
-                        ->maxLength(255),
-
-                    TextInput::make('dpto_destino')
-                        ->label('Area / Departamento')
-                        ->maxLength(255)
+                    Select::make('dpto_responsable')
+                        ->label('Dpto Responsable')
+                        ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
+                        ->searchable()
+                        ->native(false)
+                        ->required()
                         ->columnSpan(2),
                 ]),
 
@@ -316,8 +302,7 @@ class ConsultarSalidasTable
 
         return [
             'almacenista' => $record->almacenista,
-            'responsable_destino' => $record->responsable_destino,
-            'dpto_destino' => $record->dpto_destino,
+            'dpto_responsable' => $record->dpto_responsable_unificado,
             'comentarios' => $record->comentarios,
             'items' => $record->items->map(function ($item): array {
                 return [
@@ -353,12 +338,8 @@ class ConsultarSalidasTable
                             TextInput::make('almacenista')
                                 ->label('Quién entrega')
                                 ->disabled(),
-                            TextInput::make('responsable_destino')
-                                ->label('Responsable')
-                                ->disabled()
-                                ->columnSpan(2),
-                            TextInput::make('dpto_destino')
-                                ->label('Área / Departamento')
+                            TextInput::make('dpto_responsable')
+                                ->label('Dpto Responsable')
                                 ->disabled()
                                 ->columnSpan(2),
                         ]),
@@ -386,8 +367,7 @@ class ConsultarSalidasTable
             'fecha' => $record->fecha?->format('d/m/Y'),
             'total_items' => $record->total_items,
             'almacenista' => $record->almacenista,
-            'responsable_destino' => $record->responsable_destino,
-            'dpto_destino' => $record->dpto_destino,
+            'dpto_responsable' => $record->dpto_responsable_unificado,
             'comentarios' => $record->comentarios,
             'items' => $record->items->map(function ($item): array {
                 return [

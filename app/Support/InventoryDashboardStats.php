@@ -73,11 +73,13 @@ class InventoryDashboardStats
 
     public static function getConsumptionByDepartment(?array $filters = null, int $limit = 10): Collection
     {
+        $departmentExpression = "COALESCE(NULLIF(inventory_movements.dpto_responsable, ''), NULLIF(inventory_movements.dpto_destino, ''), NULLIF(inventory_movements.responsable_destino, ''), 'SIN DEPARTAMENTO')";
+
         $query = DB::table('movement_items')
             ->join('inventory_movements', 'inventory_movements.id', '=', 'movement_items.movement_id')
             ->where('inventory_movements.tipo', 'salida')
-            ->selectRaw("COALESCE(NULLIF(inventory_movements.dpto_destino, ''), 'SIN DEPARTAMENTO') as label, COALESCE(SUM(movement_items.cantidad), 0) as total")
-            ->groupBy('inventory_movements.dpto_destino')
+            ->selectRaw($departmentExpression . ' as label, COALESCE(SUM(movement_items.cantidad), 0) as total')
+            ->groupByRaw($departmentExpression)
             ->orderByDesc('total');
 
         self::applyMovementDateFilters($query, $filters, 'inventory_movements.fecha');

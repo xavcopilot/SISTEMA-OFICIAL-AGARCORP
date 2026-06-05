@@ -160,6 +160,7 @@ class InventorySalidaFormatoController extends Controller
             '.',
             ''
         );
+        $dptoResponsable = (string) ($movement->dpto_responsable_unificado ?? '');
 
         return [
             'movimiento_id'       => (string) $movement->id,
@@ -168,8 +169,9 @@ class InventorySalidaFormatoController extends Controller
             'fecha'               => optional($movement->fecha)->format('d/m/Y') ?? '',
             'almacenista'         => (string) ($movement->almacenista ?? ''),
             'creado_por'          => (string) ($movement->createdBy?->name ?? ''),
-            'responsable_destino' => (string) ($movement->responsable_destino ?? ''),
-            'dpto_destino'        => (string) ($movement->dpto_destino ?? ''),
+            'responsable_destino' => $dptoResponsable,
+            'dpto_destino'        => $dptoResponsable,
+            'dpto_responsable'    => $dptoResponsable,
             'comentarios'         => (string) ($movement->comentarios ?? ''),
             'total_items'         => (string) ($movement->total_items ?? 0),
             'total_cantidad'      => $totalCantidad,

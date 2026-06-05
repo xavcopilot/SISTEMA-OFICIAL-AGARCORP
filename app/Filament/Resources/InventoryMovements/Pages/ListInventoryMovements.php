@@ -625,15 +625,12 @@ class ListInventoryMovements extends ListRecords
                                 ->disabled()
                                 ->dehydrated(false),
 
-                            TextInput::make('responsable_destino')
-                                ->label('Responsable')
+                            Select::make('dpto_responsable')
+                                ->label('Dpto Responsable')
+                                ->options(fn (): array => Departamento::query()->orderBy('nombre')->pluck('nombre', 'nombre')->toArray())
                                 ->required()
-                                ->maxLength(255),
-
-                            TextInput::make('dpto_destino')
-                                ->label('Departamento')
-                                ->required()
-                                ->maxLength(255),
+                                ->searchable()
+                                ->native(false),
 
                             Hidden::make('nro_control')
                                 ->default(fn (): string => InventoryMovement::generateControlNumber('salida')),
@@ -1010,12 +1007,15 @@ class ListInventoryMovements extends ListRecords
         $movementId = null;
 
         DB::transaction(function () use ($data, &$processedProductIds, &$movementId): void {
+            $dptoResponsable = trim((string) ($data['dpto_responsable'] ?? ''));
+
             $movement = InventoryMovement::create([
                 'tipo' => 'salida',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('salida'),
                 'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
-                'responsable_destino' => $data['responsable_destino'] ?? null,
-                'dpto_destino' => $data['dpto_destino'] ?? null,
+                'dpto_responsable' => $dptoResponsable !== '' ? $dptoResponsable : null,
+                'responsable_destino' => null,
+                'dpto_destino' => $dptoResponsable !== '' ? $dptoResponsable : null,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 
