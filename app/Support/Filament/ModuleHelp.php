@@ -40,7 +40,6 @@ class ModuleHelp
                 'description' => 'Gestiona solicitudes desde su creacion hasta su historial completo.',
                 'windows' => [
                     ['title' => 'Mis solicitudes', 'description' => 'Solicitudes activas del solicitante con seguimiento en curso.'],
-                    ['title' => 'Historial de Conformidades', 'description' => 'Solicitudes que ya pasaron por conformidad de materiales.'],
                     ['title' => 'Historial de Solicitudes', 'description' => 'Solicitudes finalizadas o completadas.'],
                     ['title' => 'Borradores', 'description' => 'Solicitudes guardadas sin enviar.'],
                 ],

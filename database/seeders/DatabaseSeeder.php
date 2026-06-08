@@ -66,7 +66,7 @@ class DatabaseSeeder extends Seeder
             'Talento Humano' => 'talentohumano',
             'A.I.T'       => 'ait',
             'Validador Finanzas' => 'validadorfinanzas',
-            'Finanzas Pagos'    => 'finanzas',
+            'Finanzas Pagos'    => 'finanzaspagos',
             'Administracion' => 'administracion',
             'Mantenimiento' => 'mantenimiento',
             'S.I.H.O'     => 'siho',
