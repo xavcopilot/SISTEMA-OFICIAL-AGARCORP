@@ -227,7 +227,7 @@ class DatabaseSeeder extends Seeder
                 'cargo' => 'Analista',
             ],
             'Validador Finanzas' => [
-                'name' => 'Vanessa',
+                'name' => 'Vanessa Manjarres',
                 'email' => 'vanessa@agarven.com',
                 'cargo' => 'Validadora Finanzas',
             ],
@@ -250,6 +250,11 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Talento Humano',
                 'email' => 'talentohumano@agarven.com',
                 'cargo' => null,
+            ],
+             'Mantenimiento' => [
+                'name' => 'Grenmarys Almeida',
+                'email' => 'grenmarys.almeida@agarven.com',
+                'cargo' => 'Analista',
             ],
         ];
 
