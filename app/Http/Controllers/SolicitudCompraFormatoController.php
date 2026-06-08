@@ -38,10 +38,10 @@ class SolicitudCompraFormatoController extends Controller
     ];
     private const SIGNATURE_RENDER_OVERRIDES = [
         15 => ['height' => 100, 'offset_x' => 0, 'offset_y' => 0],
-        3 => ['height' => 50, 'offset_x' => 5, 'offset_y' => 30],
+        3 => ['height' => 90, 'offset_x' => 5, 'offset_y' => 30],
         14 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
         12 => ['height' => 70, 'offset_x' => 0, 'offset_y' => 0],
-        16 => ['height' => 60, 'offset_x' => 0, 'offset_y' => 30],
+        16 => ['height' => 80, 'offset_x' => 0, 'offset_y' => 30],
         2 => ['height' => 120, 'offset_x' => 6, 'offset_y' => 0],
     ];
 

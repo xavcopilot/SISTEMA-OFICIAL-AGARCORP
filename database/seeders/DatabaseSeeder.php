@@ -461,32 +461,22 @@ class DatabaseSeeder extends Seeder
         )));
         Role::firstOrCreate(['name' => 'Gerencia de Operaciones'])->syncPermissions($gerenciaOperacionesExactPermissions);
 
-        // ===== TALENTO HUMANO =====
+        // ===== ROLES SOLICITANTES BASE =====
         // Escritorio, Tickets, Notificaciones
         // Solicitudes de Compra: Crear
-        $talentoHumanoExactPermissions = array_values(array_unique(array_merge(
+        $solicitanteBasePermissions = array_values(array_unique(array_merge(
             $ticketPermissions,
             $solicitudCreatePermissions,
         )));
-        Role::firstOrCreate(['name' => 'Talento Humano'])->syncPermissions($talentoHumanoExactPermissions);
+
+        // ===== TALENTO HUMANO =====
+        Role::firstOrCreate(['name' => 'Talento Humano'])->syncPermissions($solicitanteBasePermissions);
 
         // ===== MANTENIMIENTO =====
-        // Escritorio, Tickets, Notificaciones
-        // Solicitudes de Compra: Crear
-        $mantenimientoExactPermissions = array_values(array_unique(array_merge(
-            $ticketPermissions,
-            $solicitudCreatePermissions,
-        )));
-        Role::firstOrCreate(['name' => 'Mantenimiento'])->syncPermissions($mantenimientoExactPermissions);
+        Role::firstOrCreate(['name' => 'Mantenimiento'])->syncPermissions($solicitanteBasePermissions);
 
         // ===== S.I.H.O =====
-        // Escritorio, Tickets, Notificaciones
-        // Solicitudes de Compra: Crear
-        $sihoExactPermissions = array_values(array_unique(array_merge(
-            $ticketPermissions,
-            $solicitudCreatePermissions,
-        )));
-        Role::firstOrCreate(['name' => 'S.I.H.O'])->syncPermissions($sihoExactPermissions);
+        Role::firstOrCreate(['name' => 'S.I.H.O'])->syncPermissions($solicitanteBasePermissions);
 
         // ===== ALTA GERENCIA =====
         // Escritorio, Tickets, Notificaciones
