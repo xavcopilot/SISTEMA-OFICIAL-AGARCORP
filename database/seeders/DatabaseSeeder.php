@@ -221,36 +221,12 @@ class DatabaseSeeder extends Seeder
                 'cargo' => 'Almacenista',
             ],
 
-            'Finanzas Pagos' => [
-                'name' => 'Finanzas Pagos',
-                'email' => 'finanzas@agarven.com',
-                'cargo' => 'Analista',
-            ],
             'Validador Finanzas' => [
                 'name' => 'Vanessa Manjarres',
                 'email' => 'vanessa@agarven.com',
                 'cargo' => 'Validadora Finanzas',
             ],
-            'Administracion' => [
-                'name' => 'administracion',
-                'email' => 'administracion@agarven.com',
-                'cargo' => 'Analista',
-            ],
-            'Mantenimiento' => [
-                'name' => 'Mantenimiento',
-                'email' => 'mantenimiento@agarven.com',
-                'cargo' => null,
-            ],
-            'S.I.H.O' => [
-                'name' => 'S.I.H.O',
-                'email' => 'siho@agarven.com',
-                'cargo' => null,
-            ],
-            'Talento Humano' => [
-                'name' => 'Talento Humano',
-                'email' => 'talentohumano@agarven.com',
-                'cargo' => null,
-            ],
+
              'Mantenimiento' => [
                 'name' => 'Grenmarys Almeida',
                 'email' => 'grenmarys.almeida@agarven.com',
