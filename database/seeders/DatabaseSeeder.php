@@ -215,6 +215,7 @@ class DatabaseSeeder extends Seeder
                 'email' => 'hectlys.pina@agarven.com',
                 'cargo' => 'Lider de Procura',
             ],
+
             'Almacen' => [
                 'name' => 'Daniela Carrasco',
                 'email' => 'daniela.carrasco@agarven.com',
@@ -223,7 +224,7 @@ class DatabaseSeeder extends Seeder
 
             'Validador Finanzas' => [
                 'name' => 'Vanessa Manjarres',
-                'email' => 'vanessa@agarven.com',
+                'email' => 'vanessa.manjarres@agarven.com',
                 'cargo' => 'Validadora Finanzas',
             ],
 
@@ -231,6 +232,11 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Grenmarys Almeida',
                 'email' => 'grenmarys.almeida@agarven.com',
                 'cargo' => 'Analista',
+            ],
+            'Administracion' => [
+            'name' => 'Jhoannis Rodriguez',
+            'email' => 'jhoannis.rodriguez@agarven.com',
+            'cargo' => 'Analista',
             ],
         ];
 
@@ -243,6 +249,11 @@ class DatabaseSeeder extends Seeder
             }
 
             $override = $roleUserOverrides[$rol] ?? null;
+
+            // Solo se crean usuarios con identidad definida (sin usuarios genericos por rol).
+            if (! $override) {
+                continue;
+            }
 
             $emailName = preg_replace('/[^a-z0-9]/', '', strtolower($rol)) ?? strtolower($rol);
             $email = $override['email'] ?? ($emailName . "@agarven.com");

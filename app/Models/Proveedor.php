@@ -20,6 +20,11 @@ class Proveedor extends Model
         'email',
         'contacto',
         'telefono',
+        'banco',
+        'numero_cuenta',
+        'tipo_documento',
+        'documento',
+        'beneficiario_nombre_apellido',
     ];
 
     public function sumariosGanados(): HasMany

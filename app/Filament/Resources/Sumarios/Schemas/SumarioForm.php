@@ -1216,22 +1216,68 @@ class SumarioForm
     }
 
     /**
-     * @return array<int, TextInput>
+     * @return array<int, \Filament\Schemas\Components\Component>
      */
     private static function providerCreateOptionForm(): array
     {
         return [
-            TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
-            TextInput::make('rif')->label('RIF')->required()->maxLength(255),
-            TextInput::make('direccion')->label('Direccion')->required()->maxLength(255),
-            TextInput::make('ciudad')->label('Ciudad')->required()->maxLength(255),
-            TextInput::make('email')
-                ->label('Email')
-                ->email()
-                ->maxLength(255)
-                ->dehydrateStateUsing(fn ($state): ?string => filled(trim((string) $state)) ? trim((string) $state) : null),
-            TextInput::make('contacto')->label('Contacto')->required()->maxLength(255),
-            TextInput::make('telefono')->label('Telefono')->required()->maxLength(50),
+            Section::make('Datos de Empresa')
+                ->schema([
+                    Grid::make(2)
+                        ->schema([
+                            TextInput::make('nombre')->label('Nombre')->required()->maxLength(255),
+                            TextInput::make('rif')->label('RIF')->required()->maxLength(255),
+                            TextInput::make('direccion')->label('Direccion')->required()->maxLength(255),
+                            TextInput::make('ciudad')->label('Ciudad')->required()->maxLength(255),
+                            TextInput::make('email')
+                                ->label('Email')
+                                ->email()
+                                ->maxLength(255)
+                                ->dehydrateStateUsing(fn ($state): ?string => filled(trim((string) $state)) ? trim((string) $state) : null),
+                            TextInput::make('contacto')->label('Contacto')->required()->maxLength(255),
+                            TextInput::make('telefono')->label('Telefono')->required()->maxLength(50),
+                        ]),
+                ])
+                ->columnSpanFull(),
+
+            Section::make('Datos Bancarios')
+                ->schema([
+                    Grid::make(2)
+                        ->schema([
+                            TextInput::make('banco')
+                                ->label('Banco')
+                                ->maxLength(255),
+
+                            TextInput::make('numero_cuenta')
+                                ->label('N-Cuenta')
+                                ->maxLength(50),
+
+                            Select::make('tipo_documento')
+                                ->label('Tipo de Documento')
+                                ->options([
+                                    'V' => 'V',
+                                    'E' => 'E',
+                                    'P' => 'P',
+                                    'J' => 'J',
+                                    'G' => 'G',
+                                    'R' => 'R',
+                                    'F' => 'F',
+                                    'I' => 'I',
+                                ])
+                                ->native(false)
+                                ->placeholder('Seleccione'),
+
+                            TextInput::make('documento')
+                                ->label('Documento')
+                                ->maxLength(50),
+
+                            TextInput::make('beneficiario_nombre_apellido')
+                                ->label('Nombre y Apellido Beneficiario')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                        ]),
+                ])
+                ->columnSpanFull(),
         ];
     }
 
