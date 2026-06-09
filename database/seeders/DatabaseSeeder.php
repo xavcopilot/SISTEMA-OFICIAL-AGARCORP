@@ -56,6 +56,7 @@ class DatabaseSeeder extends Seeder
                 'departamento' => 'FINANZAS',
                 'cargo' => 'Gerente de Finanzas',
                 'role' => 'Gerencia de Finanzas',
+                'extra_roles' => ['Finanzas Pagos'],
             ],
         ];
 
@@ -511,7 +512,13 @@ class DatabaseSeeder extends Seeder
                 'cargo_id' => $cargoId,
             ]);
 
-            $user->syncRoles([$executiveRole->name]);
+            $rolesToAssign = [$executiveRole->name];
+
+            foreach (($executiveUser['extra_roles'] ?? []) as $extraRoleName) {
+                $rolesToAssign[] = Role::firstOrCreate(['name' => (string) $extraRoleName])->name;
+            }
+
+            $user->syncRoles(array_values(array_unique($rolesToAssign)));
         }
 
         // ===== USUARIO ADMIN LEGACY =====

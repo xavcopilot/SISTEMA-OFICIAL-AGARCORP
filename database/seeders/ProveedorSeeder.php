@@ -21,6 +21,11 @@ class ProveedorSeeder extends Seeder
                 'email' => 'orion.suministros@gmail.com',
                 'contacto' => 'Luis Mendoza',
                 'telefono' => '0414-6729345',
+                'banco' => 'Banco de Venezuela',
+                'numero_cuenta' => '01020012345678901234',
+                'tipo_documento' => 'J',
+                'documento' => '29485736',
+                'beneficiario_nombre_apellido' => 'Tecno Suministros Orion',
             ],
             [
                 'nombre' => 'Distribuidora Maxis C.A.',
@@ -30,6 +35,11 @@ class ProveedorSeeder extends Seeder
                 'email' => 'maxis.distribuidora@gmail.com',
                 'contacto' => 'Andrea Salazar',
                 'telefono' => '0424-5187602',
+                'banco' => 'Banesco',
+                'numero_cuenta' => '01340098765432109876',
+                'tipo_documento' => 'J',
+                'documento' => '31590248',
+                'beneficiario_nombre_apellido' => 'Distribuidora Maxis C.A.',
             ],
             [
                 'nombre' => 'Insumos Delta 360 C.A.',
@@ -39,6 +49,11 @@ class ProveedorSeeder extends Seeder
                 'email' => 'delta360.insumos@gmail.com',
                 'contacto' => 'Carlos Pereira',
                 'telefono' => '0412-8451973',
+                'banco' => 'Banco Mercantil',
+                'numero_cuenta' => '01050045678901234567',
+                'tipo_documento' => 'J',
+                'documento' => '32764109',
+                'beneficiario_nombre_apellido' => 'Insumos Delta 360 C.A.',
             ],
         ];
 

@@ -11,6 +11,8 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -73,6 +75,17 @@ class AdministracionPagosOdcTable
                     ->modalCancelActionLabel('Cerrar')
                     ->modalWidth('7xl')
                     ->modalContent(fn ($record): HtmlString => new HtmlString(OdcModalSummaryRenderer::render($record))),
+
+                Action::make('verDatosBancariosProveedor')
+                    ->label('Ver Datos Bancarios')
+                    ->icon(Heroicon::OutlinedBuildingLibrary)
+                    ->color('gray')
+                    ->modalHeading(fn ($record): string => 'Proveedor | ' . (string) ($record->proveedor?->nombre ?? 'Sin proveedor'))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->fillForm(fn ($record): array => self::getProveedorViewFormData($record))
+                    ->form(self::getProveedorViewSchema())
+                    ->visible(fn ($record): bool => filled($record->proveedor_id)),
 
                 Action::make('verComprobantePago')
                     ->label('Ver comprobante')
@@ -175,6 +188,63 @@ class AdministracionPagosOdcTable
                     }),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function getProveedorViewSchema(): array
+    {
+        return [
+            Section::make('Datos de Empresa')
+                ->schema([
+                    Grid::make(2)
+                        ->schema([
+                            TextInput::make('nombre')->label('Nombre')->disabled(),
+                            TextInput::make('rif')->label('RIF')->disabled(),
+                            TextInput::make('direccion')->label('Direccion')->disabled(),
+                            TextInput::make('ciudad')->label('Ciudad')->disabled(),
+                            TextInput::make('email')->label('Email')->disabled(),
+                            TextInput::make('contacto')->label('Contacto')->disabled(),
+                            TextInput::make('telefono')->label('Telefono')->disabled(),
+                        ]),
+                ]),
+            Section::make('Datos Bancarios')
+                ->schema([
+                    Grid::make(2)
+                        ->schema([
+                            TextInput::make('banco')->label('Banco')->disabled(),
+                            TextInput::make('numero_cuenta')->label('N-Cuenta')->disabled(),
+                            TextInput::make('tipo_documento')->label('Tipo de Documento')->disabled(),
+                            TextInput::make('documento')->label('Documento')->disabled(),
+                            TextInput::make('beneficiario_nombre_apellido')
+                                ->label('Nombre y Apellido Beneficiario')
+                                ->disabled()
+                                ->columnSpanFull(),
+                        ]),
+                ]),
+        ];
+    }
+
+    private static function getProveedorViewFormData(mixed $record): array
+    {
+        $proveedor = $record?->proveedor;
+
+        if (! $proveedor) {
+            return [];
+        }
+
+        return [
+            'nombre' => (string) ($proveedor->nombre ?? '-'),
+            'rif' => (string) ($proveedor->rif ?? '-'),
+            'direccion' => (string) ($proveedor->direccion ?? '-'),
+            'ciudad' => (string) ($proveedor->ciudad ?? '-'),
+            'email' => (string) ($proveedor->email ?? '-'),
+            'contacto' => (string) ($proveedor->contacto ?? '-'),
+            'telefono' => (string) ($proveedor->telefono ?? '-'),
+            'banco' => (string) ($proveedor->banco ?? '-'),
+            'numero_cuenta' => (string) ($proveedor->numero_cuenta ?? '-'),
+            'tipo_documento' => (string) ($proveedor->tipo_documento ?? '-'),
+            'documento' => (string) ($proveedor->documento ?? '-'),
+            'beneficiario_nombre_apellido' => (string) ($proveedor->beneficiario_nombre_apellido ?? '-'),
+        ];
     }
 
     private static function notifyProcuraPaymentRegistered(mixed $record): void

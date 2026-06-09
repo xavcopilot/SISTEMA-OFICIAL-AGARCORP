@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -29,6 +30,7 @@ class SumarioFormatoController extends Controller
     private const PDF_PRINT_AREA_END_COLUMN = 'P';
     private const PDF_PRINT_AREA_MIN_END_ROW = 37;
     private const PDF_PRINT_AREA_MAX_END_ROW = 41;
+    private const SELECTED_OPTION_HIGHLIGHT_COLOR = 'FFFFEB3B';
     private const PDF_SETTINGS = [
         'width_scale' => 0.85,
         'horizontal_centered' => true,
@@ -46,9 +48,9 @@ class SumarioFormatoController extends Controller
         'firma_revisado',
     ];
     private const SIGNATURE_RENDER_OVERRIDES = [
-           13 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 2],
+           10 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 2],
         2 => ['height' => 90, 'offset_x' => 0, 'offset_y' => 0],
-        5 => ['height' => 90, 'offset_x' => 30, 'offset_y' => 2],
+        4 => ['height' => 90, 'offset_x' => 30, 'offset_y' => 2],
      
     ];
 
@@ -552,8 +554,78 @@ class SumarioFormatoController extends Controller
         for ($index = 0; $index < $totalRows; $index++) {
             $row = $rows[$index];
             $item = $items->get($index);
+            $providerCells = $this->resolveProviderCellsByRowTokens($sheet, $row, $highestColumnIndex);
             $tokens = $this->buildItemTokens($item, $index + 1);
             $this->replaceTokensInRow($sheet, $row, $tokens, $highestColumnIndex);
+            $this->highlightSelectedProviderCells($sheet, $item, $providerCells);
+        }
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function resolveProviderCellsByRowTokens(Worksheet $sheet, int $row, int $highestColumnIndex): array
+    {
+        $providerCells = [
+            1 => [],
+            2 => [],
+            3 => [],
+        ];
+
+        for ($column = 1; $column <= $highestColumnIndex; $column++) {
+            $cell = $sheet->getCellByColumnAndRow($column, $row);
+            $value = $cell->getValue();
+
+            if ($value instanceof RichText) {
+                $textValue = $value->getPlainText();
+            } elseif (is_string($value)) {
+                $textValue = $value;
+            } else {
+                continue;
+            }
+
+            if ($textValue === '') {
+                continue;
+            }
+
+            for ($provider = 1; $provider <= 3; $provider++) {
+                if (
+                    $this->containsTokenVariant($textValue, 'marca_prov' . $provider)
+                    || $this->containsTokenVariant($textValue, 'precio_unitario_prov' . $provider)
+                    || $this->containsTokenVariant($textValue, 'precio_total_prov' . $provider)
+                ) {
+                    $providerCells[$provider][] = Coordinate::stringFromColumnIndex($column) . $row;
+                }
+            }
+        }
+
+        return $providerCells;
+    }
+
+    /**
+     * @param array<int, array<int, string>> $providerCells
+     */
+    private function highlightSelectedProviderCells(Worksheet $sheet, mixed $item, array $providerCells): void
+    {
+        if (! $item) {
+            return;
+        }
+
+        $selectedOption = $item->opciones->firstWhere('seleccionada', true);
+        $selectedProvider = (int) ($selectedOption?->opcion_numero ?? 0);
+
+        if (! in_array($selectedProvider, [1, 2, 3], true)) {
+            return;
+        }
+
+        $cellsToHighlight = $providerCells[$selectedProvider] ?? [];
+
+        foreach ($cellsToHighlight as $coordinate) {
+            $sheet->getStyle($coordinate)
+                ->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()
+                ->setARGB(self::SELECTED_OPTION_HIGHLIGHT_COLOR);
         }
     }
 
