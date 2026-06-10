@@ -820,6 +820,8 @@ class ListInventoryMovements extends ListRecords
         $entregadoPorUser = $this->resolveUserSelection($data, 'entregado_por_user_id');
 
         DB::transaction(function () use ($data, $almacenistaSelection, $entregadoPorUser, &$processedProductIds, &$movementId): void {
+            $dptoResponsable = $this->resolveMovementDepartment($data);
+
             $movement = InventoryMovement::create([
                 'tipo' => 'ingreso',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('ingreso'),
@@ -832,6 +834,7 @@ class ListInventoryMovements extends ListRecords
                 'proveedor' => $data['proveedor'] ?? null,
                 'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
                 'almacenista' => $almacenistaSelection['name'],
+                'dpto_responsable' => $dptoResponsable,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 
@@ -902,6 +905,8 @@ class ListInventoryMovements extends ListRecords
         $entregadoPorUser = $this->resolveUserSelection($data, 'entregado_por_user_id');
 
         DB::transaction(function () use ($data, $almacenistaSelection, $entregadoPorUser, &$processedProductIds, &$movementId): void {
+            $dptoResponsable = $this->resolveMovementDepartment($data);
+
             $movement = InventoryMovement::create([
                 'tipo' => 'entrada',
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('entrada'),
@@ -914,6 +919,7 @@ class ListInventoryMovements extends ListRecords
                 'proveedor' => $data['proveedor'] ?? null,
                 'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
                 'almacenista' => $almacenistaSelection['name'],
+                'dpto_responsable' => $dptoResponsable,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 
@@ -999,6 +1005,25 @@ class ListInventoryMovements extends ListRecords
         return $selectedUserId > 0 ? User::query()->find($selectedUserId) : null;
     }
 
+    private function resolveMovementDepartment(array $data): ?string
+    {
+        $fromHeader = trim((string) ($data['dpto_responsable'] ?? ''));
+
+        if ($fromHeader !== '') {
+            return $fromHeader;
+        }
+
+        foreach (($data['items'] ?? []) as $item) {
+            $fromItem = trim((string) (($item['dpto_responsable'] ?? $item['responsable'] ?? '')));
+
+            if ($fromItem !== '') {
+                return $fromItem;
+            }
+        }
+
+        return null;
+    }
+
     private function storeSalida(array $data): void
     {
         $this->clearMovementDraft('salida');
@@ -1014,8 +1039,6 @@ class ListInventoryMovements extends ListRecords
                 'nro_control' => $data['nro_control'] ?? InventoryMovement::generateControlNumber('salida'),
                 'almacenista' => $data['almacenista_visual'] ?? auth()->user()?->name,
                 'dpto_responsable' => $dptoResponsable !== '' ? $dptoResponsable : null,
-                'responsable_destino' => null,
-                'dpto_destino' => $dptoResponsable !== '' ? $dptoResponsable : null,
                 'comentarios' => $data['comentarios'] ?? null,
             ]);
 

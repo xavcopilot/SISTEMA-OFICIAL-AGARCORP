@@ -53,8 +53,6 @@ class InventoryMovement extends Model
         'entregado_por',
         'almacenista',
         'dpto_responsable',
-        'responsable_destino',
-        'dpto_destino',
         'comentarios',
         'solicitar_formato_entrada',
         'total_items',
@@ -97,15 +95,9 @@ class InventoryMovement extends Model
 
     public function getDptoResponsableUnificadoAttribute(): ?string
     {
-        foreach (['dpto_responsable', 'dpto_destino', 'responsable_destino'] as $field) {
-            $value = trim((string) ($this->getAttribute($field) ?? ''));
+        $value = trim((string) ($this->getAttribute('dpto_responsable') ?? ''));
 
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return null;
+        return $value !== '' ? $value : null;
     }
 
     public static function generateControlNumber(string $tipo): string

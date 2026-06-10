@@ -26,8 +26,7 @@ return new class extends Migration
             $table->string('entregado_por')->nullable();
             $table->string('almacenista')->nullable();
             $table->boolean('solicitar_formato_entrada')->default(false);
-            $table->string('responsable_destino')->nullable();
-            $table->string('dpto_destino')->nullable();
+            $table->string('dpto_responsable')->nullable();
             $table->text('comentarios')->nullable();
             $table->unsignedInteger('total_items')->default(0);
             $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();

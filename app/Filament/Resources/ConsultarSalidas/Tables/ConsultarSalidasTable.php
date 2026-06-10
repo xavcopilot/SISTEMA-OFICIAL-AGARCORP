@@ -100,12 +100,7 @@ class ConsultarSalidasTable
                             return $query;
                         }
 
-                        return $query->where(function (Builder $subQuery) use ($dptoResponsable): void {
-                            $subQuery
-                                ->where('dpto_responsable', 'like', '%' . $dptoResponsable . '%')
-                                ->orWhere('dpto_destino', 'like', '%' . $dptoResponsable . '%')
-                                ->orWhere('responsable_destino', 'like', '%' . $dptoResponsable . '%');
-                        });
+                        return $query->where('dpto_responsable', 'like', '%' . $dptoResponsable . '%');
                     }),
 
                 Filter::make('nro_control')
@@ -150,8 +145,6 @@ class ConsultarSalidasTable
                             [
                                 'almacenista' => $data['almacenista'] ?? null,
                                 'dpto_responsable' => $data['dpto_responsable'] ?? null,
-                                'responsable_destino' => null,
-                                'dpto_destino' => $data['dpto_responsable'] ?? null,
                                 'comentarios' => $data['comentarios'] ?? null,
                             ],
                             $data['items'] ?? []

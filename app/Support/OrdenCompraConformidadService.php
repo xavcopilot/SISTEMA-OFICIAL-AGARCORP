@@ -318,7 +318,7 @@ class OrdenCompraConformidadService
                 throw new \RuntimeException('No hay items aceptados pendientes de entrada final.');
             }
 
-            $movement = $this->crearMovimientoDesdeDatos('entrada', $ordenCompra, $user, $movementData);
+            $movement = $this->crearMovimientoDesdeDatos('entrada', $ordenCompra, $user, $movementData, $payload);
             $processedCount = 0;
 
             foreach ($payload as $row) {
@@ -412,7 +412,7 @@ class OrdenCompraConformidadService
                 throw new \RuntimeException('No hay items aceptados pendientes de registro nuevo.');
             }
 
-            $movement = $this->crearMovimientoDesdeDatos('ingreso', $ordenCompra, $user, $movementData);
+            $movement = $this->crearMovimientoDesdeDatos('ingreso', $ordenCompra, $user, $movementData, $payload);
             $processedCount = 0;
             $line = 1;
 
@@ -511,11 +511,12 @@ class OrdenCompraConformidadService
             'proveedor' => (string) ($ordenCompra->proveedor?->nombre ?? ''),
             'almacenista_user_id' => $user->id,
             'almacenista' => (string) ($user->name ?? 'Almacen'),
+            'dpto_responsable' => (string) ($solicitud?->departamento_solicitante ?? 'GENERAL'),
             'comentarios' => 'Entrada oficial por items aceptados para ODC ' . (string) $ordenCompra->correlativo_odc,
         ]);
     }
 
-    private function crearMovimientoDesdeDatos(string $tipo, OrdenCompra $ordenCompra, User $user, array $data): InventoryMovement
+    private function crearMovimientoDesdeDatos(string $tipo, OrdenCompra $ordenCompra, User $user, array $data, array $rows = []): InventoryMovement
     {
         $solicitud = $ordenCompra->sumario?->solicitudCompra;
 
@@ -525,6 +526,7 @@ class OrdenCompraConformidadService
         $entregadoPorUser = isset($data['entregado_por_user_id'])
             ? User::query()->find((int) $data['entregado_por_user_id'])
             : null;
+        $dptoResponsable = $this->resolveMovementDepartmentFromData($data, $rows, $solicitud?->departamento_solicitante);
 
         return InventoryMovement::query()->create([
             'tipo' => $tipo,
@@ -538,8 +540,30 @@ class OrdenCompraConformidadService
             'entregado_por_user_id' => $entregadoPorUser?->id,
             'entregado_por' => (string) ($entregadoPorUser?->name ?? ''),
             'almacenista' => (string) ($almacenistaUser?->name ?? $user->name ?? 'Almacen'),
+            'dpto_responsable' => $dptoResponsable,
             'comentarios' => $data['comentarios'] ?? ('Entrada oficial por items aceptados para ODC ' . (string) $ordenCompra->correlativo_odc),
         ]);
+    }
+
+    private function resolveMovementDepartmentFromData(array $data, array $rows, mixed $fallbackDepartment): ?string
+    {
+        $headerDepartment = trim((string) ($data['dpto_responsable'] ?? ''));
+
+        if ($headerDepartment !== '') {
+            return $headerDepartment;
+        }
+
+        foreach ($rows as $row) {
+            $rowDepartment = trim((string) ($row['dpto_responsable'] ?? $row['responsable'] ?? ''));
+
+            if ($rowDepartment !== '') {
+                return $rowDepartment;
+            }
+        }
+
+        $fallback = trim((string) ($fallbackDepartment ?? ''));
+
+        return $fallback !== '' ? $fallback : 'GENERAL';
     }
 
     private function finalizarProcesamientoAlmacen(OrdenCompra $ordenCompra, InventoryMovement $movement, int $processedCount): OrdenCompra
