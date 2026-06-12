@@ -25,7 +25,8 @@ class DepartamentoSeeder extends Seeder
             'A.I.T',              // 12 
             'SERVICIO TECNICO',   // 13
             'ALS',     
-            'PROCURA',           
+            'PROCURA', 
+            'PROYECTOS',           
         ];
 
         foreach ($nombres as $nombre) {

@@ -65,6 +65,7 @@ class DatabaseSeeder extends Seeder
             'Procura'     => 'procura',
             'Almacen'     => 'almacen',
             'Talento Humano' => 'talentohumano',
+            'Proyectos'   => 'proyectos',
             'A.I.T'       => 'ait',
             'Validador Finanzas' => 'validadorfinanzas',
             'Finanzas Pagos'    => 'finanzaspagos',
@@ -202,6 +203,7 @@ class DatabaseSeeder extends Seeder
             'Procura' => 'ADMINISTRACIÓN',
             'Almacen' => 'ALMACEN',
             'Talento Humano' => 'TALENTO HUMANO',
+            'Proyectos' => 'PROYECTOS',
             'A.I.T' => 'A.I.T',
             'Validador Finanzas' => 'FINANZAS',
             'Finanzas Pagos' => 'FINANZAS',
@@ -229,14 +231,21 @@ class DatabaseSeeder extends Seeder
                 'cargo' => 'Validadora Finanzas',
             ],
 
-             'Mantenimiento' => [
+            'Mantenimiento' => [
                 'name' => 'Grenmarys Almeida',
                 'email' => 'grenmarys.almeida@agarven.com',
                 'cargo' => 'Analista',
             ],
+
             'Administracion' => [
             'name' => 'Jhoannis Rodriguez',
             'email' => 'jhoannis.rodriguez@agarven.com',
+            'cargo' => 'Analista',
+            ],
+            
+            'Proyectos' => [
+            'name' => 'Valeria Febres',
+            'email' => 'valeria.febres@agarven.com',
             'cargo' => 'Analista',
             ],
         ];
@@ -464,6 +473,9 @@ class DatabaseSeeder extends Seeder
 
         // ===== TALENTO HUMANO =====
         Role::firstOrCreate(['name' => 'Talento Humano'])->syncPermissions($solicitanteBasePermissions);
+
+        // ===== PROYECTOS =====
+        Role::firstOrCreate(['name' => 'Proyectos'])->syncPermissions($solicitanteBasePermissions);
 
         // ===== MANTENIMIENTO =====
         Role::firstOrCreate(['name' => 'Mantenimiento'])->syncPermissions($solicitanteBasePermissions);

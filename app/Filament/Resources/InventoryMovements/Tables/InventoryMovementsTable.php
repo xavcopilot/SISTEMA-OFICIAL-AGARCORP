@@ -79,13 +79,6 @@ class InventoryMovementsTable
                     ->label('Modificado por')
                     ->searchable()
                     ->toggleable(),
-
-                TextColumn::make('formato_entrada')
-                    ->label('Formato Entrada')
-                    ->state(fn (?InventoryMovement $record): string => ($record && (string) $record->tipo === 'entrada') ? 'Ver formato' : '')
-                    ->url(fn (?InventoryMovement $record): string => ($record && (string) $record->tipo === 'entrada') ? route('inventario.movimientos.formato-entrada', ['inventoryMovement' => $record, 'download' => 1]) : '')
-                    ->openUrlInNewTab()
-                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('tipo')
