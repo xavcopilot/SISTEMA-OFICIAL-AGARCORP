@@ -11,6 +11,7 @@ use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
 use App\Support\ControlCodeGenerator;
+use App\Support\SumarioProviderDocumentManager;
 use App\Support\SumarioProviderGrouping;
 use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
@@ -119,6 +120,18 @@ class CreateSumario extends CreateRecord
                     return;
                 }
 
+                $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+
+                if ($documentValidationMessage !== null) {
+                    Notification::make()
+                        ->title('Propuestas incompletas')
+                        ->body($documentValidationMessage)
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 $this->isSubmittingForValidation = true;
 
                 try {
@@ -208,6 +221,7 @@ class CreateSumario extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+        $providerDocumentData = $data;
 
         $proveedorA = trim((string) ($data['proveedor_a_nombre'] ?? ''));
         $proveedorB = trim((string) ($data['proveedor_b_nombre'] ?? ''));
@@ -218,10 +232,13 @@ class CreateSumario extends CreateRecord
             $data['comparativo_items'],
             $data['proveedor_a_nombre'],
             $data['proveedor_b_nombre'],
-            $data['proveedor_c_nombre']
+            $data['proveedor_c_nombre'],
+            $data['propuestas_proveedor_1_paths'],
+            $data['propuestas_proveedor_2_paths'],
+            $data['propuestas_proveedor_3_paths']
         );
 
-        return DB::transaction(function () use ($data, $rows, $proveedorA, $proveedorB, $proveedorC): Sumario {
+        return DB::transaction(function () use ($data, $rows, $proveedorA, $proveedorB, $proveedorC, $providerDocumentData): Sumario {
             /** @var Sumario $sumario */
             $sumario = Sumario::query()->create($data);
 
@@ -255,6 +272,12 @@ class CreateSumario extends CreateRecord
                     ->whereKey($sumario->solicitud_compra_id)
                     ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
             }
+
+            SumarioProviderDocumentManager::syncForSumario(
+                $sumario,
+                $providerDocumentData,
+                fn (string $providerName): ?int => $this->resolveProveedorIdByName($providerName)
+            );
 
             return $sumario;
         });

@@ -6,16 +6,10 @@ class SumarioModalSummaryRenderer
 {
     public static function render(mixed $record): string
     {
-        $sumario = $record->loadMissing([
-            'solicitudCompra',
-            'elaboradoPor',
-            'revisadoPor',
-            'validadoPor',
-            'decisionGerenciaPor',
-            'items.opciones',
-        ]);
+        $sumario = self::loadSummaryRelations($record);
 
         return self::renderHeaderSummary($sumario)
+            . self::renderProviderDocumentsSummary($sumario)
             . '<div style="margin-bottom:8px;font-weight:700;">Cuadro comparativo de cotizaciones</div>'
             . self::renderComparativeTable($sumario)
             . self::renderFooterSummary($sumario)
@@ -25,28 +19,14 @@ class SumarioModalSummaryRenderer
 
     public static function renderHeader(mixed $record): string
     {
-        $sumario = $record->loadMissing([
-            'solicitudCompra',
-            'elaboradoPor',
-            'revisadoPor',
-            'validadoPor',
-            'decisionGerenciaPor',
-            'items.opciones',
-        ]);
+        $sumario = self::loadSummaryRelations($record);
 
         return self::renderHeaderSummary($sumario);
     }
 
     public static function renderFooter(mixed $record): string
     {
-        $sumario = $record->loadMissing([
-            'solicitudCompra',
-            'elaboradoPor',
-            'revisadoPor',
-            'validadoPor',
-            'decisionGerenciaPor',
-            'items.opciones',
-        ]);
+        $sumario = self::loadSummaryRelations($record);
 
         return self::renderFooterSummary($sumario);
     }
@@ -86,6 +66,24 @@ class SumarioModalSummaryRenderer
     public static function providerColumnNames(mixed $sumario): array
     {
         return self::resolveProviderColumnNames($sumario);
+    }
+
+    private static function loadSummaryRelations(mixed $record): mixed
+    {
+        $relations = [
+            'solicitudCompra',
+            'elaboradoPor',
+            'revisadoPor',
+            'validadoPor',
+            'decisionGerenciaPor',
+            'items.opciones',
+        ];
+
+        if (SumarioProviderDocumentManager::hasPersistenceTable()) {
+            $relations[] = 'providerDocuments';
+        }
+
+        return $record->loadMissing($relations);
     }
 
     private static function renderHeaderSummary(mixed $sumario): string
@@ -129,6 +127,59 @@ class SumarioModalSummaryRenderer
             . '<div><strong>Revisado por:</strong> ' . e((string) ($sumario->revisadoPor?->name ?? '-')) . '</div>'
             . '<div style="grid-column:1 / -1;"><strong>Observaciones:</strong><br>' . nl2br(e((string) ($sumario->observaciones ?? '-'))) . '</div>'
             . '</div>'
+            . '</div>';
+    }
+
+    private static function renderProviderDocumentsSummary(mixed $sumario): string
+    {
+        if (! SumarioProviderDocumentManager::hasPersistenceTable()) {
+            return '';
+        }
+
+        $providerNames = self::resolveProviderColumnNames($sumario);
+        $documentsBySlot = $sumario->providerDocuments->groupBy('opcion_numero');
+        $cards = '';
+
+        foreach ([1, 2, 3] as $slot) {
+            $providerName = trim((string) ($providerNames[$slot] ?? ''));
+
+            if ($providerName === '') {
+                continue;
+            }
+
+            $documents = $documentsBySlot->get($slot, collect());
+            $links = '';
+
+            foreach ($documents as $document) {
+                $url = route('sumarios.propuestas.download', [
+                    'sumario' => $sumario,
+                    'documento' => $document,
+                    'inline' => 1,
+                ]);
+
+                $links .= '<li style="margin-bottom:4px;"><a href="' . e($url) . '" target="_blank" rel="noopener noreferrer" style="color:#1d4ed8;text-decoration:underline;">'
+                    . e((string) ($document->nombre_original ?: basename((string) $document->archivo_path)))
+                    . '</a></li>';
+            }
+
+            if ($links === '') {
+                $links = '<li style="color:#991b1b;">Sin propuestas cargadas</li>';
+            }
+
+            $cards .= '<div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;background:#fff;">'
+                . '<div style="font-weight:700;margin-bottom:8px;">' . e($providerName) . '</div>'
+                . '<div style="font-size:12px;color:#475569;margin-bottom:6px;">Columna proveedor ' . $slot . '</div>'
+                . '<ul style="margin:0;padding-left:18px;font-size:12px;">' . $links . '</ul>'
+                . '</div>';
+        }
+
+        if ($cards === '') {
+            return '';
+        }
+
+        return '<div style="margin-bottom:12px;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;">'
+            . '<div style="padding:10px 12px;background:#eef2ff;font-weight:700;">Propuestas adjuntas por proveedor</div>'
+            . '<div style="padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">' . $cards . '</div>'
             . '</div>';
     }
 

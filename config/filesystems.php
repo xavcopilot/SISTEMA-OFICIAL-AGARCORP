@@ -68,6 +68,13 @@ return [
             'report' => false,
         ],
 
+        'sumario_propuestas' => [
+            'driver' => 'local',
+            'root' => base_path('Propuestas-Sumario'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -11,6 +11,7 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
+use App\Support\SumarioProviderDocumentManager;
 use App\Support\SumarioProviderGrouping;
 use App\Support\UserSignaturePath;
 use Filament\Actions\Action;
@@ -234,11 +235,17 @@ class EditSumario extends EditRecord
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var Sumario $sumario */
-        $sumario = $this->record->load([
+        $relations = [
             'items.opciones',
             'elaboradoPor.cargo',
             'revisadoPor.cargo',
-        ]);
+        ];
+
+        if (SumarioProviderDocumentManager::hasPersistenceTable()) {
+            $relations[] = 'providerDocuments';
+        }
+
+        $sumario = $this->record->load($relations);
         $workflow = (string) ($sumario->workflow_estado ?? '');
         $isRejectedWorkflow = $this->isRejectedWorkflow($workflow);
 
@@ -276,6 +283,13 @@ class EditSumario extends EditRecord
         $data['proveedor_a_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 1)?->proveedor_nombre;
         $data['proveedor_b_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 2)?->proveedor_nombre;
         $data['proveedor_c_nombre'] = $sumario->items->first()?->opciones->firstWhere('opcion_numero', 3)?->proveedor_nombre;
+        $providerDocuments = SumarioProviderDocumentManager::hasPersistenceTable()
+            ? $sumario->providerDocuments
+            : collect();
+
+        $data['propuestas_proveedor_1_paths'] = $providerDocuments->where('opcion_numero', 1)->pluck('archivo_path')->values()->all();
+        $data['propuestas_proveedor_2_paths'] = $providerDocuments->where('opcion_numero', 2)->pluck('archivo_path')->values()->all();
+        $data['propuestas_proveedor_3_paths'] = $providerDocuments->where('opcion_numero', 3)->pluck('archivo_path')->values()->all();
         $data['elaborado_por_preview'] = (string) ($sumario->elaboradoPor?->name ?? auth()->user()?->name ?? 'N/A');
         $data['elaborado_cargo_preview'] = (string) ($sumario->elaboradoPor?->cargo?->nombre ?? auth()->user()?->cargo?->nombre ?? 'Sin cargo');
         $data['firma_procura_preview'] = ! $isRejectedWorkflow && filled($sumario->enviado_validacion_finanzas_at)
@@ -400,7 +414,19 @@ class EditSumario extends EditRecord
             return;
         }
 
-        $validatedState = $this->form->getState();
+        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+
+        if ($documentValidationMessage !== null) {
+            Notification::make()
+                ->title('Propuestas incompletas')
+                ->body($documentValidationMessage)
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $validatedState = $this->form->getRawState();
         $data = $this->prepareDraftData($validatedState, $record);
 
         if (blank($data['solicitud_compra_id'] ?? null)) {
@@ -479,7 +505,19 @@ class EditSumario extends EditRecord
             return;
         }
 
-        $validatedState = $this->form->getState();
+        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+
+        if ($documentValidationMessage !== null) {
+            Notification::make()
+                ->title('Propuestas incompletas')
+                ->body($documentValidationMessage)
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $validatedState = $this->form->getRawState();
         $data = $this->prepareDraftData($validatedState, $record);
 
         if (blank($data['solicitud_compra_id'] ?? null)) {
@@ -602,6 +640,7 @@ class EditSumario extends EditRecord
         $sumario = $record;
 
         $rows = self::normalizeRows($data['comparativo_items'] ?? []);
+        $providerDocumentData = $data;
 
         $proveedorA = trim((string) ($data['proveedor_a_nombre'] ?? ''));
         $proveedorB = trim((string) ($data['proveedor_b_nombre'] ?? ''));
@@ -612,10 +651,13 @@ class EditSumario extends EditRecord
             $data['comparativo_items'],
             $data['proveedor_a_nombre'],
             $data['proveedor_b_nombre'],
-            $data['proveedor_c_nombre']
+            $data['proveedor_c_nombre'],
+            $data['propuestas_proveedor_1_paths'],
+            $data['propuestas_proveedor_2_paths'],
+            $data['propuestas_proveedor_3_paths']
         );
 
-        return DB::transaction(function () use ($sumario, $data, $rows, $proveedorA, $proveedorB, $proveedorC): Sumario {
+        return DB::transaction(function () use ($sumario, $data, $rows, $proveedorA, $proveedorB, $proveedorC, $providerDocumentData): Sumario {
             $previousItemIds = $sumario->items()->pluck('solicitud_compra_item_id')->map(fn ($id) => (int) $id)->all();
 
             $sumario->update($data);
@@ -658,6 +700,12 @@ class EditSumario extends EditRecord
                     ->whereKey($sumario->solicitud_compra_id)
                     ->update(['estado' => SolicitudCompra::ESTADO_RECIBIDO_POR_PROCURA]);
             }
+
+            SumarioProviderDocumentManager::syncForSumario(
+                $sumario,
+                $providerDocumentData,
+                fn (string $providerName): ?int => $this->resolveProveedorIdByName($providerName)
+            );
 
             return $sumario->fresh();
         });

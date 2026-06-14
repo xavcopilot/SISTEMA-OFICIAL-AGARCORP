@@ -62,6 +62,13 @@ class Sumario extends Model
         return $this->hasMany(SumarioItem::class);
     }
 
+    public function providerDocuments(): HasMany
+    {
+        return $this->hasMany(SumarioProveedorDocumento::class)
+            ->orderBy('opcion_numero')
+            ->orderBy('id');
+    }
+
     public function ordenesCompra(): HasMany
     {
         return $this->hasMany(OrdenCompra::class);

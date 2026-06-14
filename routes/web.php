@@ -156,6 +156,10 @@ Route::get('/sumarios/{sumario}/formato/impresion', [\App\Http\Controllers\Sumar
     ->middleware(['auth'])
     ->name('sumarios.formato.print');
 
+Route::get('/sumarios/{sumario}/propuestas/{documento}/descargar', \App\Http\Controllers\SumarioProveedorDocumentoDownloadController::class)
+    ->middleware(['auth'])
+    ->name('sumarios.propuestas.download');
+
 Route::get('/ordenes-compra/{ordenCompra}/comprobante/descargar', \App\Http\Controllers\OrdenCompraComprobanteDownloadController::class)
     ->middleware(['auth'])
     ->name('ordenes-compra.comprobante.download');

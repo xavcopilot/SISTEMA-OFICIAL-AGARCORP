@@ -6,9 +6,12 @@ use App\Models\Proveedor;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
 use App\Models\User;
+use App\Support\SumarioProviderDocumentManager;
 use App\Support\SumarioProviderGrouping;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -18,6 +21,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Support\HtmlString;
 
 class SumarioForm
@@ -422,7 +426,7 @@ class SumarioForm
                                 TextInput::make('proveedor_b_nombre')
                                     ->hiddenLabel()
                                     ->placeholder('Nombre proveedor 2')
-                                    ->required()
+                                    ->required(fn (callable $get): bool => self::providerColumnHasContent($get, 2))
                                     ->maxLength(255)
                                     ->live()
                                     ->afterStateUpdated(function ($state, callable $set, callable $get): void {
@@ -434,13 +438,58 @@ class SumarioForm
                                 TextInput::make('proveedor_c_nombre')
                                     ->hiddenLabel()
                                     ->placeholder('Nombre proveedor 3')
-                                    ->required()
+                                    ->required(fn (callable $get): bool => self::providerColumnHasContent($get, 3))
                                     ->maxLength(255)
                                     ->live()
                                     ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                         self::syncProviderCatalogFromName((string) ($state ?? ''), 'proveedor_c_catalogo_id', $set);
                                         self::setColumnTotals(self::recalculateRows($get('comparativo_items') ?? []), $set, $get);
                                     })
+                                    ->columnSpan(4),
+
+                                FileUpload::make('propuestas_proveedor_1_paths')
+                                    ->label('Propuestas proveedor 1')
+                                    ->multiple()
+                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 1))
+                                    ->acceptedFileTypes([
+                                        'application/pdf',
+                                        'image/jpeg',
+                                        'image/png',
+                                        'image/webp',
+                                    ])
+                                    ->maxSize(12000)
+                                    ->helperText('Adjunta la cotizacion del proveedor 1. Sera obligatoria al enviar.')
+                                    ->columnSpan(4),
+
+                                FileUpload::make('propuestas_proveedor_2_paths')
+                                    ->label('Propuestas proveedor 2')
+                                    ->multiple()
+                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 2))
+                                    ->acceptedFileTypes([
+                                        'application/pdf',
+                                        'image/jpeg',
+                                        'image/png',
+                                        'image/webp',
+                                    ])
+                                    ->maxSize(12000)
+                                    ->helperText('Adjunta la cotizacion del proveedor 2. Sera obligatoria al enviar.')
+                                    ->columnSpan(4),
+
+                                FileUpload::make('propuestas_proveedor_3_paths')
+                                    ->label('Propuestas proveedor 3')
+                                    ->multiple()
+                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 3))
+                                    ->acceptedFileTypes([
+                                        'application/pdf',
+                                        'image/jpeg',
+                                        'image/png',
+                                        'image/webp',
+                                    ])
+                                    ->maxSize(12000)
+                                    ->helperText('Adjunta la cotizacion del proveedor 3. Sera obligatoria al enviar.')
                                     ->columnSpan(4),
                             ]),
                     ])
@@ -1279,6 +1328,77 @@ class SumarioForm
                 ])
                 ->columnSpanFull(),
         ];
+    }
+
+    private static function providerColumnHasContent(callable $get, int $providerNumber): bool
+    {
+        $nameField = match ($providerNumber) {
+            2 => 'proveedor_b_nombre',
+            3 => 'proveedor_c_nombre',
+            default => 'proveedor_a_nombre',
+        };
+
+        $catalogField = match ($providerNumber) {
+            2 => 'proveedor_b_catalogo_id',
+            3 => 'proveedor_c_catalogo_id',
+            default => 'proveedor_a_catalogo_id',
+        };
+
+        $proposalField = match ($providerNumber) {
+            2 => 'propuestas_proveedor_2_paths',
+            3 => 'propuestas_proveedor_3_paths',
+            default => 'propuestas_proveedor_1_paths',
+        };
+
+        if (filled($get($nameField) ?? null) || filled($get($catalogField) ?? null)) {
+            return true;
+        }
+
+        $proposalPaths = $get($proposalField) ?? [];
+
+        if (is_array($proposalPaths) && $proposalPaths !== []) {
+            return true;
+        }
+
+        $suffix = (string) $providerNumber;
+
+        foreach (($get('comparativo_items') ?? []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            if (filled($row['marca_prov' . $suffix] ?? null)
+                || filled($row['precio_unitario_prov' . $suffix] ?? null)
+                || filled($row['precio_total_prov' . $suffix] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function proposalUploadFileName(TemporaryUploadedFile $file, callable $get, int $providerNumber): string
+    {
+        $providerField = match ($providerNumber) {
+            2 => 'proveedor_b_nombre',
+            3 => 'proveedor_c_nombre',
+            default => 'proveedor_a_nombre',
+        };
+
+        $providerName = trim((string) ($get($providerField) ?? ''));
+        $providerSlug = Str::slug($providerName !== '' ? $providerName : ('proveedor-' . $providerNumber));
+        $correlativo = trim((string) ($get('correlativo_sdc') ?? ''));
+        $correlativoSlug = Str::upper(Str::slug($correlativo !== '' ? $correlativo : 'sumario-pendiente', '-'));
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+        $extension = $extension !== '' ? $extension : strtolower((string) $file->guessExtension());
+        $extension = $extension !== '' ? $extension : 'bin';
+
+        return $correlativoSlug
+            . '_prov-' . $providerNumber
+            . '_' . $providerSlug
+            . '_' . now()->format('YmdHis')
+            . '_' . Str::lower(Str::random(6))
+            . '.' . $extension;
     }
 
     private static function createProviderFromForm(array $data): int
