@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrdenesCompra\Pages;
 
+use App\Filament\Concerns\HandlesSignatureValidationFailure;
 use App\Filament\Resources\OrdenesCompra\OrdenCompraResource;
 use App\Models\Sumario;
 use App\Support\BcvRateService;
@@ -14,9 +15,12 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class EditOrdenCompra extends EditRecord
 {
+    use HandlesSignatureValidationFailure;
+
     protected static string $resource = OrdenCompraResource::class;
 
     protected ?bool $hasUnsavedDataChangesAlert = true;
@@ -202,7 +206,13 @@ class EditOrdenCompra extends EditRecord
             return;
         }
 
-        $this->save(false, false);
+        try {
+            $this->save(false, false);
+        } catch (ValidationException $exception) {
+            $this->handleSignatureValidationFailure($exception, 'No se pudo enviar la ODC');
+
+            return;
+        }
 
         $isRejectedCorrection = (string) ($this->record->estado ?? '') === 'RECHAZADA'
             && (string) ($this->record->rechazo_etapa ?? '') === 'gerencia_finanzas';
@@ -258,7 +268,13 @@ class EditOrdenCompra extends EditRecord
             return;
         }
 
-        $this->save(false, false);
+        try {
+            $this->save(false, false);
+        } catch (ValidationException $exception) {
+            $this->handleSignatureValidationFailure($exception, 'No se pudo enviar la ODC');
+
+            return;
+        }
 
         $currentRate = app(BcvRateService::class)->rateForOrderCreation();
 

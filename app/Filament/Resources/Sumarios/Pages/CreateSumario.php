@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Sumarios\Pages;
 
+use App\Filament\Concerns\HandlesSignatureValidationFailure;
 use App\Filament\Resources\Sumarios\SumarioResource;
 use App\Models\Proveedor;
 use App\Models\SolicitudCompra;
@@ -23,10 +24,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class CreateSumario extends CreateRecord
 {
+    use HandlesSignatureValidationFailure;
+
+    private const INVALID_UNIT_PRICE_MESSAGE = 'Solo se permiten numeros validos mayores o iguales a 0 en los precios unitarios de cotizaciones.';
+
     protected static string $resource = SumarioResource::class;
 
     protected ?bool $hasUnsavedDataChangesAlert = true;
@@ -132,10 +138,26 @@ class CreateSumario extends CreateRecord
                     return;
                 }
 
+                if ($this->hasInvalidUnitPrices($this->form->getRawState())) {
+                    Notification::make()
+                        ->title('Precios invalidos')
+                        ->body(self::INVALID_UNIT_PRICE_MESSAGE)
+                        ->danger()
+                        ->send();
+
+                    $this->addError('comparativo_items', self::INVALID_UNIT_PRICE_MESSAGE);
+
+                    return;
+                }
+
                 $this->isSubmittingForValidation = true;
 
                 try {
                     $this->create();
+                } catch (ValidationException $exception) {
+                    $this->handleSignatureValidationFailure($exception, 'No se pudo enviar el sumario');
+
+                    return;
                 } catch (Throwable $exception) {
                     report($exception);
 
@@ -448,6 +470,39 @@ class CreateSumario extends CreateRecord
             ->body('La firma no se registro porque la clave de firma no coincide.')
             ->danger()
             ->send();
+
+        return false;
+    }
+
+    private function hasInvalidUnitPrices(array $state): bool
+    {
+        $rows = is_array($state['comparativo_items'] ?? null) ? $state['comparativo_items'] : [];
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            foreach (['precio_unitario_prov1', 'precio_unitario_prov2', 'precio_unitario_prov3'] as $field) {
+                $value = $row[$field] ?? null;
+
+                if (is_string($value)) {
+                    $value = trim($value);
+                }
+
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                if (! is_numeric($value)) {
+                    return true;
+                }
+
+                if ((float) $value < 0) {
+                    return true;
+                }
+            }
+        }
 
         return false;
     }

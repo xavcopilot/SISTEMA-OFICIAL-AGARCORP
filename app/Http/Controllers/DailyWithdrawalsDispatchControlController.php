@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyWithdrawal;
+use App\Support\ExportNoticeResponse;
 use App\Support\LibreOfficePdfConverter;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -82,7 +83,10 @@ class DailyWithdrawalsDispatchControlController extends Controller
             ->get();
 
         if ($approvedWithdrawals->isEmpty()) {
-            abort(Response::HTTP_NOT_FOUND, 'No hay retiros diarios aprobados en el rango de fechas indicado.');
+            return ExportNoticeResponse::emptyData(
+                'No hay retiros diarios para exportar',
+                'No se encontraron retiros diarios aprobados en el rango de fechas seleccionado.'
+            );
         }
 
         $tmpDir = storage_path('app/tmp');

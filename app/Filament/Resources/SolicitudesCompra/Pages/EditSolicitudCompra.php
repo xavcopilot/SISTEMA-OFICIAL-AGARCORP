@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SolicitudesCompra\Pages;
 
+use App\Filament\Concerns\HandlesSignatureValidationFailure;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Models\SolicitudCompraItem;
@@ -17,9 +18,12 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class EditSolicitudCompra extends EditRecord
 {
+    use HandlesSignatureValidationFailure;
+
     protected static string $resource = SolicitudCompraResource::class;
 
     protected ?bool $hasUnsavedDataChangesAlert = true;
@@ -71,6 +75,10 @@ class EditSolicitudCompra extends EditRecord
 
                 try {
                     $this->save();
+                } catch (ValidationException $exception) {
+                    $this->handleSignatureValidationFailure($exception, 'No se pudo guardar la correccion');
+
+                    return;
                 } finally {
                     $this->revisionSubmissionData = null;
                 }
@@ -453,6 +461,10 @@ class EditSolicitudCompra extends EditRecord
 
         try {
             $this->save(false, false);
+        } catch (ValidationException $exception) {
+            $this->handleSignatureValidationFailure($exception, 'No se pudo enviar la solicitud');
+
+            return;
         } finally {
             $this->isSubmittingDraft = false;
         }

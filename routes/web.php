@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\DailyWithdrawalRecep;
+use App\Support\ExportNoticeResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,13 @@ Route::get('/admin/tickets/export', function () {
 
 // public (authenticated) export route outside of Filament panel to avoid Filament's internal 404
 Route::get('/tickets/export', function () {
+    if (! \App\Models\Ticket::query()->exists()) {
+        return ExportNoticeResponse::emptyData(
+            'No hay tickets para exportar',
+            'Cuando existan tickets registrados, podras exportarlos en este formato.'
+        );
+    }
+
     return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\TicketsExport(), 'tickets.xlsx');
 })->middleware(['auth']);
 
@@ -45,6 +53,17 @@ Route::get('/inventario/entradas/export/{format}', function (string $format) {
 
     if (! in_array($format, ['xlsx', 'csv'], true)) {
         abort(404);
+    }
+
+    $hasRows = \App\Models\MovementItem::query()
+        ->whereHas('movement', fn ($movement) => $movement->whereIn('tipo', ['ingreso', 'entrada']))
+        ->exists();
+
+    if (! $hasRows) {
+        return ExportNoticeResponse::emptyData(
+            'No hay entradas para exportar',
+            'No se encontraron registros de entradas/ingresos en el sistema para generar este archivo.'
+        );
     }
 
     $writerType = $format === 'csv'
@@ -65,6 +84,17 @@ Route::get('/inventario/salidas/export/{format}', function (string $format) {
         abort(404);
     }
 
+    $hasRows = \App\Models\MovementItem::query()
+        ->whereHas('movement', fn ($movement) => $movement->where('tipo', 'salida'))
+        ->exists();
+
+    if (! $hasRows) {
+        return ExportNoticeResponse::emptyData(
+            'No hay salidas para exportar',
+            'No se encontraron registros de salidas en el sistema para generar este archivo.'
+        );
+    }
+
     $writerType = $format === 'csv'
         ? \Maatwebsite\Excel\Excel::CSV
         : \Maatwebsite\Excel\Excel::XLSX;
@@ -83,6 +113,13 @@ Route::get('/inventario/export/{format}', function (string $format) {
         abort(404);
     }
 
+    if (! \App\Models\Product::query()->exists()) {
+        return ExportNoticeResponse::emptyData(
+            'No hay inventario para exportar',
+            'No se encontraron productos registrados para generar la exportacion de inventario.'
+        );
+    }
+
     $writerType = $format === 'csv'
         ? \Maatwebsite\Excel\Excel::CSV
         : \Maatwebsite\Excel\Excel::XLSX;
@@ -99,6 +136,13 @@ Route::get('/inventario/maestro/export/{format}', function (string $format) {
 
     if (! in_array($format, ['xlsx', 'csv'], true)) {
         abort(404);
+    }
+
+    if (! \App\Models\Product::query()->exists()) {
+        return ExportNoticeResponse::emptyData(
+            'No hay productos para exportar',
+            'No se encontraron productos registrados para generar la hoja maestra de inventario.'
+        );
     }
 
     $writerType = $format === 'csv'

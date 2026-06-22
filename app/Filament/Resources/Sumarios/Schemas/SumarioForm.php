@@ -731,6 +731,11 @@ class SumarioForm
                                         TextInput::make('precio_unitario_prov1')
                                             ->label('P/U')
                                             ->numeric()
+                                            ->minValue(0)
+                                            ->validationMessages([
+                                                'numeric' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                                'min_value' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                            ])
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);
@@ -765,6 +770,11 @@ class SumarioForm
                                         TextInput::make('precio_unitario_prov2')
                                             ->label('P/U')
                                             ->numeric()
+                                            ->minValue(0)
+                                            ->validationMessages([
+                                                'numeric' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                                'min_value' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                            ])
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);
@@ -799,6 +809,11 @@ class SumarioForm
                                         TextInput::make('precio_unitario_prov3')
                                             ->label('P/U')
                                             ->numeric()
+                                            ->minValue(0)
+                                            ->validationMessages([
+                                                'numeric' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                                'min_value' => 'Solo se permiten numeros validos mayores o iguales a 0 en este campo de precio.',
+                                            ])
                                             ->live(debounce: 200)
                                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                                 $cantidad = (float) ($get('cantidad') ?? 0);

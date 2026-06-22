@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SolicitudesCompra\Pages;
 
+use App\Filament\Concerns\HandlesSignatureValidationFailure;
 use App\Filament\Resources\SolicitudesCompra\SolicitudCompraResource;
 use App\Models\SolicitudCompra;
 use App\Support\SolicitudCompraFlow;
@@ -10,9 +11,12 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class CreateSolicitudCompra extends CreateRecord
 {
+    use HandlesSignatureValidationFailure;
+
     protected static string $resource = SolicitudCompraResource::class;
 
     protected ?bool $hasUnsavedDataChangesAlert = true;
@@ -78,6 +82,8 @@ class CreateSolicitudCompra extends CreateRecord
 
                 try {
                     $this->create();
+                } catch (ValidationException $exception) {
+                    $this->handleSignatureValidationFailure($exception, 'No se pudo enviar la solicitud');
                 } finally {
                     $this->signatureSubmissionData = null;
                 }
