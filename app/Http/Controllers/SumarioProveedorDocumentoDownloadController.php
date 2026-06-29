@@ -22,19 +22,21 @@ class SumarioProveedorDocumentoDownloadController extends Controller
 
         $path = $this->normalizePath((string) ($documento->archivo_path ?? ''));
 
-        if ($path === '' || ! Storage::disk(SumarioProviderDocumentManager::DISK)->exists($path)) {
+        $disk = Storage::disk(SumarioProviderDocumentManager::disk());
+
+        if ($path === '' || ! $disk->exists($path)) {
             abort(404, 'No se encontro la propuesta solicitada.');
         }
 
         $downloadName = $this->downloadName($documento, $path);
 
         if (request()->boolean('inline')) {
-            return Storage::disk(SumarioProviderDocumentManager::DISK)->response($path, $downloadName, [
+            return $disk->response($path, $downloadName, [
                 'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
             ]);
         }
 
-        return Storage::disk(SumarioProviderDocumentManager::DISK)->download($path, $downloadName);
+        return $disk->download($path, $downloadName);
     }
 
     private function canAccess(): bool

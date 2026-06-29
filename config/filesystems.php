@@ -71,8 +71,8 @@ return [
         'sumario_propuestas' => [
             'driver' => 'local',
             'root' => base_path('Propuestas-Sumario'),
-            'throw' => false,
-            'report' => false,
+            'throw' => true,
+            'report' => true,
         ],
 
         's3' => [

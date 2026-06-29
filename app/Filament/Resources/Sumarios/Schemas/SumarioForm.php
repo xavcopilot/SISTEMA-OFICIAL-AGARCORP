@@ -8,6 +8,7 @@ use App\Models\SolicitudCompraItem;
 use App\Models\User;
 use App\Support\SumarioProviderDocumentManager;
 use App\Support\SumarioProviderGrouping;
+use Filament\Forms\Components\BaseFileUpload;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
@@ -450,7 +451,10 @@ class SumarioForm
                                 FileUpload::make('propuestas_proveedor_1_paths')
                                     ->label('Propuestas proveedor 1')
                                     ->multiple()
-                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->disk(SumarioProviderDocumentManager::disk())
+                                    ->directory('')
+                                    ->storeFiles()
+                                    ->saveUploadedFileUsing(fn (BaseFileUpload $component, TemporaryUploadedFile $file): ?string => self::storeProposalUploadedFile($component, $file))
                                     ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 1))
                                     ->acceptedFileTypes([
                                         'application/pdf',
@@ -465,7 +469,10 @@ class SumarioForm
                                 FileUpload::make('propuestas_proveedor_2_paths')
                                     ->label('Propuestas proveedor 2')
                                     ->multiple()
-                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->disk(SumarioProviderDocumentManager::disk())
+                                    ->directory('')
+                                    ->storeFiles()
+                                    ->saveUploadedFileUsing(fn (BaseFileUpload $component, TemporaryUploadedFile $file): ?string => self::storeProposalUploadedFile($component, $file))
                                     ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 2))
                                     ->acceptedFileTypes([
                                         'application/pdf',
@@ -480,7 +487,10 @@ class SumarioForm
                                 FileUpload::make('propuestas_proveedor_3_paths')
                                     ->label('Propuestas proveedor 3')
                                     ->multiple()
-                                    ->disk(SumarioProviderDocumentManager::DISK)
+                                    ->disk(SumarioProviderDocumentManager::disk())
+                                    ->directory('')
+                                    ->storeFiles()
+                                    ->saveUploadedFileUsing(fn (BaseFileUpload $component, TemporaryUploadedFile $file): ?string => self::storeProposalUploadedFile($component, $file))
                                     ->getUploadedFileNameForStorageUsing(fn (TemporaryUploadedFile $file, callable $get): string => self::proposalUploadFileName($file, $get, 3))
                                     ->acceptedFileTypes([
                                         'application/pdf',
@@ -1414,6 +1424,22 @@ class SumarioForm
             . '_' . now()->format('YmdHis')
             . '_' . Str::lower(Str::random(6))
             . '.' . $extension;
+    }
+
+    private static function storeProposalUploadedFile(BaseFileUpload $component, TemporaryUploadedFile $file): ?string
+    {
+        if (! $file->exists()) {
+            return null;
+        }
+
+        $directory = trim((string) $component->getDirectory(), '/');
+        $fileName = $component->getUploadedFileNameForStorage($file);
+
+        $storedPath = $directory !== ''
+            ? $file->storeAs($directory, $fileName, $component->getDiskName())
+            : $file->storeAs('', $fileName, $component->getDiskName());
+
+        return is_string($storedPath) ? $storedPath : null;
     }
 
     private static function createProviderFromForm(array $data): int

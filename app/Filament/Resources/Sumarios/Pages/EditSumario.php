@@ -424,7 +424,7 @@ class EditSumario extends EditRecord
             return;
         }
 
-        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState(), false);
 
         if ($documentValidationMessage !== null) {
             Notification::make()
@@ -532,7 +532,7 @@ class EditSumario extends EditRecord
             return;
         }
 
-        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+        $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState(), false);
 
         if ($documentValidationMessage !== null) {
             Notification::make()

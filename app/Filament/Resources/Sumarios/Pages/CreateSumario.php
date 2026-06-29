@@ -11,7 +11,6 @@ use App\Models\Sumario;
 use App\Models\SumarioItem;
 use App\Models\SumarioItemOpcion;
 use App\Support\SolicitudItemTrackingService;
-use App\Support\ControlCodeGenerator;
 use App\Support\SumarioProviderDocumentManager;
 use App\Support\SumarioProviderGrouping;
 use App\Support\UserSignaturePath;
@@ -48,6 +47,10 @@ class CreateSumario extends CreateRecord
                 ->color('warning')
                 ->action(function () {
                     $data = $this->prepareDraftData($this->form->getRawState());
+
+                    if (! $this->ensureManualCorrelativo($data, true)) {
+                        return;
+                    }
 
                     if (blank($data['solicitud_compra_id'] ?? null)) {
                         Notification::make()
@@ -112,6 +115,12 @@ class CreateSumario extends CreateRecord
                     ->required(),
             ])
             ->action(function (array $data): void {
+                $rawState = $this->form->getRawState();
+
+                if (! $this->ensureManualCorrelativo($rawState, false)) {
+                    return;
+                }
+
                 if (! auth()->user()?->can('SubmitValidation:Sumario')) {
                     Notification::make()
                         ->title('Sin permisos')
@@ -126,7 +135,7 @@ class CreateSumario extends CreateRecord
                     return;
                 }
 
-                $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($this->form->getRawState());
+                $documentValidationMessage = SumarioProviderDocumentManager::validateRequiredDocuments($rawState);
 
                 if ($documentValidationMessage !== null) {
                     Notification::make()
@@ -138,7 +147,7 @@ class CreateSumario extends CreateRecord
                     return;
                 }
 
-                if ($this->hasInvalidUnitPrices($this->form->getRawState())) {
+                if ($this->hasInvalidUnitPrices($rawState)) {
                     Notification::make()
                         ->title('Precios invalidos')
                         ->body(self::INVALID_UNIT_PRICE_MESSAGE)
@@ -202,9 +211,7 @@ class CreateSumario extends CreateRecord
             3 => (string) ($data['proveedor_c_nombre'] ?? ''),
         ], $rows);
 
-        $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
-            ? trim((string) $data['correlativo_sdc'])
-            : ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
+        $data['correlativo_sdc'] = trim((string) ($data['correlativo_sdc'] ?? ''));
 
         $data['total_compra_prov1'] = $totals[1];
         $data['total_compra_prov2'] = $totals[2];
@@ -357,9 +364,7 @@ class CreateSumario extends CreateRecord
 
         $data['solicitud_compra_id'] = $data['solicitud_compra_id']
             ?? $this->resolveSolicitudCompraIdFromRows($rows);
-        $data['correlativo_sdc'] = filled($data['correlativo_sdc'] ?? null)
-            ? trim((string) $data['correlativo_sdc'])
-            : $this->generateDraftCorrelativo();
+        $data['correlativo_sdc'] = trim((string) ($data['correlativo_sdc'] ?? ''));
         $data['fecha'] = $data['fecha'] ?? now()->toDateString();
         $data['procedencia'] = $data['procedencia'] ?? 'LOCAL';
         $data['tipo_orden'] = $data['tipo_orden'] ?? 'COMPRA';
@@ -407,9 +412,23 @@ class CreateSumario extends CreateRecord
         return 'PENDIENTE';
     }
 
-    private function generateDraftCorrelativo(): string
+    private function ensureManualCorrelativo(array $data, bool $isDraftAction): bool
     {
-        return ControlCodeGenerator::generate('SUM', Sumario::class, 'correlativo_sdc');
+        $correlativo = trim((string) ($data['correlativo_sdc'] ?? ''));
+
+        if ($correlativo !== '') {
+            return true;
+        }
+
+        Notification::make()
+            ->title($isDraftAction ? 'No se pudo guardar borrador' : 'No se pudo enviar el sumario')
+            ->body('Debes escribir manualmente el Numero de Sumario antes de continuar.')
+            ->danger()
+            ->send();
+
+        $this->addError('correlativo_sdc', 'Debes escribir manualmente el Numero de Sumario.');
+
+        return false;
     }
 
     private function validateSignaturePassword(array $data, ?string $requiredRole = null, bool $requirePng = false): bool
