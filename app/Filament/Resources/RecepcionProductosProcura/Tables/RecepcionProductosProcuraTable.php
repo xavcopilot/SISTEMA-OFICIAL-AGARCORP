@@ -67,8 +67,8 @@ class RecepcionProductosProcuraTable
                 TextColumn::make('comprobante_pago_path')
                     ->toggleable()
                     ->label('Comprobante de pago')
-                    ->state(fn ($record): string => filled($record->comprobante_pago_path) ? 'Ver imagen' : 'Sin imagen')
-                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                    ->state(fn ($record): string => $record->hasComprobanteOnDisk() ? 'Ver imagen' : 'Sin imagen')
+                    ->url(fn ($record): ?string => $record->hasComprobanteOnDisk()
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab(),

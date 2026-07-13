@@ -50,22 +50,22 @@ return [
         'odc_comprobantes' => [
             'driver' => 'local',
             'root' => base_path('Comprobantes-ODC'),
-            'throw' => false,
-            'report' => false,
+            'throw' => true,
+            'report' => true,
         ],
 
         'odc_facturas' => [
             'driver' => 'local',
             'root' => base_path('Facturas'),
-            'throw' => false,
-            'report' => false,
+            'throw' => true,
+            'report' => true,
         ],
 
         'odc_notas_entrega' => [
             'driver' => 'local',
             'root' => base_path('Notas de Entrega'),
-            'throw' => false,
-            'report' => false,
+            'throw' => true,
+            'report' => true,
         ],
 
         'sumario_propuestas' => [

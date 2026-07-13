@@ -1518,13 +1518,13 @@ class SolicitudesCompraTable
                 ->sortBy(fn (OrdenCompra $ordenCompra): string => (string) ($ordenCompra->correlativo_odc ?: str_pad((string) $ordenCompra->id, 10, '0', STR_PAD_LEFT)))
                 ->map(function (OrdenCompra $ordenCompra): string {
                     $odcPdfUrl = route('ordenes-compra.formato.print', ['ordenCompra' => $ordenCompra]);
-                    $comprobanteUrl = filled($ordenCompra->comprobante_pago_path)
+                    $comprobanteUrl = $ordenCompra->hasComprobanteOnDisk()
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $ordenCompra, 'inline' => 1])
                         : null;
-                    $facturaUrl = $ordenCompra->hasFacturaRecepcion()
+                    $facturaUrl = $ordenCompra->hasFacturaRecepcionOnDisk()
                         ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1, 'documento' => 'factura'])
                         : null;
-                    $notaEntregaUrl = $ordenCompra->hasNotaEntregaRecepcion()
+                    $notaEntregaUrl = $ordenCompra->hasNotaEntregaRecepcionOnDisk()
                         ? route('ordenes-compra.documento-recepcion.download', ['ordenCompra' => $ordenCompra, 'inline' => 1, 'documento' => 'nota'])
                         : null;
 

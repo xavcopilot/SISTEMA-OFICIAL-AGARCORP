@@ -221,6 +221,43 @@ class OrdenCompra extends Model
         return $this->notaEntregaRecepcionPath() !== null;
     }
 
+    public function hasFacturaRecepcionOnDisk(): bool
+    {
+        $path = $this->facturaRecepcionPath();
+
+        if ($path === null) {
+            return false;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('odc_facturas')->exists($path);
+    }
+
+    public function hasNotaEntregaRecepcionOnDisk(): bool
+    {
+        $path = $this->notaEntregaRecepcionPath();
+
+        if ($path === null) {
+            return false;
+        }
+
+        $disk = (string) ($this->tipo_documento_recepcion ?? '') === 'NOTA'
+            ? 'odc_notas_entrega'
+            : 'odc_facturas';
+
+        return \Illuminate\Support\Facades\Storage::disk($disk)->exists($path);
+    }
+
+    public function hasComprobanteOnDisk(): bool
+    {
+        $path = trim((string) ($this->comprobante_pago_path ?? ''));
+
+        if ($path === '') {
+            return false;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('odc_comprobantes')->exists($path);
+    }
+
     public function rechazoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rechazo_por_user_id');

@@ -91,8 +91,8 @@ class AdministracionPagosOdcTable
                     ->label('Ver comprobante')
                     ->icon(Heroicon::OutlinedDocumentArrowDown)
                     ->color('info')
-                    ->visible(fn ($record): bool => filled($record->comprobante_pago_path))
-                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                    ->visible(fn ($record): bool => $record->hasComprobanteOnDisk())
+                    ->url(fn ($record): ?string => $record->hasComprobanteOnDisk()
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab(),

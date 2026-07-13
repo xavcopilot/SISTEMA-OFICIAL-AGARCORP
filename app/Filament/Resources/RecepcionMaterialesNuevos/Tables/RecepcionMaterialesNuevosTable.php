@@ -87,11 +87,11 @@ class RecepcionMaterialesNuevosTable
                 TextColumn::make('nota_entrega_path')
                     ->toggleable()
                     ->label('Soporte N/E')
-                    ->state(fn ($record): string => $record->hasNotaEntregaRecepcion()
+                    ->state(fn ($record): string => $record->hasNotaEntregaRecepcionOnDisk()
                         ? 'Descargar nota de entrega'
                         : 'No disponible')
-                    ->color(fn ($record): string => $record->hasNotaEntregaRecepcion() ? 'primary' : 'gray')
-                    ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcion()
+                    ->color(fn ($record): string => $record->hasNotaEntregaRecepcionOnDisk() ? 'primary' : 'gray')
+                    ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcionOnDisk()
                         ? route('ordenes-compra.documento-recepcion.download', [
                             'ordenCompra' => $record,
                             'documento' => 'nota',
@@ -102,11 +102,11 @@ class RecepcionMaterialesNuevosTable
                 TextColumn::make('factura_path')
                     ->toggleable()
                     ->label('Soporte Factura')
-                    ->state(fn ($record): string => $record->hasFacturaRecepcion()
+                    ->state(fn ($record): string => $record->hasFacturaRecepcionOnDisk()
                         ? 'Descargar factura'
                         : 'No disponible')
-                    ->color(fn ($record): string => $record->hasFacturaRecepcion() ? 'primary' : 'gray')
-                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion()
+                    ->color(fn ($record): string => $record->hasFacturaRecepcionOnDisk() ? 'primary' : 'gray')
+                    ->url(fn ($record): ?string => $record->hasFacturaRecepcionOnDisk()
                         ? route('ordenes-compra.documento-recepcion.download', [
                             'ordenCompra' => $record,
                             'documento' => 'factura',

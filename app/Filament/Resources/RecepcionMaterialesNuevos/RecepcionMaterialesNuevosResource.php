@@ -83,6 +83,8 @@ class RecepcionMaterialesNuevosResource extends Resource
                             ->whereNull('recepcion_procesada_at');
                     })
                     ->orWhere('workflow_post_compra', 'EN_TRANSICION_ALMACEN')
+                    ->orWhere('workflow_post_compra', 'FACTURA_ENVIADA_ADMINISTRACION')
+                    ->orWhere('workflow_post_compra', 'BACKUP_FACTURA_COMPLETADO')
                     ->orWhereHas('items', fn (Builder $itemsQuery): Builder => $itemsQuery
                         ->where('decision_solicitante', 'ACEPTADO')
                         ->whereNull('procesado_almacen_at'));

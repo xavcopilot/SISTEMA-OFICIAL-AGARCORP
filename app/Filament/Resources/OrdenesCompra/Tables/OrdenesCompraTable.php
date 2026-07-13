@@ -260,8 +260,8 @@ class OrdenesCompraTable
                 TextColumn::make('comprobante_pago_path')
                     ->toggleable()
                     ->label('Comprobante de pago')
-                    ->state(fn ($record): string => filled($record->comprobante_pago_path) ? 'Ver imagen' : 'Sin imagen')
-                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                    ->state(fn ($record): string => $record->hasComprobanteOnDisk() ? 'Ver imagen' : 'Sin imagen')
+                    ->url(fn ($record): ?string => $record->hasComprobanteOnDisk()
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab()
@@ -358,7 +358,7 @@ class OrdenesCompraTable
                     ->label('Ver comprobante')
                     ->icon(Heroicon::OutlinedBanknotes)
                     ->color('info')
-                    ->url(fn ($record): ?string => filled($record->comprobante_pago_path)
+                    ->url(fn ($record): ?string => $record->hasComprobanteOnDisk()
                         ? route('ordenes-compra.comprobante.download', ['ordenCompra' => $record])
                         : null)
                     ->openUrlInNewTab()
@@ -378,15 +378,15 @@ class OrdenesCompraTable
                         && filled($record->proveedor_id)),
 
                 Action::make('verDocumentoRecepcionHistorial')
-                    ->label(fn ($record): string => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion())
+                    ->label(fn ($record): string => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcionOnDisk())
                         ? 'Ver nota de entrega'
                         : 'Ver factura')
                     ->icon(Heroicon::OutlinedDocumentText)
                     ->color('warning')
-                    ->url(fn ($record): ?string => $record->hasFacturaRecepcion() || $record->hasNotaEntregaRecepcion()
+                    ->url(fn ($record): ?string => $record->hasFacturaRecepcionOnDisk() || $record->hasNotaEntregaRecepcionOnDisk()
                         ? route('ordenes-compra.documento-recepcion.download', [
                             'ordenCompra' => $record,
-                            'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcion()) ? 'nota' : 'factura',
+                            'documento' => ((string) ($record->tipo_documento_recepcion ?? '') === 'NOTA' && ! $record->hasFacturaRecepcionOnDisk()) ? 'nota' : 'factura',
                         ])
                         : null)
                     ->openUrlInNewTab()
@@ -932,8 +932,8 @@ class OrdenesCompraTable
         return Action::make('abrirFacturaRecepcion')
             ->label('Descargar factura')
             ->icon(Heroicon::OutlinedEye)
-            ->visible(fn ($record): bool => $record->hasFacturaRecepcion())
-            ->url(fn ($record): ?string => $record->hasFacturaRecepcion()
+            ->visible(fn ($record): bool => $record->hasFacturaRecepcionOnDisk())
+            ->url(fn ($record): ?string => $record->hasFacturaRecepcionOnDisk()
                 ? route('ordenes-compra.documento-recepcion.download', [
                     'ordenCompra' => $record,
                     'documento' => 'factura',
@@ -947,8 +947,8 @@ class OrdenesCompraTable
         return Action::make('abrirNotaEntregaRecepcion')
             ->label('Descargar nota de entrega')
             ->icon(Heroicon::OutlinedDocumentText)
-            ->visible(fn ($record): bool => $record->hasNotaEntregaRecepcion())
-            ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcion()
+            ->visible(fn ($record): bool => $record->hasNotaEntregaRecepcionOnDisk())
+            ->url(fn ($record): ?string => $record->hasNotaEntregaRecepcionOnDisk()
                 ? route('ordenes-compra.documento-recepcion.download', [
                     'ordenCompra' => $record,
                     'documento' => 'nota',
